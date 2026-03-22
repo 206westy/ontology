@@ -1,0 +1,242 @@
+import { describe, it, expect } from 'vitest';
+import {
+  buildCypherStatements,
+  buildRollbackStatements,
+  formatCypherPreview,
+  type CommitDetail,
+} from '@/lib/neo4j/cypher-builder';
+
+const classId = '00000000-0000-0000-0000-000000000001';
+const parentId = '00000000-0000-0000-0000-000000000002';
+const instanceId = '00000000-0000-0000-0000-000000000003';
+const edgeId = '00000000-0000-0000-0000-000000000004';
+const relTypeId = '00000000-0000-0000-0000-000000000005';
+
+describe('buildCypherStatements', () => {
+  it('generates CREATE for class ADD', () => {
+    const details: CommitDetail[] = [
+      {
+        operation: 'ADD',
+        targetTable: 'classes',
+        targetId: classId,
+        afterSnapshot: { name: 'Equipment', description: '장비', color: '#7c3aed' },
+      },
+    ];
+    const stmts = buildCypherStatements(details);
+    expect(stmts.length).toBe(1);
+    expect(stmts[0].query).toContain('CREATE (n:Class');
+    expect(stmts[0].params.name).toBe('Equipment');
+  });
+
+  it('generates IS_A relation when parentId is set', () => {
+    const details: CommitDetail[] = [
+      {
+        operation: 'ADD',
+        targetTable: 'classes',
+        targetId: classId,
+        afterSnapshot: { name: 'DryAsher', description: '', color: '#2563eb', parentId },
+      },
+    ];
+    const stmts = buildCypherStatements(details);
+    expect(stmts.length).toBe(2);
+    expect(stmts[1].query).toContain('IS_A');
+    expect(stmts[1].params.parentId).toBe(parentId);
+  });
+
+  it('generates SET for class MOD', () => {
+    const details: CommitDetail[] = [
+      {
+        operation: 'MOD',
+        targetTable: 'classes',
+        targetId: classId,
+        beforeSnapshot: { name: 'Old', description: '', color: '#7c3aed' },
+        afterSnapshot: { name: 'New', description: 'updated', color: '#2563eb' },
+      },
+    ];
+    const stmts = buildCypherStatements(details);
+    expect(stmts.length).toBe(1);
+    expect(stmts[0].query).toContain('SET');
+    expect(stmts[0].params.name).toBe('New');
+  });
+
+  it('generates DETACH DELETE for class DEL', () => {
+    const details: CommitDetail[] = [
+      {
+        operation: 'DEL',
+        targetTable: 'classes',
+        targetId: classId,
+        beforeSnapshot: { name: 'Equipment' },
+      },
+    ];
+    const stmts = buildCypherStatements(details);
+    expect(stmts.length).toBe(1);
+    expect(stmts[0].query).toContain('DETACH DELETE');
+  });
+
+  it('generates CREATE for instance ADD with INSTANCE_OF edge', () => {
+    const details: CommitDetail[] = [
+      {
+        operation: 'ADD',
+        targetTable: 'instances',
+        targetId: instanceId,
+        afterSnapshot: { name: 'SUPRA XP', classId },
+      },
+    ];
+    const stmts = buildCypherStatements(details);
+    expect(stmts.length).toBe(2);
+    expect(stmts[0].query).toContain('CREATE (n:Instance');
+    expect(stmts[1].query).toContain('INSTANCE_OF');
+  });
+
+  it('generates edge creation with sanitized relation name', () => {
+    const details: CommitDetail[] = [
+      {
+        operation: 'ADD',
+        targetTable: 'edges',
+        targetId: edgeId,
+        afterSnapshot: {
+          sourceId: classId,
+          targetId: parentId,
+          relationTypeId: relTypeId,
+          relationTypeName: 'located-at',
+        },
+      },
+    ];
+    const stmts = buildCypherStatements(details);
+    expect(stmts.length).toBe(1);
+    expect(stmts[0].query).toContain('LOCATED_AT');
+    expect(stmts[0].query).not.toContain('located-at');
+  });
+
+  it('sorts ADD before MOD before DEL', () => {
+    const details: CommitDetail[] = [
+      {
+        operation: 'DEL',
+        targetTable: 'classes',
+        targetId: classId,
+        beforeSnapshot: { name: 'ToDelete' },
+      },
+      {
+        operation: 'ADD',
+        targetTable: 'classes',
+        targetId: parentId,
+        afterSnapshot: { name: 'ToAdd', description: '', color: '#7c3aed' },
+      },
+    ];
+    const stmts = buildCypherStatements(details);
+    expect(stmts[0].description).toContain('ToAdd');
+    expect(stmts[stmts.length - 1].description).toContain('ToDelete');
+  });
+
+  it('sorts classes before instances before edges within ADD', () => {
+    const details: CommitDetail[] = [
+      {
+        operation: 'ADD',
+        targetTable: 'edges',
+        targetId: edgeId,
+        afterSnapshot: { sourceId: classId, targetId: parentId, relationTypeId: relTypeId, relationTypeName: 'uses' },
+      },
+      {
+        operation: 'ADD',
+        targetTable: 'instances',
+        targetId: instanceId,
+        afterSnapshot: { name: 'Inst1', classId },
+      },
+      {
+        operation: 'ADD',
+        targetTable: 'classes',
+        targetId: classId,
+        afterSnapshot: { name: 'Cls1', description: '', color: '#7c3aed' },
+      },
+    ];
+    const stmts = buildCypherStatements(details);
+    expect(stmts[0].query).toContain('CREATE (n:Class');
+    // Instance + INSTANCE_OF come next, then edge
+    const edgeStmt = stmts.find((s) => s.query.includes('USES'));
+    expect(edgeStmt).toBeDefined();
+  });
+});
+
+describe('buildRollbackStatements', () => {
+  it('reverses ADD to DEL', () => {
+    const details: CommitDetail[] = [
+      {
+        operation: 'ADD',
+        targetTable: 'classes',
+        targetId: classId,
+        afterSnapshot: { name: 'Equipment', description: '', color: '#7c3aed' },
+      },
+    ];
+    const stmts = buildRollbackStatements(details);
+    expect(stmts.length).toBe(1);
+    expect(stmts[0].query).toContain('DETACH DELETE');
+  });
+
+  it('reverses DEL to ADD using before_snapshot', () => {
+    const details: CommitDetail[] = [
+      {
+        operation: 'DEL',
+        targetTable: 'classes',
+        targetId: classId,
+        beforeSnapshot: { name: 'Equipment', description: '장비', color: '#7c3aed' },
+      },
+    ];
+    const stmts = buildRollbackStatements(details);
+    expect(stmts.length).toBe(1);
+    expect(stmts[0].query).toContain('CREATE (n:Class');
+    expect(stmts[0].params.name).toBe('Equipment');
+  });
+
+  it('reverses MOD back to before_snapshot', () => {
+    const details: CommitDetail[] = [
+      {
+        operation: 'MOD',
+        targetTable: 'classes',
+        targetId: classId,
+        beforeSnapshot: { name: 'OldName', description: '', color: '#7c3aed' },
+        afterSnapshot: { name: 'NewName', description: 'updated', color: '#2563eb' },
+      },
+    ];
+    const stmts = buildRollbackStatements(details);
+    expect(stmts.length).toBe(1);
+    expect(stmts[0].params.name).toBe('OldName');
+  });
+
+  it('reverses in opposite order', () => {
+    const details: CommitDetail[] = [
+      {
+        operation: 'ADD',
+        targetTable: 'classes',
+        targetId: classId,
+        afterSnapshot: { name: 'First', description: '', color: '#7c3aed' },
+      },
+      {
+        operation: 'ADD',
+        targetTable: 'instances',
+        targetId: instanceId,
+        afterSnapshot: { name: 'Second', classId },
+      },
+    ];
+    const stmts = buildRollbackStatements(details);
+    // Second item should be rolled back first
+    expect(stmts[0].query).toContain('Instance');
+    expect(stmts[stmts.length - 1].query).toContain('Class');
+  });
+});
+
+describe('formatCypherPreview', () => {
+  it('formats statements with descriptions and inlined params', () => {
+    const stmts = buildCypherStatements([
+      {
+        operation: 'ADD',
+        targetTable: 'classes',
+        targetId: classId,
+        afterSnapshot: { name: 'Test', description: 'desc', color: '#7c3aed' },
+      },
+    ]);
+    const preview = formatCypherPreview(stmts);
+    expect(preview).toContain('// 클래스 "Test" 생성');
+    expect(preview).toContain('"Test"');
+    expect(preview).toContain(';');
+  });
+});
