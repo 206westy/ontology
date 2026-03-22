@@ -408,8 +408,8 @@ test.describe('F2-9: 에러 처리', () => {
   });
 
   test('API 실패 시 사용자 친화적 에러 화면 표시', async ({ app }) => {
-    // API 호출 차단 — 503 응답
-    await app.page.route('**/api/classes', (route) => {
+    // 모든 데이터 API 호출 차단 — 503 응답
+    await app.page.route('**/api/**', (route) => {
       if (route.request().method() === 'GET') {
         route.fulfill({
           status: 503,
@@ -422,15 +422,14 @@ test.describe('F2-9: 에러 처리', () => {
     });
 
     await app.page.goto('/');
-    await app.page.waitForTimeout(3000);
 
-    // 에러 화면: "데이터를 불러오는 중 오류가 발생했습니다" + "네트워크 연결을 확인하세요"
-    // 또는 빈 캔버스 + Ontology Studio 헤더가 보임 (graceful)
-    const hasErrorScreen = await app.page.locator('text=오류가 발생했습니다').first().isVisible().catch(() => false);
-    const hasLayout = await app.page.locator('text=Ontology Studio').first().isVisible().catch(() => false);
+    // 에러 화면 또는 로딩 상태가 표시될 때까지 대기
+    // "데이터를 불러오는 중 오류가 발생했습니다" 또는 "온톨로지 로딩 중..."
+    const hasError = await app.page.locator('text=오류가 발생했습니다').first().isVisible({ timeout: 15000 }).catch(() => false);
+    const hasLoading = await app.page.locator('text=로딩 중').first().isVisible().catch(() => false);
 
-    // 둘 중 하나는 true여야 함 (크래시 X)
-    expect(hasErrorScreen || hasLayout).toBe(true);
+    // 에러 화면이나 로딩 상태 중 하나가 보여야 함 (크래시 X)
+    expect(hasError || hasLoading).toBe(true);
   });
 });
 
