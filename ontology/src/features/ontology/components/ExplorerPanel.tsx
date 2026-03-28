@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Search, ChevronRight, Box, Plus, Circle } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { Search, ChevronRight, Plus, Circle } from 'lucide-react';
+import Image from 'next/image';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -10,12 +11,8 @@ import { Separator } from '@/components/ui/separator';
 import { useOntologyStore } from '../hooks/useOntologyStore';
 import { NODE_COLORS } from '../constants/colors';
 import type { OntologyClass, OntologyInstance, NodeColorKey } from '../lib/types';
+import ExplorerContextMenu, { type ExplorerContextTarget } from './ExplorerContextMenu';
 
-const panelVariants = {
-  hidden: { x: -260, opacity: 0 },
-  visible: { x: 0, opacity: 1, transition: { type: 'spring', damping: 24, stiffness: 260 } },
-  exit: { x: -260, opacity: 0, transition: { duration: 0.2 } },
-};
 
 interface TreeItemData {
   id: string;
@@ -99,7 +96,7 @@ function filterTree(items: TreeItemData[], query: string): TreeItemData[] {
   return items.map(prune).filter(Boolean) as TreeItemData[];
 }
 
-function TreeItem({ item, searchQuery }: { item: TreeItemData; searchQuery: string }) {
+function TreeItem({ item, searchQuery, onContextMenu }: { item: TreeItemData; searchQuery: string; onContextMenu?: (e: React.MouseEvent, item: TreeItemData) => void }) {
   const selectedNodeId = useOntologyStore((s) => s.selectedNodeId);
   const selectNode = useOntologyStore((s) => s.selectNode);
   const focusNode = useOntologyStore((s) => s.focusNode);
@@ -132,6 +129,7 @@ function TreeItem({ item, searchQuery }: { item: TreeItemData; searchQuery: stri
         }`}
         style={{ paddingLeft: `${item.depth * 18 + 8}px`, paddingRight: 8 }}
         onClick={handleItemClick}
+        onContextMenu={(e) => onContextMenu?.(e, item)}
       >
         {/* Caret */}
         <button
@@ -193,7 +191,7 @@ function TreeItem({ item, searchQuery }: { item: TreeItemData; searchQuery: stri
             className="overflow-hidden"
           >
             {item.children.map((child) => (
-              <TreeItem key={child.id} item={child} searchQuery={searchQuery} />
+              <TreeItem key={child.id} item={child} searchQuery={searchQuery} onContextMenu={onContextMenu} />
             ))}
           </motion.div>
         )}
@@ -204,10 +202,36 @@ function TreeItem({ item, searchQuery }: { item: TreeItemData; searchQuery: stri
 
 export default function ExplorerPanel() {
   const [searchQuery, setSearchQuery] = useState('');
+  const [contextTarget, setContextTarget] = useState<ExplorerContextTarget | null>(null);
   const classes = useOntologyStore((s) => s.classes);
   const instances = useOntologyStore((s) => s.instances);
   const openPopover = useOntologyStore((s) => s.openPopover);
+  const focusNode = useOntologyStore((s) => s.focusNode);
+  const selectNode = useOntologyStore((s) => s.selectNode);
+  const removeClass = useOntologyStore((s) => s.removeClass);
+  const removeInstance = useOntologyStore((s) => s.removeInstance);
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const handleTreeContextMenu = useCallback((e: React.MouseEvent, item: TreeItemData) => {
+    e.preventDefault();
+    e.stopPropagation();
+    selectNode(item.id, item.type);
+    setContextTarget({
+      nodeId: item.id,
+      nodeName: item.name,
+      nodeType: item.type,
+      position: { x: e.clientX, y: e.clientY },
+    });
+  }, [selectNode]);
+
+  const handleContextDelete = useCallback((nodeId: string, nodeType: 'class' | 'instance') => {
+    if (nodeType === 'class') removeClass(nodeId);
+    else removeInstance(nodeId);
+  }, [removeClass, removeInstance]);
+
+  const handleFocusOnCanvas = useCallback((nodeId: string) => {
+    focusNode(nodeId);
+  }, [focusNode]);
 
   const tree = useMemo(() => buildTree(classes, instances), [classes, instances]);
   const filteredTree = useMemo(() => filterTree(tree, searchQuery), [tree, searchQuery]);
@@ -229,20 +253,16 @@ export default function ExplorerPanel() {
   };
 
   return (
-    <motion.aside
-      variants={panelVariants}
-      initial="hidden"
-      animate="visible"
-      exit="exit"
-      className="w-[260px] min-w-[260px] h-full flex flex-col border-r border-border bg-card"
+    <aside
+      className="w-full h-full flex flex-col bg-card overflow-hidden"
     >
       {/* Logo */}
       <div className="flex items-center gap-2 px-4 h-[52px] shrink-0">
-        <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center">
-          <Box className="w-4 h-4 text-primary-foreground" />
+        <div className="w-7 h-7 rounded-lg gradient-brand flex items-center justify-center">
+          <Image src="/logo.svg" alt="Ontology Studio" width={18} height={18} className="brightness-0 invert" />
         </div>
         <div className="flex flex-col">
-          <span className="font-semibold text-sm tracking-tight leading-tight">Ontology Studio</span>
+          <span className="font-semibold text-sm tracking-tight leading-tight gradient-brand-text">Ontology Studio</span>
           <span className="text-[10px] text-muted-foreground leading-tight">PSK PEE Domain</span>
         </div>
       </div>
@@ -280,7 +300,7 @@ export default function ExplorerPanel() {
             </div>
           )}
           {filteredTree.map((item) => (
-            <TreeItem key={item.id} item={item} searchQuery={searchQuery} />
+            <TreeItem key={item.id} item={item} searchQuery={searchQuery} onContextMenu={handleTreeContextMenu} />
           ))}
         </div>
       </ScrollArea>
@@ -299,6 +319,14 @@ export default function ExplorerPanel() {
           새 클래스 추가
         </Button>
       </div>
-    </motion.aside>
+
+      {/* Explorer context menu */}
+      <ExplorerContextMenu
+        target={contextTarget}
+        onClose={() => setContextTarget(null)}
+        onFocusOnCanvas={handleFocusOnCanvas}
+        onDelete={handleContextDelete}
+      />
+    </aside>
   );
 }

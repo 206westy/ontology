@@ -221,7 +221,7 @@ test.describe('Ontology Studio - 사용자 여정 E2E', () => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(2000);
-    await expect(page.locator('text=Neo4j 푸시').first()).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('[data-testid="neo4j-push-btn"]')).toBeVisible({ timeout: 10000 });
   });
 
   test('Toolbar — 도구 버튼 표시', async ({ page }) => {

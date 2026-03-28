@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import OpenAI from 'openai';
+import { generateText, Output } from 'ai';
+import { openai } from '@ai-sdk/openai';
 import { z } from 'zod';
 
 const ParsedOntology = z.object({
@@ -45,14 +46,6 @@ const requestSchema = z.object({
 
 export async function POST(request: Request) {
   try {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json(
-        { error: 'OPENAI_API_KEY not configured' },
-        { status: 500 },
-      );
-    }
-
     const body = await request.json();
     const parsed = requestSchema.safeParse(body);
 
@@ -65,16 +58,7 @@ export async function POST(request: Request) {
 
     const { text, existingClasses, existingRelationTypes } = parsed.data;
 
-    const client = new OpenAI({ apiKey });
-
     const systemPrompt = `You are an ontology expert. Given free-form text about a domain, extract structured ontology elements.
-Return a JSON object with this exact structure:
-{
-  "classes": [{ "name": "string", "description": "string", "color": "#hex or null", "parentName": "string or null" }],
-  "properties": [{ "className": "string", "name": "string", "dataType": "string|integer|float|boolean|date|enum", "isRequired": true/false, "enumValues": ["..."] or null }],
-  "instances": [{ "className": "string", "name": "string" }],
-  "relations": [{ "sourceName": "string", "targetName": "string", "relationName": "string" }]
-}
 
 Rules:
 - Extract classes (categories/types), properties (attributes), instances (specific examples), and relations (connections between classes).
@@ -83,8 +67,7 @@ Rules:
 - For colors: root/important=#7c3aed, mid-level=#2563eb, leaf=#0891b2, person=#d97706, place=#dc2626, event=#db2777
 - Do NOT create parent-child (is-a) relationships unless the text explicitly states one class IS A subtype/subclass of another. "Equipment A and Equipment B exist" does NOT mean one is a subclass of the other.
 - Be thorough but don't hallucinate — only extract what's clearly stated or strongly implied.
-- Respond in the same language as the input text.
-- ONLY return valid JSON, no markdown or extra text.`;
+- Respond in the same language as the input text.`;
 
     const userPrompt = `Extract ontology from this text:
 """
@@ -94,34 +77,21 @@ ${text}
 ${existingClasses?.length ? `Existing classes (reuse if relevant): ${existingClasses.join(', ')}` : ''}
 ${existingRelationTypes?.length ? `Existing relation types (reuse if relevant): ${existingRelationTypes.join(', ')}` : ''}`;
 
-    const completion = await client.chat.completions.create({
-      model: 'gpt-5.4-mini',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-      response_format: { type: 'json_object' },
+    const result = await generateText({
+      model: openai('gpt-5.4-mini'),
+      output: Output.object({ schema: ParsedOntology }),
+      system: systemPrompt,
+      prompt: userPrompt,
     });
 
-    const content = completion.choices[0]?.message?.content;
-    if (!content) {
+    if (!result.output) {
       return NextResponse.json(
         { error: 'Empty response from LLM' },
         { status: 500 },
       );
     }
 
-    const jsonResult = JSON.parse(content);
-    const validated = ParsedOntology.safeParse(jsonResult);
-
-    if (!validated.success) {
-      return NextResponse.json(
-        { error: 'LLM 응답이 스키마를 충족하지 않습니다', details: validated.error.flatten() },
-        { status: 400 },
-      );
-    }
-
-    return NextResponse.json(validated.data);
+    return NextResponse.json(result.output);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     return NextResponse.json({ error: message }, { status: 500 });

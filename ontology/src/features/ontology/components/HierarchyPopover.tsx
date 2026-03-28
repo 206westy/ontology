@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useCallback } from 'react';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import { X, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useOntologyStore } from '../hooks/useOntologyStore';
@@ -11,7 +11,7 @@ import type { OntologyClass } from '../lib/types';
 
 const popoverAnimation = {
   initial: { opacity: 0, scale: 0.95, y: -8 },
-  animate: { opacity: 1, scale: 1, y: 0, transition: { type: 'spring', damping: 25, stiffness: 350 } },
+  animate: { opacity: 1, scale: 1, y: 0, transition: { type: 'spring' as const, damping: 25, stiffness: 350 } },
   exit: { opacity: 0, scale: 0.95, y: -8, transition: { duration: 0.15 } },
 };
 

@@ -2,7 +2,7 @@ export type DataType = 'string' | 'integer' | 'float' | 'boolean' | 'date' | 'en
 
 export type ChangeOperation = 'ADD' | 'MOD' | 'DEL';
 
-export type NodeColorKey = 'root' | 'mid' | 'leaf' | 'instance' | 'person' | 'place' | 'event';
+export type NodeColorKey = 'root' | 'mid' | 'leaf' | 'instance' | 'person' | 'place' | 'event' | 'concept' | 'process' | 'artifact';
 
 export interface OntologyClass {
   id: string;
@@ -75,6 +75,7 @@ export interface Commit {
   message: string;
   pushedToNeo4j: boolean;
   pushedAt: string | null;
+  isAutoSave: boolean;
   createdAt: string;
 }
 
@@ -104,6 +105,7 @@ export interface PopoverState {
   position: { x: number; y: number };
   sourceId?: string;
   targetId?: string;
+  initialText?: string;
 }
 
 export interface TreeNode {
@@ -116,4 +118,40 @@ export interface TreeNode {
   instanceCount: number;
   children: TreeNode[];
   expanded: boolean;
+}
+
+// v3: Validation
+export interface ValidationIssue {
+  severity: 'error' | 'warning' | 'info';
+  ruleCode: string;
+  message: string;
+  targetTable: string;
+  targetId: string;
+  constraintId?: string;
+}
+
+export interface ValidationResult {
+  runId: string;
+  summary: { total: number; errors: number; warnings: number; infos: number };
+  errors: ValidationIssue[];
+  warnings: ValidationIssue[];
+  infos: ValidationIssue[];
+}
+
+// v3: Constraint
+export type ConstraintType = 'cardinality' | 'disjoint' | 'domain_range' | 'property_value';
+
+export interface OntologyConstraint {
+  id: string;
+  constraintType: ConstraintType;
+  description: string;
+  sourceClassId: string | null;
+  targetClassId: string | null;
+  relationTypeId: string | null;
+  propertyId: string | null;
+  config: Record<string, unknown>;
+  severity: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
 }

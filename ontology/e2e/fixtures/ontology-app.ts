@@ -51,8 +51,8 @@ export class OntologyApp {
     this.changeCountText = page.locator('text=변경사항').first();
     this.undoButton = page.locator('button:has-text("되돌리기")');
     this.changeLogButton = page.locator('button:has-text("변경 내역")');
-    this.commitButton = page.locator('button:has-text("커밋")').first();
-    this.neo4jPushButton = page.locator('text=Neo4j 푸시').first();
+    this.commitButton = page.locator('[data-testid="commit-btn"]');
+    this.neo4jPushButton = page.locator('[data-testid="neo4j-push-btn"]');
 
     // Popover
     this.newNodeHeading = page.getByRole('heading', { name: '새 노드' });

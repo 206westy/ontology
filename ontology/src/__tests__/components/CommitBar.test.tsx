@@ -1,9 +1,10 @@
+import React from 'react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { useOntologyStore } from '@/features/ontology/hooks/useOntologyStore';
 
-// Mock framer-motion to render plain elements
-vi.mock('framer-motion', () => ({
+// Mock motion/react to render plain elements
+vi.mock('motion/react', () => ({
   motion: new Proxy({}, {
     get: (_target, prop: string) => {
       return ({ children, ...props }: Record<string, unknown>) => {
@@ -13,6 +14,39 @@ vi.mock('framer-motion', () => ({
     },
   }),
   AnimatePresence: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
+// Mock sonner toast
+vi.mock('sonner', () => ({
+  toast: Object.assign(vi.fn(), {
+    success: vi.fn(),
+    error: vi.fn(),
+    warning: vi.fn(),
+  }),
+}));
+
+// Mock API
+vi.mock('@/features/ontology/api', () => ({
+  commitsApi: { create: vi.fn() },
+}));
+
+// Mock NeoConfirmSheet to avoid complex deps
+vi.mock('@/features/ontology/components/neo4j/NeoConfirmSheet', () => ({
+  default: () => null,
+}));
+
+// Mock Sheet to avoid Radix Presence issues
+vi.mock('@/components/ui/sheet', () => ({
+  Sheet: ({ children }: Record<string, unknown>) => <>{children}</>,
+  SheetContent: () => null,
+  SheetHeader: ({ children }: Record<string, unknown>) => <div>{children as React.ReactNode}</div>,
+  SheetTitle: ({ children }: Record<string, unknown>) => <div>{children as React.ReactNode}</div>,
+}));
+
+// Mock ScrollArea
+vi.mock('@/components/ui/scroll-area', () => ({
+  ScrollArea: ({ children, ...props }: Record<string, unknown>) => <div {...props}>{children as React.ReactNode}</div>,
+  ScrollBar: () => null,
 }));
 
 // Must import after mock
@@ -66,7 +100,7 @@ describe('CommitBar', () => {
 
     const undoBtn = screen.getByText('되돌리기').closest('button');
     const changeListBtn = screen.getByText('변경 내역').closest('button');
-    const pushBtn = screen.getByText('Neo4j 푸시').closest('button');
+    const pushBtn = screen.getByText('반영').closest('button');
 
     expect(undoBtn).toBeDisabled();
     expect(changeListBtn).toBeDisabled();
@@ -80,7 +114,7 @@ describe('CommitBar', () => {
 
     const undoBtn = screen.getByText('되돌리기').closest('button');
     const changeListBtn = screen.getByText('변경 내역').closest('button');
-    const pushBtn = screen.getByText('Neo4j 푸시').closest('button');
+    const pushBtn = screen.getByText('반영').closest('button');
 
     expect(undoBtn).not.toBeDisabled();
     expect(changeListBtn).not.toBeDisabled();
@@ -137,13 +171,12 @@ describe('CommitBar', () => {
     expect(screen.getByText('-1')).toBeInTheDocument(); // 1 DEL
   });
 
-  // B-4: Neo4j push button has no onClick handler
-  it('should have Neo4j push button without click handler (B-4 gap)', () => {
+  // Push button opens NeoConfirmSheet
+  it('should have push button that does not clear changes directly', () => {
     useOntologyStore.getState().addClass({ name: 'Test' });
     render(<CommitBar />);
-    const pushBtn = screen.getByText('Neo4j 푸시').closest('button');
+    const pushBtn = screen.getByText('반영').closest('button');
     expect(pushBtn).not.toBeDisabled();
-    // Button exists and is enabled but has no onClick — clicking should not change state
     const changesBefore = useOntologyStore.getState().pendingChanges.length;
     pushBtn!.click();
     const changesAfter = useOntologyStore.getState().pendingChanges.length;

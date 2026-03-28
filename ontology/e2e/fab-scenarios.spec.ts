@@ -587,9 +587,9 @@ test.describe('FAB 장비 관리 온톨로지 — 시나리오 1~10', () => {
     await expect(page.locator('text=더블클릭').first()).toBeVisible();
   });
 
-  test('시나리오 10.3 — Neo4j 푸시 버튼 표시', async ({ page }) => {
+  test('시나리오 10.3 — 반영 버튼 표시', async ({ page }) => {
     await waitForApp(page);
-    await expect(page.locator('text=Neo4j 푸시').first()).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('[data-testid="neo4j-push-btn"]')).toBeVisible({ timeout: 10000 });
   });
 
   test('시나리오 10.4 — 팝오버 취소 버튼으로 닫기', async ({ page }) => {

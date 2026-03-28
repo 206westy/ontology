@@ -7,9 +7,12 @@ export const NODE_COLORS = {
   person: '#d97706',
   place: '#dc2626',
   event: '#db2777',
+  concept: '#6366f1',
+  process: '#14b8a6',
+  artifact: '#8b5cf6',
 } as const;
 
-// Dark palette — MiniMap only
+// Dark palette -- MiniMap only
 export const NODE_COLORS_DARK: Record<keyof typeof NODE_COLORS, string> = {
   root: '#8b5cf6',
   mid: '#3b82f6',
@@ -18,6 +21,9 @@ export const NODE_COLORS_DARK: Record<keyof typeof NODE_COLORS, string> = {
   person: '#f59e0b',
   place: '#ef4444',
   event: '#ec4899',
+  concept: '#818cf8',
+  process: '#2dd4bf',
+  artifact: '#a78bfa',
 };
 
 export const NODE_COLOR_LABELS: Record<keyof typeof NODE_COLORS, string> = {
@@ -28,9 +34,12 @@ export const NODE_COLOR_LABELS: Record<keyof typeof NODE_COLORS, string> = {
   person: '사람',
   place: '장소',
   event: '이벤트',
+  concept: '개념',
+  process: '프로세스',
+  artifact: '산출물',
 };
 
-// JS bg fills — kept for getNodeColors() compatibility (MiniMap / legacy callers)
+// JS bg fills -- kept for getNodeColors() compatibility (MiniMap / legacy callers)
 export const NODE_BG_COLORS: Record<keyof typeof NODE_COLORS, string> = {
   root:     'rgba(124,58,237,0.12)',
   mid:      'rgba(37,99,235,0.12)',
@@ -39,6 +48,9 @@ export const NODE_BG_COLORS: Record<keyof typeof NODE_COLORS, string> = {
   person:   'rgba(217,119,6,0.12)',
   place:    'rgba(220,38,38,0.12)',
   event:    'rgba(219,39,119,0.12)',
+  concept:  'rgba(99,102,241,0.12)',
+  process:  'rgba(20,184,166,0.12)',
+  artifact: 'rgba(139,92,246,0.12)',
 };
 
 export const NODE_BG_COLORS_DARK: Record<keyof typeof NODE_COLORS, string> = {
@@ -49,6 +61,9 @@ export const NODE_BG_COLORS_DARK: Record<keyof typeof NODE_COLORS, string> = {
   person:   'rgba(217,119,6,0.20)',
   place:    'rgba(220,38,38,0.20)',
   event:    'rgba(219,39,119,0.20)',
+  concept:  'rgba(99,102,241,0.20)',
+  process:  'rgba(20,184,166,0.20)',
+  artifact: 'rgba(139,92,246,0.20)',
 };
 
 // Fallback JS-based helper (MiniMap / legacy). Prefer getNodeCssColors() in components.
@@ -62,7 +77,7 @@ export function getNodeColors(
   };
 }
 
-// CSS variable names — used in ClassNode/InstanceNode via hsl(var(--node-xxx))
+// CSS variable names -- used in ClassNode/InstanceNode via hsl(var(--node-xxx))
 export const NODE_CSS_VARS: Record<keyof typeof NODE_COLORS, { border: string; bg: string }> = {
   root:     { border: '--node-root',     bg: '--node-root-bg' },
   mid:      { border: '--node-mid',      bg: '--node-mid-bg' },
@@ -71,6 +86,9 @@ export const NODE_CSS_VARS: Record<keyof typeof NODE_COLORS, { border: string; b
   person:   { border: '--node-person',   bg: '--node-person-bg' },
   place:    { border: '--node-place',    bg: '--node-place-bg' },
   event:    { border: '--node-event',    bg: '--node-event-bg' },
+  concept:  { border: '--node-concept',  bg: '--node-concept-bg' },
+  process:  { border: '--node-process',  bg: '--node-process-bg' },
+  artifact: { border: '--node-artifact', bg: '--node-artifact-bg' },
 };
 
 export function getNodeCssColors(colorKey: keyof typeof NODE_COLORS): {

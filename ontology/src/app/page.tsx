@@ -1,7 +1,9 @@
 'use client';
 
-import { AnimatePresence } from 'framer-motion';
-import { Loader2 } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Group, Panel, Separator, usePanelRef } from 'react-resizable-panels';
+import type { Layout } from 'react-resizable-panels';
+import { Loader2, FolderTree, PanelRight } from 'lucide-react';
 import ExplorerPanel from '@/features/ontology/components/ExplorerPanel';
 import GraphCanvas from '@/features/ontology/components/GraphCanvas';
 import Toolbar from '@/features/ontology/components/Toolbar';
@@ -11,14 +13,77 @@ import NewNodePopover from '@/features/ontology/components/NewNodePopover';
 import RelationPopover from '@/features/ontology/components/RelationPopover';
 import HierarchyPopover from '@/features/ontology/components/HierarchyPopover';
 import DeleteConfirmDialog from '@/features/ontology/components/DeleteConfirmDialog';
+import CommandPalette from '@/features/ontology/components/CommandPalette';
+import OnboardingGuide from '@/features/ontology/components/OnboardingGuide';
 import { useLoadOntology } from '@/features/ontology/hooks/useLoadOntology';
 import { useKeyboardShortcuts } from '@/features/ontology/hooks/useKeyboardShortcuts';
 import { useApiSync } from '@/features/ontology/hooks/useApiSync';
+
+function ResizeHandle() {
+  return (
+    <Separator
+      className="
+        relative w-px bg-border
+        before:absolute before:inset-y-0 before:-left-[2px] before:w-[5px] before:content-['']
+        [&[data-separator='hover']]:bg-primary/40 [&[data-separator='hover']]:w-[2px]
+        [&[data-separator='active']]:bg-primary [&[data-separator='active']]:w-[2px]
+        transition-all duration-150
+      "
+      style={{ cursor: 'col-resize' }}
+    />
+  );
+}
+
+function CollapsedTab({
+  side,
+  icon: Icon,
+  onClick,
+}: {
+  side: 'left' | 'right';
+  icon: React.ComponentType<{ className?: string }>;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`
+        flex items-center justify-center w-8 h-full
+        bg-card hover:bg-muted/60 transition-colors
+        ${side === 'left' ? 'border-r border-border' : 'border-l border-border'}
+      `}
+      title={side === 'left' ? '탐색기 펼치기' : '속성 패널 펼치기'}
+    >
+      <Icon className="w-4 h-4 text-muted-foreground" />
+    </button>
+  );
+}
+
+const LAYOUT_KEY = 'ontology-studio-layout';
 
 export default function Home() {
   const { isLoading, isError } = useLoadOntology();
   const { showDeleteDialog, requestDelete, confirmDelete, cancelDelete } = useKeyboardShortcuts();
   useApiSync();
+
+  const [savedLayout, setSavedLayout] = useState<Layout | undefined>(undefined);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(LAYOUT_KEY);
+      if (raw) setSavedLayout(JSON.parse(raw));
+    } catch { /* ignore */ }
+  }, []);
+
+  const handleLayoutChanged = useCallback((layout: Layout) => {
+    try {
+      localStorage.setItem(LAYOUT_KEY, JSON.stringify(layout));
+    } catch { /* ignore */ }
+  }, []);
+
+  const explorerRef = usePanelRef();
+  const rightPanelRef = usePanelRef();
+  const [explorerCollapsed, setExplorerCollapsed] = useState(false);
+  const [rightCollapsed, setRightCollapsed] = useState(false);
 
   if (isLoading) {
     return (
@@ -43,23 +108,75 @@ export default function Home() {
   }
 
   return (
-    <div className="h-screen w-screen flex overflow-hidden bg-background">
-      {/* Left: Explorer Panel */}
-      <AnimatePresence mode="wait">
-        <ExplorerPanel />
-      </AnimatePresence>
+    <div className="h-screen w-screen overflow-hidden bg-background">
+      <Group
+        orientation="horizontal"
+        defaultLayout={savedLayout}
+        onLayoutChanged={handleLayoutChanged}
+      >
+        {/* Left: Explorer Panel */}
+        <Panel
+          id="explorer"
+          panelRef={explorerRef}
+          defaultSize="20%"
+          minSize="15%"
+          maxSize="30%"
+          collapsible
+          collapsedSize="0%"
+          onResize={(size) => {
+            const collapsed = size.asPercentage < 1;
+            setExplorerCollapsed(collapsed);
+          }}
+        >
+          {explorerCollapsed ? (
+            <CollapsedTab
+              side="left"
+              icon={FolderTree}
+              onClick={() => explorerRef.current?.expand()}
+            />
+          ) : (
+            <ExplorerPanel />
+          )}
+        </Panel>
 
-      {/* Center: Toolbar + Canvas + CommitBar */}
-      <div className="flex-1 flex flex-col min-w-0">
-        <Toolbar />
-        <GraphCanvas />
-        <CommitBar />
-      </div>
+        <ResizeHandle />
 
-      {/* Right: Property Panel */}
-      <AnimatePresence mode="wait">
-        <RightPanel onDeleteRequest={requestDelete} />
-      </AnimatePresence>
+        {/* Center: Toolbar + Canvas + CommitBar */}
+        <Panel id="canvas" defaultSize="55%">
+          <div className="h-full flex flex-col min-w-0">
+            <Toolbar />
+            <GraphCanvas />
+            <CommitBar />
+          </div>
+        </Panel>
+
+        <ResizeHandle />
+
+        {/* Right: Property Panel */}
+        <Panel
+          id="right-panel"
+          panelRef={rightPanelRef}
+          defaultSize="25%"
+          minSize="15%"
+          maxSize="35%"
+          collapsible
+          collapsedSize="0%"
+          onResize={(size) => {
+            const collapsed = size.asPercentage < 1;
+            setRightCollapsed(collapsed);
+          }}
+        >
+          {rightCollapsed ? (
+            <CollapsedTab
+              side="right"
+              icon={PanelRight}
+              onClick={() => rightPanelRef.current?.expand()}
+            />
+          ) : (
+            <RightPanel onDeleteRequest={requestDelete} />
+          )}
+        </Panel>
+      </Group>
 
       {/* Popovers (rendered as overlays) */}
       <NewNodePopover />
@@ -70,6 +187,12 @@ export default function Home() {
         onConfirm={confirmDelete}
         onCancel={cancelDelete}
       />
+
+      {/* Command Palette (Ctrl+K / Cmd+K) */}
+      <CommandPalette />
+
+      {/* Onboarding Guide (first visit only) */}
+      <OnboardingGuide />
     </div>
   );
 }

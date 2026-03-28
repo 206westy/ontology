@@ -1,0 +1,55 @@
+{
+  "classes": [
+    { "name": "Organization", "description": "최상위 조직 (법인/회사)", "color": "#7c3aed" },
+    { "name": "Department", "description": "부서 (사업부/본부)", "color": "#2563eb", "parentName": "Organization" },
+    { "name": "Team", "description": "팀 단위 조직", "color": "#0891b2", "parentName": "Department" },
+    { "name": "Employee", "description": "임직원", "color": "#d97706" },
+    { "name": "Role", "description": "직책/역할 (팀장, 파트장 등)", "color": "#6366f1" },
+    { "name": "JobGrade", "description": "직급 (사원, 대리, 과장, 차장, 부장)", "color": "#6366f1" },
+    { "name": "Project", "description": "프로젝트", "color": "#14b8a6" },
+    { "name": "Skill", "description": "보유 기술/역량", "color": "#8b5cf6" },
+    { "name": "Office", "description": "사무실/근무지", "color": "#dc2626" },
+    { "name": "Meeting", "description": "정기/비정기 회의체", "color": "#db2777" },
+    { "name": "KPI", "description": "핵심 성과 지표", "color": "#14b8a6" },
+    { "name": "Budget", "description": "부서/프로젝트 예산", "color": "#8b5cf6" },
+    { "name": "Policy", "description": "사내 정책/규정", "color": "#6366f1" },
+    { "name": "Training", "description": "교육/연수 프로그램", "color": "#db2777" }
+  ],
+  "properties": [
+    { "className": "Organization", "name": "legal_name", "dataType": "string", "isRequired": true },
+    { "className": "Organization", "name": "founded_date", "dataType": "date", "isRequired": false },
+    { "className": "Department", "name": "department_code", "dataType": "string", "isRequired": true },
+    { "className": "Department", "name": "headcount", "dataType": "integer", "isRequired": false },
+    { "className": "Team", "name": "team_code", "dataType": "string", "isRequired": true },
+    { "className": "Employee", "name": "employee_id", "dataType": "string", "isRequired": true },
+    { "className": "Employee", "name": "name", "dataType": "string", "isRequired": true },
+    { "className": "Employee", "name": "email", "dataType": "string", "isRequired": true },
+    { "className": "Employee", "name": "hire_date", "dataType": "date", "isRequired": true },
+    { "className": "Role", "name": "role_name", "dataType": "string", "isRequired": true },
+    { "className": "JobGrade", "name": "grade_level", "dataType": "integer", "isRequired": true },
+    { "className": "Project", "name": "start_date", "dataType": "date", "isRequired": true },
+    { "className": "Project", "name": "end_date", "dataType": "date", "isRequired": false },
+    { "className": "Project", "name": "status", "dataType": "enum", "isRequired": true },
+    { "className": "Skill", "name": "category", "dataType": "string", "isRequired": true },
+    { "className": "Office", "name": "address", "dataType": "string", "isRequired": true },
+    { "className": "Office", "name": "floor", "dataType": "integer", "isRequired": false },
+    { "className": "KPI", "name": "target_value", "dataType": "float", "isRequired": true },
+    { "className": "Budget", "name": "amount_krw", "dataType": "float", "isRequired": true },
+    { "className": "Budget", "name": "fiscal_year", "dataType": "integer", "isRequired": true }
+  ],
+  "relationTypes": [
+    { "name": "has_department", "sourceClassName": "Organization", "targetClassName": "Department" },
+    { "name": "belongs_to", "sourceClassName": "Employee", "targetClassName": "Team" },
+    { "name": "has_role", "sourceClassName": "Employee", "targetClassName": "Role" },
+    { "name": "participates_in", "sourceClassName": "Employee", "targetClassName": "Project" },
+    { "name": "has_skill", "sourceClassName": "Employee", "targetClassName": "Skill" },
+    { "name": "located_at", "sourceClassName": "Team", "targetClassName": "Office" }
+  ],
+  "instances": [
+    { "name": "테크솔루션즈", "className": "Organization", "description": "IT 서비스 기업" },
+    { "name": "개발본부", "className": "Department", "description": "소프트웨어 개발 총괄 부서" },
+    { "name": "플랫폼팀", "className": "Team", "description": "백엔드 플랫폼 개발팀" },
+    { "name": "이지은 과장", "className": "Employee", "description": "풀스택 엔지니어" },
+    { "name": "차세대 통합 플랫폼", "className": "Project", "description": "레거시 마이그레이션 프로젝트" }
+  ]
+}

@@ -1,0 +1,320 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getDb } from '@/lib/drizzle';
+import {
+  classes,
+  properties,
+  instances,
+  instanceValues,
+  edges,
+  relationTypes,
+  axioms,
+  axiomClasses,
+  constraints,
+} from '@/lib/drizzle/schema';
+import { importRequestSchema } from '@/features/ontology/lib/schemas';
+import { handleApiError } from '@/lib/api-error';
+
+interface OntologyPayload {
+  classes: Array<Record<string, unknown>>;
+  properties: Array<Record<string, unknown>>;
+  instances: Array<Record<string, unknown>>;
+  instanceValues: Array<Record<string, unknown>>;
+  relationTypes: Array<Record<string, unknown>>;
+  edges: Array<Record<string, unknown>>;
+  axioms: Array<Record<string, unknown>>;
+  axiomClasses: Array<Record<string, unknown>>;
+  constraints: Array<Record<string, unknown>>;
+}
+
+interface ImportStats {
+  classes: number;
+  properties: number;
+  instances: number;
+  instanceValues: number;
+  relationTypes: number;
+  edges: number;
+  axioms: number;
+  axiomClasses: number;
+  constraints: number;
+}
+
+/**
+ * Detect the import format from Content-Type header.
+ * Returns 'json' | 'jsonld' | 'turtle'
+ */
+function detectFormat(contentType: string | null): 'json' | 'jsonld' | 'turtle' {
+  if (!contentType) return 'json';
+  const ct = contentType.toLowerCase();
+  if (ct.includes('application/ld+json')) return 'jsonld';
+  if (ct.includes('text/turtle')) return 'turtle';
+  return 'json';
+}
+
+/**
+ * Convert RDF-based import data (from jsonld/turtle) into the full ontology payload
+ * by filling in empty arrays for entities not represented in RDF (axioms, etc.)
+ */
+function normalizeRdfPayload(
+  rdfResult: {
+    classes: Array<Record<string, unknown>>;
+    properties: Array<Record<string, unknown>>;
+    instances: Array<Record<string, unknown>>;
+    instanceValues: Array<Record<string, unknown>>;
+    relationTypes: Array<Record<string, unknown>>;
+    edges: Array<Record<string, unknown>>;
+  },
+): OntologyPayload {
+  return {
+    ...rdfResult,
+    axioms: [],
+    axiomClasses: [],
+    constraints: [],
+  };
+}
+
+async function insertOntology(
+  ontology: OntologyPayload,
+  strategy: 'replace' | 'merge',
+): Promise<ImportStats> {
+  const db = await getDb();
+
+  const stats: ImportStats = {
+    classes: 0,
+    properties: 0,
+    instances: 0,
+    instanceValues: 0,
+    relationTypes: 0,
+    edges: 0,
+    axioms: 0,
+    axiomClasses: 0,
+    constraints: 0,
+  };
+
+  await db.transaction(async (tx) => {
+    // If strategy is 'replace', delete everything first (reverse dependency order)
+    if (strategy === 'replace') {
+      await tx.delete(axiomClasses);
+      await tx.delete(axioms);
+      await tx.delete(constraints);
+      await tx.delete(edges);
+      await tx.delete(instanceValues);
+      await tx.delete(instances);
+      await tx.delete(properties);
+      await tx.delete(relationTypes);
+      await tx.delete(classes);
+    }
+
+    // Insert in dependency order
+    if (ontology.classes.length > 0) {
+      const sortedClasses = [...ontology.classes].sort((a, b) => {
+        const aHasParent = a.parentId ? 1 : 0;
+        const bHasParent = b.parentId ? 1 : 0;
+        return aHasParent - bHasParent;
+      });
+
+      for (const cls of sortedClasses) {
+        await tx.insert(classes).values({
+          id: cls.id as string,
+          name: cls.name as string,
+          parentId: (cls.parentId as string) ?? null,
+          description: (cls.description as string) ?? '',
+          color: (cls.color as string) ?? '#7c3aed',
+          positionX: (cls.positionX as number) ?? 0,
+          positionY: (cls.positionY as number) ?? 0,
+        });
+        stats.classes++;
+      }
+    }
+
+    if (ontology.relationTypes.length > 0) {
+      for (const rt of ontology.relationTypes) {
+        await tx.insert(relationTypes).values({
+          id: rt.id as string,
+          name: rt.name as string,
+          description: (rt.description as string) ?? '',
+          sourceClassId: (rt.sourceClassId as string) ?? null,
+          targetClassId: (rt.targetClassId as string) ?? null,
+        });
+        stats.relationTypes++;
+      }
+    }
+
+    if (ontology.properties.length > 0) {
+      for (const prop of ontology.properties) {
+        await tx.insert(properties).values({
+          id: prop.id as string,
+          classId: prop.classId as string,
+          name: prop.name as string,
+          dataType: (prop.dataType as string) ?? 'string',
+          isRequired: (prop.isRequired as boolean) ?? false,
+          enumValues: prop.enumValues ?? null,
+          constraintRule: prop.constraintRule ?? null,
+          sortOrder: (prop.sortOrder as number) ?? 0,
+        });
+        stats.properties++;
+      }
+    }
+
+    if (ontology.instances.length > 0) {
+      for (const inst of ontology.instances) {
+        await tx.insert(instances).values({
+          id: inst.id as string,
+          classId: inst.classId as string,
+          name: inst.name as string,
+        });
+        stats.instances++;
+      }
+    }
+
+    if (ontology.instanceValues.length > 0) {
+      for (const iv of ontology.instanceValues) {
+        await tx.insert(instanceValues).values({
+          id: iv.id as string,
+          instanceId: iv.instanceId as string,
+          propertyId: iv.propertyId as string,
+          value: (iv.value as string) ?? null,
+        });
+        stats.instanceValues++;
+      }
+    }
+
+    if (ontology.edges.length > 0) {
+      for (const edge of ontology.edges) {
+        await tx.insert(edges).values({
+          id: edge.id as string,
+          relationTypeId: edge.relationTypeId as string,
+          sourceId: edge.sourceId as string,
+          targetId: edge.targetId as string,
+          sourceKind: edge.sourceKind as string,
+          targetKind: edge.targetKind as string,
+        });
+        stats.edges++;
+      }
+    }
+
+    if (ontology.axioms.length > 0) {
+      for (const axiom of ontology.axioms) {
+        await tx.insert(axioms).values({
+          id: axiom.id as string,
+          description: axiom.description as string,
+          ruleLogic: axiom.ruleLogic ?? {},
+          severity: (axiom.severity as string) ?? 'warning',
+        });
+        stats.axioms++;
+      }
+    }
+
+    if (ontology.axiomClasses.length > 0) {
+      for (const ac of ontology.axiomClasses) {
+        await tx.insert(axiomClasses).values({
+          axiomId: ac.axiomId as string,
+          classId: ac.classId as string,
+        });
+        stats.axiomClasses++;
+      }
+    }
+
+    if (ontology.constraints.length > 0) {
+      for (const c of ontology.constraints) {
+        await tx.insert(constraints).values({
+          id: c.id as string,
+          constraintType: c.constraintType as string,
+          description: (c.description as string) ?? '',
+          sourceClassId: (c.sourceClassId as string) ?? null,
+          targetClassId: (c.targetClassId as string) ?? null,
+          relationTypeId: (c.relationTypeId as string) ?? null,
+          propertyId: (c.propertyId as string) ?? null,
+          config: c.config ?? {},
+          severity: (c.severity as string) ?? 'error',
+          isActive: (c.isActive as boolean) ?? true,
+        });
+        stats.constraints++;
+      }
+    }
+  });
+
+  return stats;
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const contentType = request.headers.get('content-type');
+    const format = detectFormat(contentType);
+
+    // --- JSON-LD Import ---
+    if (format === 'jsonld') {
+      const jsonLdDoc = await request.json();
+      const strategy = (jsonLdDoc._strategy as string) === 'merge' ? 'merge' : 'replace';
+
+      // Remove our non-standard _strategy key before processing
+      delete jsonLdDoc._strategy;
+
+      const { jsonLdToOntology } = await import('@/lib/rdf/from-jsonld');
+      const rdfResult = await jsonLdToOntology(jsonLdDoc);
+      const ontology = normalizeRdfPayload(rdfResult);
+      const stats = await insertOntology(ontology, strategy);
+
+      return NextResponse.json(
+        { success: true, strategy, format: 'jsonld', stats },
+        { status: 201 },
+      );
+    }
+
+    // --- Turtle Import ---
+    if (format === 'turtle') {
+      const turtleStr = await request.text();
+
+      // Extract strategy from query params since Turtle is plain text
+      const { searchParams } = new URL(request.url);
+      const strategy = searchParams.get('strategy') === 'merge' ? 'merge' : 'replace';
+
+      const { turtleToOntology } = await import('@/lib/rdf/from-turtle');
+      const rdfResult = await turtleToOntology(turtleStr);
+      const ontology = normalizeRdfPayload(rdfResult);
+      const stats = await insertOntology(ontology, strategy);
+
+      return NextResponse.json(
+        { success: true, strategy, format: 'turtle', stats },
+        { status: 201 },
+      );
+    }
+
+    // --- JSON Import (original behavior) ---
+    const body = await request.json();
+    const parsed = importRequestSchema.safeParse(body);
+
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.flatten() },
+        { status: 400 },
+      );
+    }
+
+    const { ontology, strategy } = parsed.data;
+    const fullOntology: OntologyPayload = {
+      classes: ontology.classes,
+      properties: ontology.properties,
+      instances: ontology.instances,
+      instanceValues: ontology.instanceValues,
+      relationTypes: ontology.relationTypes,
+      edges: ontology.edges,
+      axioms: ontology.axioms,
+      axiomClasses: ontology.axiomClasses,
+      constraints: ontology.constraints,
+    };
+
+    const stats = await insertOntology(fullOntology, strategy);
+
+    return NextResponse.json(
+      {
+        success: true,
+        strategy,
+        format: 'json',
+        stats,
+      },
+      { status: 201 },
+    );
+  } catch (err) {
+    return handleApiError(err);
+  }
+}

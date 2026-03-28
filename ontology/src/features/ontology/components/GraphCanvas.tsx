@@ -14,17 +14,19 @@ import {
   type Edge,
   type OnConnect,
   type Connection,
-  addEdge,
   ReactFlowProvider,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import ClassNode from './ClassNode';
 import EmptyState from './EmptyState';
 import InstanceNode from './InstanceNode';
+import GraphContextMenu, { type ContextMenuTarget, type ContextMenuPosition } from './GraphContextMenu';
+import FocusModeBar from './FocusModeBar';
 import { NODE_COLORS, NODE_COLORS_DARK } from '../constants/colors';
 import { useOntologyStore } from '../hooks/useOntologyStore';
 import { useTheme } from 'next-themes';
-import { getLayoutedElements } from '../lib/elk-layout';
+import { getLayoutedElements, terminateElkWorker } from '../lib/elk-layout';
+import { getNHopNeighborIds } from '../lib/graph-filter';
 import type { OntologyClass, OntologyInstance, OntologyEdge, NodeColorKey } from '../lib/types';
 
 const nodeTypes = {
@@ -44,8 +46,18 @@ function buildFlowNodes(
   instanceCountMap: Map<string, number>,
   highlightedNodeId: string | null,
 ): Node[] {
+  const childClassIds = new Set(classes.filter((c) => c.parentId).map((c) => c.parentId!));
+
   const classNodes: Node[] = classes.map((cls) => {
     const count = instanceCountMap.get(cls.id) ?? 0;
+    const hasChildren = childClassIds.has(cls.id);
+    const isRoot = cls.parentId === null;
+    const nodeRole: 'root' | 'mid' | 'leaf' = isRoot && hasChildren
+      ? 'root'
+      : hasChildren
+        ? 'mid'
+        : 'leaf';
+
     return {
       id: cls.id,
       type: 'classNode',
@@ -54,8 +66,9 @@ function buildFlowNodes(
         label: cls.name,
         count,
         colorKey: getColorKey(cls.color),
-        isEmpty: count === 0 && !classes.some((c) => c.parentId === cls.id),
+        isEmpty: count === 0 && !hasChildren,
         isFocused: highlightedNodeId === cls.id,
+        nodeRole,
       },
     };
   });
@@ -84,52 +97,137 @@ function buildFlowEdges(
   relationTypes: { id: string; name: string }[],
   selectedNodeId: string | null,
 ): Edge[] {
+  // v4: is-a edges (inheritance) -- solid 2px + filled triangle marker
   const isAEdges: Edge[] = classes
     .filter((cls) => cls.parentId)
-    .map((cls) => ({
-      id: `isa-${cls.id}`,
-      source: cls.parentId!,
-      target: cls.id,
+    .map((cls) => {
+      const isConnected = selectedNodeId && (selectedNodeId === cls.parentId || selectedNodeId === cls.id);
+      return {
+        id: `isa-${cls.id}`,
+        source: cls.parentId!,
+        target: cls.id,
+        type: 'smoothstep',
+        markerEnd: {
+          type: 'arrowclosed' as const,
+          color: isConnected ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))',
+          width: 18,
+          height: 14,
+        },
+        style: {
+          stroke: isConnected
+            ? 'hsl(var(--primary))'
+            : 'hsl(var(--muted-foreground))',
+          strokeWidth: isConnected ? 2.5 : 2,
+        },
+        animated: false,
+      };
+    });
+
+  // v4: instance-of edges -- dotted 1px + open triangle marker
+  const instanceEdges: Edge[] = instances.map((inst) => {
+    const isConnected = selectedNodeId && (selectedNodeId === inst.classId || selectedNodeId === inst.id);
+    return {
+      id: `inst-${inst.id}`,
+      source: inst.classId,
+      target: inst.id,
       type: 'smoothstep',
+      markerEnd: {
+        type: 'arrow' as const,
+        color: isConnected ? 'hsl(var(--primary))' : 'hsl(var(--border))',
+        width: 14,
+        height: 10,
+      },
       style: {
-        stroke: selectedNodeId && (selectedNodeId === cls.parentId || selectedNodeId === cls.id)
+        stroke: isConnected
           ? 'hsl(var(--primary))'
           : 'hsl(var(--border))',
-        strokeWidth: selectedNodeId && (selectedNodeId === cls.parentId || selectedNodeId === cls.id)
-          ? 2
-          : 1.4,
+        strokeWidth: isConnected ? 1.5 : 1,
+        strokeDasharray: '3 3',
       },
       animated: false,
-    }));
+    };
+  });
 
-  const instanceEdges: Edge[] = instances.map((inst) => ({
-    id: `inst-${inst.id}`,
-    source: inst.classId,
-    target: inst.id,
-    type: 'smoothstep',
-    style: {
-      stroke: selectedNodeId && (selectedNodeId === inst.classId || selectedNodeId === inst.id)
-        ? 'hsl(var(--primary))'
-        : 'hsl(var(--border))',
-      strokeWidth: 1.2,
-      strokeDasharray: '5 5',
-    },
-    animated: false,
-  }));
+  // v4: has-a edges (property/composition) -- detected by checking if relation name
+  // contains property-like semantics. For now, all ontologyEdges are relation edges.
+  // has-a pattern can be identified by relation type name containing "has"/"포함"/"속성"
+  const hasAPatterns = ['has', '포함', '속성', 'contains', 'owns'];
 
   const relEdges: Edge[] = ontologyEdges.map((edge) => {
     const relType = relationTypes.find((r) => r.id === edge.relationTypeId);
+    const relName = (relType?.name ?? '').toLowerCase();
+    const isHasA = hasAPatterns.some((p) => relName.includes(p));
     const isConnected = selectedNodeId && (selectedNodeId === edge.sourceId || selectedNodeId === edge.targetId);
+
+    if (isHasA) {
+      // v4: has-a edges -- dashed 1.5px + diamond marker
+      return {
+        id: edge.id,
+        source: edge.sourceId,
+        target: edge.targetId,
+        type: 'smoothstep',
+        label: relType?.name ?? '',
+        labelStyle: {
+          fontFamily: 'var(--font-sans)',
+          fontSize: 11,
+          fill: 'hsl(var(--foreground))',
+          fontWeight: 500,
+        },
+        labelBgStyle: {
+          fill: 'hsl(var(--card))',
+          stroke: 'hsl(var(--border))',
+          strokeWidth: 1,
+          rx: 8,
+          ry: 8,
+        },
+        labelBgPadding: [6, 4] as [number, number],
+        labelShowBg: true,
+        markerEnd: {
+          type: 'arrowclosed' as const,
+          color: isConnected ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))',
+          width: 12,
+          height: 12,
+        },
+        style: {
+          stroke: isConnected ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))',
+          strokeWidth: isConnected ? 2 : 1.5,
+          strokeDasharray: '6 3',
+        },
+        animated: false,
+      };
+    }
+
+    // v4: relation edges -- solid 1.5px + arrow marker
     return {
       id: edge.id,
       source: edge.sourceId,
       target: edge.targetId,
       type: 'smoothstep',
       label: relType?.name ?? '',
-      labelStyle: { fontFamily: 'var(--font-jetbrains)', fontSize: 9.5, fill: 'hsl(var(--muted-foreground))' },
+      labelStyle: {
+        fontFamily: 'var(--font-sans)',
+        fontSize: 11,
+        fill: 'hsl(var(--foreground))',
+        fontWeight: 500,
+      },
+      labelBgStyle: {
+        fill: 'hsl(var(--card))',
+        stroke: 'hsl(var(--border))',
+        strokeWidth: 1,
+        rx: 8,
+        ry: 8,
+      },
+      labelBgPadding: [6, 4] as [number, number],
+      labelShowBg: true,
+      markerEnd: {
+        type: 'arrowclosed' as const,
+        color: isConnected ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))',
+        width: 14,
+        height: 10,
+      },
       style: {
         stroke: isConnected ? 'hsl(var(--primary))' : 'hsl(var(--border))',
-        strokeWidth: isConnected ? 2 : 1.4,
+        strokeWidth: isConnected ? 2 : 1.5,
       },
       animated: false,
     };
@@ -155,6 +253,13 @@ function GraphCanvasInner() {
   const zoomAction = useOntologyStore((s) => s.zoomAction);
   const clearZoomAction = useOntologyStore((s) => s.clearZoomAction);
 
+  // Filter state (P1-4)
+  const showClasses = useOntologyStore((s) => s.showClasses);
+  const showInstances = useOntologyStore((s) => s.showInstances);
+  const colorFilter = useOntologyStore((s) => s.colorFilter);
+  const focusModeNodeId = useOntologyStore((s) => s.focusModeNodeId);
+  const focusDepth = useOntologyStore((s) => s.focusDepth);
+
   const { fitView } = useReactFlow();
   const layoutApplied = useRef(false);
   const prevNodeCount = useRef(0);
@@ -179,8 +284,53 @@ function GraphCanvasInner() {
     [classes, instances, ontologyEdges, relationTypes, selectedNodeId],
   );
 
-  const [nodes, setNodes, onNodesChange] = useNodesState(flowNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(flowEdges);
+  // Apply filters (P1-4)
+  const filteredNodes = useMemo(() => {
+    let result = flowNodes;
+
+    // Type filter
+    if (!showClasses) result = result.filter((n) => n.type !== 'classNode');
+    if (!showInstances) result = result.filter((n) => n.type !== 'instanceNode');
+
+    // Color filter
+    if (colorFilter.length > 0) {
+      result = result.filter((n) => {
+        const colorKey = (n.data as { colorKey?: string }).colorKey;
+        return !colorKey || colorFilter.includes(colorKey);
+      });
+    }
+
+    // Focus mode: dim non-neighbors
+    if (focusModeNodeId) {
+      const neighborIds = getNHopNeighborIds(focusModeNodeId, focusDepth, flowEdges);
+      result = result.map((n) => ({
+        ...n,
+        style: {
+          ...n.style,
+          opacity: neighborIds.has(n.id) ? 1 : 0.15,
+          transition: 'opacity 250ms ease-in-out',
+        },
+      }));
+    }
+
+    return result;
+  }, [flowNodes, flowEdges, showClasses, showInstances, colorFilter, focusModeNodeId, focusDepth]);
+
+  const filteredEdges = useMemo(() => {
+    if (!focusModeNodeId) return flowEdges;
+    const neighborIds = getNHopNeighborIds(focusModeNodeId, focusDepth, flowEdges);
+    return flowEdges.map((e) => ({
+      ...e,
+      style: {
+        ...e.style,
+        opacity: neighborIds.has(e.source) && neighborIds.has(e.target) ? 1 : 0.08,
+        transition: 'opacity 250ms ease-in-out',
+      },
+    }));
+  }, [flowEdges, focusModeNodeId, focusDepth]);
+
+  const [nodes, setNodes, onNodesChange] = useNodesState(filteredNodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(filteredEdges);
 
   useEffect(() => {
     setEdges(flowEdges);
@@ -240,6 +390,13 @@ function GraphCanvasInner() {
     clearFocus();
   }, [focusNodeId, nodes, fitView, clearFocus]);
 
+  // Terminate ELK worker on unmount
+  useEffect(() => {
+    return () => {
+      terminateElkWorker();
+    };
+  }, []);
+
   const onConnect: OnConnect = useCallback(
     (params: Connection) => {
       if (params.source && params.target && params.source !== params.target) {
@@ -254,7 +411,26 @@ function GraphCanvasInner() {
     [openPopover],
   );
 
+  // Used by EmptyState (plain div, not ReactFlow)
   const onDoubleClick = useCallback(
+    (event: React.MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (target.closest('.react-flow__node')) return;
+
+      const bounds = (event.currentTarget as HTMLElement).getBoundingClientRect();
+      openPopover({
+        type: 'newNode',
+        position: {
+          x: event.clientX - bounds.left,
+          y: event.clientY - bounds.top,
+        },
+      });
+    },
+    [openPopover],
+  );
+
+  // Used by wrapper div around ReactFlow
+  const onPaneDoubleClick = useCallback(
     (event: React.MouseEvent) => {
       const target = event.target as HTMLElement;
       if (target.closest('.react-flow__node')) return;
@@ -324,6 +500,107 @@ function GraphCanvasInner() {
     [nodes, classes, ontologyEdges, openPopover, updateClass],
   );
 
+  const [contextMenuTarget, setContextMenuTarget] = useState<ContextMenuTarget | null>(null);
+
+  const onNodeContextMenu = useCallback(
+    (event: React.MouseEvent, node: Node) => {
+      event.preventDefault();
+      const nodeType = node.type === 'classNode' ? 'class' : 'instance';
+      const selectNode = useOntologyStore.getState().selectNode;
+      selectNode(node.id, nodeType === 'class' ? 'class' : 'instance');
+      setContextMenuTarget({
+        type: nodeType,
+        nodeId: node.id,
+        nodeName: (node.data as { label?: string }).label ?? '',
+        position: { x: event.clientX, y: event.clientY },
+      });
+    },
+    [],
+  );
+
+  const onPaneContextMenu = useCallback(
+    (event: MouseEvent | React.MouseEvent) => {
+      event.preventDefault();
+      setContextMenuTarget({
+        type: 'pane',
+        position: { x: event.clientX, y: event.clientY },
+      });
+    },
+    [],
+  );
+
+  const onEdgeContextMenu = useCallback(
+    (event: React.MouseEvent, edge: Edge) => {
+      event.preventDefault();
+      setContextMenuTarget({
+        type: 'edge',
+        edgeId: edge.id,
+        edgeLabel: typeof edge.label === 'string' ? edge.label : '',
+        position: { x: event.clientX, y: event.clientY },
+      });
+    },
+    [],
+  );
+
+  const handleContextMenuClose = useCallback(() => {
+    setContextMenuTarget(null);
+  }, []);
+
+  const handleContextNewClass = useCallback(
+    (position: ContextMenuPosition) => {
+      openPopover({ type: 'newNode', position });
+    },
+    [openPopover],
+  );
+
+  const handleContextFitView = useCallback(() => {
+    fitView({ padding: 0.3 });
+  }, [fitView]);
+
+  const handleContextLayoutGraph = useCallback(() => {
+    getLayoutedElements(nodes, edges).then(({ nodes: layouted }) => {
+      setNodes(layouted);
+      setTimeout(() => fitView({ padding: 0.3 }), 50);
+    });
+  }, [nodes, edges, setNodes, fitView]);
+
+  const handleContextDeleteNode = useCallback(
+    (nodeId: string) => {
+      const store = useOntologyStore.getState();
+      const cls = store.classes.find((c) => c.id === nodeId);
+      if (cls) {
+        store.removeClass(nodeId);
+      } else {
+        store.removeInstance(nodeId);
+      }
+    },
+    [],
+  );
+
+  const handleContextChangeColor = useCallback(
+    (nodeId: string, color: NodeColorKey) => {
+      const colorHex = NODE_COLORS[color];
+      updateClass(nodeId, { color: colorHex });
+    },
+    [updateClass],
+  );
+
+  const handleContextFocusMode = useCallback(
+    (nodeId: string) => {
+      const store = useOntologyStore.getState();
+      store.focusNode(nodeId);
+    },
+    [],
+  );
+
+  const handleContextDeleteEdge = useCallback(
+    (edgeId: string) => {
+      const store = useOntologyStore.getState();
+      store.removeEdge(edgeId);
+    },
+    [],
+  );
+
   const [zoomLevel, setZoomLevel] = useState(100);
   const { zoomIn, zoomOut, getZoom } = useReactFlow();
 
@@ -343,7 +620,7 @@ function GraphCanvasInner() {
   }
 
   return (
-    <div className="flex-1 relative">
+    <div className="flex-1 relative" onDoubleClick={onPaneDoubleClick}>
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -351,10 +628,13 @@ function GraphCanvasInner() {
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         onPaneClick={onPaneClick}
-        onDoubleClick={onDoubleClick}
+        onNodeContextMenu={onNodeContextMenu}
+        onPaneContextMenu={onPaneContextMenu}
+        onEdgeContextMenu={onEdgeContextMenu}
+        zoomOnDoubleClick={false}
         onNodeDragStop={onNodeDragStop}
         nodeTypes={nodeTypes}
-        panOnDrag={toolMode === 'pan'}
+        panOnDrag={toolMode === 'pan' ? [0, 1] : [1]}
         selectionOnDrag={toolMode === 'select'}
         fitView
         fitViewOptions={{ padding: 0.3 }}
@@ -391,30 +671,45 @@ function GraphCanvasInner() {
         />
       </ReactFlow>
 
-      {/* Hint bar */}
-      <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-3 px-3 py-1.5 rounded-full bg-card/80 backdrop-blur-sm border border-border text-[10px] text-muted-foreground">
+      {/* Focus mode bar (P1-4) */}
+      <FocusModeBar />
+
+      {/* Context menu (positioned at click location) */}
+      <GraphContextMenu
+        target={contextMenuTarget}
+        onClose={handleContextMenuClose}
+        onNewClass={handleContextNewClass}
+        onLayoutGraph={handleContextLayoutGraph}
+        onFitView={handleContextFitView}
+        onChangeColor={handleContextChangeColor}
+        onFocusMode={handleContextFocusMode}
+        onDeleteNode={handleContextDeleteNode}
+        onDeleteEdge={handleContextDeleteEdge}
+      />
+
+      {/* v3: Unified hint bar + zoom control */}
+      <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-3 px-3 py-1.5 rounded-full bg-card/80 backdrop-blur-sm border border-border shadow-elevation-1 text-caption text-muted-foreground">
         <span><kbd className="font-mono bg-muted px-1 rounded">더블클릭</kbd> 새 노드</span>
         <span className="text-border">·</span>
         <span><kbd className="font-mono bg-muted px-1 rounded">드래그</kbd> 관계 연결</span>
-      </div>
-
-      {/* Zoom control */}
-      <div className="absolute bottom-3 right-3 flex items-center gap-1 bg-card/80 backdrop-blur-sm border border-border rounded-lg px-1 py-0.5">
-        <button
-          className="w-6 h-6 flex items-center justify-center text-muted-foreground hover:text-foreground text-xs"
-          onClick={() => zoomOut()}
-        >
-          -
-        </button>
-        <span className="text-[10px] font-mono text-muted-foreground w-8 text-center">
-          {zoomLevel}%
+        <span className="text-border">·</span>
+        <span className="flex items-center gap-1">
+          <button
+            className="w-5 h-5 flex items-center justify-center text-muted-foreground hover:text-foreground rounded hover:bg-muted transition-colors"
+            onClick={() => zoomOut()}
+          >
+            -
+          </button>
+          <span className="font-mono w-8 text-center">
+            {zoomLevel}%
+          </span>
+          <button
+            className="w-5 h-5 flex items-center justify-center text-muted-foreground hover:text-foreground rounded hover:bg-muted transition-colors"
+            onClick={() => zoomIn()}
+          >
+            +
+          </button>
         </span>
-        <button
-          className="w-6 h-6 flex items-center justify-center text-muted-foreground hover:text-foreground text-xs"
-          onClick={() => zoomIn()}
-        >
-          +
-        </button>
       </div>
     </div>
   );

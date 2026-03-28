@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -77,6 +77,7 @@ export default function NeoConfirmSheet({ open, onOpenChange }: NeoConfirmSheetP
 
         const commitResult = await commitsApi.create({
           message: `${opCounts.ADD} added, ${opCounts.MOD} modified, ${opCounts.DEL} deleted`,
+          isAutoSave: false,
           details: pendingChanges.map((c) => ({
             operation: c.operation as 'ADD' | 'MOD' | 'DEL',
             targetTable: c.targetTable,

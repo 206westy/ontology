@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { useOntologyStore } from '@/features/ontology/hooks/useOntologyStore';
 
-vi.mock('framer-motion', () => ({
+vi.mock('motion/react', () => ({
   motion: new Proxy({}, {
     get: (_target, prop: string) => {
       return ({ children, variants, initial, animate, exit, ...props }: Record<string, unknown>) => {
@@ -12,6 +12,19 @@ vi.mock('framer-motion', () => ({
     },
   }),
   AnimatePresence: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
+vi.mock('sonner', () => ({
+  toast: Object.assign(vi.fn(), {
+    success: vi.fn(),
+    error: vi.fn(),
+    warning: vi.fn(),
+  }),
+}));
+
+vi.mock('@/features/ontology/api', () => ({
+  validateApi: { run: vi.fn() },
+  importExportApi: { exportAsFile: vi.fn() },
 }));
 
 import Toolbar from '@/features/ontology/components/Toolbar';
@@ -96,7 +109,7 @@ describe('Toolbar (A-4)', () => {
 
   it('should have Import button that opens newNode popover', () => {
     render(<Toolbar />);
-    fireEvent.click(screen.getByText('Import'));
+    fireEvent.click(screen.getByText('가져오기'));
     expect(useOntologyStore.getState().popoverState?.type).toBe('newNode');
   });
 

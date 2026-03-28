@@ -1,7 +1,30 @@
-import ELK from 'elkjs/lib/elk.bundled.js';
+import type { ELK as ElkApi } from 'elkjs/lib/elk-api';
 import type { Node, Edge } from '@xyflow/react';
 
-const elk = new ELK();
+let elk: ElkApi | null = null;
+
+async function getElk(): Promise<ElkApi> {
+  if (elk) return elk;
+
+  if (typeof window !== 'undefined' && typeof Worker !== 'undefined') {
+    try {
+      const ElkConstructor = (await import('elkjs/lib/elk-api')).default;
+      elk = new ElkConstructor({ workerUrl: '/elk-worker.min.js' });
+      return elk;
+    } catch {
+      // fallback below
+    }
+  }
+
+  const ElkBundled = (await import('elkjs/lib/elk.bundled.js')).default;
+  elk = new ElkBundled();
+  return elk;
+}
+
+export function terminateElkWorker() {
+  elk?.terminateWorker?.();
+  elk = null;
+}
 
 const ELK_OPTIONS = {
   'elk.algorithm': 'layered',
@@ -36,7 +59,8 @@ export async function getLayoutedElements(
     })),
   };
 
-  const layoutedGraph = await elk.layout(graph);
+  const elkInstance = await getElk();
+  const layoutedGraph = await elkInstance.layout(graph);
 
   const layoutedNodes = nodes.map((node) => {
     const elkNode = layoutedGraph.children?.find((n) => n.id === node.id);

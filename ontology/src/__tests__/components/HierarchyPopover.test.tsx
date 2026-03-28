@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { useOntologyStore } from '@/features/ontology/hooks/useOntologyStore';
 
-vi.mock('framer-motion', () => ({
+vi.mock('motion/react', () => ({
   motion: new Proxy({}, {
     get: (_target, prop: string) => {
       return ({ children, variants, initial, animate, exit, ...props }: Record<string, unknown>) => {

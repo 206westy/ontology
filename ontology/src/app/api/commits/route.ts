@@ -5,12 +5,19 @@ import { createCommitSchema } from '@/features/ontology/lib/schemas';
 import { desc } from 'drizzle-orm';
 import { handleApiError } from '@/lib/api-error';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const { searchParams } = new URL(request.url);
+    const autoSaveFilter = searchParams.get('autoSave');
+
     const db = await getDb();
+
     const rows = await db.query.commits.findMany({
       with: { details: true },
       orderBy: [desc(commits.createdAt)],
+      ...(autoSaveFilter != null
+        ? { where: (c: any, { eq }: any) => eq(c.isAutoSave, autoSaveFilter === 'true') }
+        : {}),
     });
 
     return NextResponse.json(rows);
@@ -34,7 +41,10 @@ export async function POST(request: NextRequest) {
     const db = await getDb();
     const [commit] = await db
       .insert(commits)
-      .values({ message: parsed.data.message })
+      .values({
+        message: parsed.data.message,
+        isAutoSave: parsed.data.isAutoSave,
+      })
       .returning();
 
     if (parsed.data.details.length > 0) {

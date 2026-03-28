@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { motion } from 'framer-motion';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { motion } from 'motion/react';
 import { X, ArrowRight, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,10 +9,12 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { useOntologyStore } from '../hooks/useOntologyStore';
 import { calcPopoverPosition } from '../lib/popover-position';
+import { useRelationAutocomplete, fuzzyMatch } from '../hooks/useAutocomplete';
+import AutocompleteSuggestions from './AutocompleteSuggestions';
 
 const popoverAnimation = {
   initial: { opacity: 0, scale: 0.95, y: -8 },
-  animate: { opacity: 1, scale: 1, y: 0, transition: { type: 'spring', damping: 25, stiffness: 350 } },
+  animate: { opacity: 1, scale: 1, y: 0, transition: { type: 'spring' as const, damping: 25, stiffness: 350 } },
   exit: { opacity: 0, scale: 0.95, y: -8, transition: { duration: 0.15 } },
 };
 
@@ -33,6 +35,14 @@ export default function RelationPopover() {
   const [selectedTargetId, setSelectedTargetId] = useState<string | null>(null);
   const [targetSearch, setTargetSearch] = useState('');
 
+  // Autocomplete
+  const relationAC = useRelationAutocomplete();
+  const [showRelationAC, setShowRelationAC] = useState(false);
+  const localRelMatches = useMemo(
+    () => fuzzyMatch(relationTypes, newRelName),
+    [relationTypes, newRelName],
+  );
+
   const isOpen = popoverState?.type === 'relation';
 
   const handleClose = useCallback(() => {
@@ -40,8 +50,10 @@ export default function RelationPopover() {
     setNewRelName('');
     setSelectedTargetId(null);
     setTargetSearch('');
+    relationAC.clear();
+    setShowRelationAC(false);
     closePopover();
-  }, [closePopover]);
+  }, [closePopover, relationAC]);
 
   // Esc key handler
   useEffect(() => {
@@ -229,20 +241,52 @@ export default function RelationPopover() {
         {/* New relation input — only show after target is selected */}
         {resolvedTargetId && (
           <div className="mb-4">
-            <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-2">
-              {relationTypes.length > 0 ? '또는 새로 입력:' : '관계 이름:'}
-            </p>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase">
+                {relationTypes.length > 0 ? '\uB610\uB294 \uC0C8\uB85C \uC785\uB825:' : '\uAD00\uACC4 \uC774\uB984:'}
+              </p>
+              <AutocompleteSuggestions
+                suggestions={relationAC.suggestions}
+                isLoading={relationAC.isLoading}
+                error={relationAC.error}
+                visible={showRelationAC}
+                label={`AI \uCD94\uCC9C`}
+                onTrigger={() => {
+                  setShowRelationAC(true);
+                  relationAC.trigger(newRelName, sourceName, targetName ?? '');
+                }}
+                onSelect={(s) => {
+                  setNewRelName(s.name);
+                  setSelectedRelId(null);
+                  setShowRelationAC(false);
+                  relationAC.clear();
+                }}
+              />
+            </div>
             <Input
               value={newRelName}
               onChange={(e) => {
                 setNewRelName(e.target.value);
                 if (e.target.value) setSelectedRelId(null);
               }}
-              onKeyDown={(e) => e.key === 'Enter' && handleConnect()}
-              placeholder="관계 이름 입력..."
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleConnect();
+                if (e.ctrlKey && e.key === ' ') {
+                  e.preventDefault();
+                  setShowRelationAC(true);
+                  relationAC.trigger(newRelName, sourceName, targetName ?? '');
+                }
+              }}
+              placeholder={'\uAD00\uACC4 \uC774\uB984 \uC785\uB825...'}
               className="h-8 text-xs"
               autoFocus={!needsTargetSelection || !!resolvedTargetId}
             />
+            {/* Local fuzzy matches */}
+            {newRelName.trim() && localRelMatches.length > 0 && (
+              <div className="mt-1 text-[10px] text-muted-foreground">
+                {'\uC720\uC0AC: '}{localRelMatches.map((r) => r.name).join(', ')}
+              </div>
+            )}
           </div>
         )}
 

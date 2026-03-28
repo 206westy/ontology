@@ -3,6 +3,7 @@ import { defineConfig } from '@playwright/test';
 export default defineConfig({
   testDir: './e2e',
   timeout: 60000,
+  fullyParallel: false,
   workers: 1,
   retries: 1,
   use: {
@@ -15,7 +16,7 @@ export default defineConfig({
     command: 'npm run dev',
     port: 3000,
     reuseExistingServer: true,
-    timeout: 60000,
+    timeout: 120000,
   },
   projects: [
     { name: 'chromium', use: { browserName: 'chromium' } },

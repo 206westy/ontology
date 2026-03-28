@@ -9,3 +9,4 @@ export { useLoadOntology } from './useLoadOntology';
 export { useOntologyStore, useTemporalStore } from './useOntologyStore';
 export { useKeyboardShortcuts } from './useKeyboardShortcuts';
 export { useApiSync } from './useApiSync';
+export { useAutoSave } from './useAutoSave';

@@ -1,9 +1,10 @@
+import React from 'react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { useOntologyStore } from '@/features/ontology/hooks/useOntologyStore';
 
-// Mock framer-motion
-vi.mock('framer-motion', () => ({
+// Mock motion/react
+vi.mock('motion/react', () => ({
   motion: new Proxy({}, {
     get: (_target, prop: string) => {
       return ({ children, variants, initial, animate, exit, ...props }: Record<string, unknown>) => {
@@ -22,9 +23,52 @@ vi.mock('@/features/ontology/api', () => ({
   },
 }));
 
-// Mock toast
-vi.mock('@/hooks/use-toast', () => ({
-  toast: vi.fn(),
+// Mock sonner toast
+vi.mock('sonner', () => ({
+  toast: Object.assign(vi.fn(), {
+    success: vi.fn(),
+    error: vi.fn(),
+    warning: vi.fn(),
+    info: vi.fn(),
+  }),
+}));
+
+// Mock Tabs to avoid @radix-ui/react-presence infinite loop with React 19
+vi.mock('@/components/ui/tabs', () => {
+  function TabsMock({ value, defaultValue, onValueChange, children, ...props }: Record<string, unknown>) {
+    const [active, setActive] = React.useState((value || defaultValue || 'quick') as string);
+    React.useEffect(() => { if (value != null) setActive(value as string); }, [value]);
+    const ctx = React.useMemo(() => ({ active, setActive: (v: string) => { setActive(v); if (onValueChange) (onValueChange as (v: string) => void)(v); } }), [active, onValueChange]);
+    return <div data-testid="tabs" {...props}>{React.Children.map(children as React.ReactElement[], (child) => {
+      if (!React.isValidElement(child)) return child;
+      return React.cloneElement(child as React.ReactElement, { _tabsCtx: ctx } as Record<string, unknown>);
+    })}</div>;
+  }
+  function TabsListMock({ children, _tabsCtx, ...props }: Record<string, unknown>) {
+    return <div role="tablist" {...props}>{React.Children.map(children as React.ReactElement[], (child) => {
+      if (!React.isValidElement(child)) return child;
+      return React.cloneElement(child as React.ReactElement, { _tabsCtx } as Record<string, unknown>);
+    })}</div>;
+  }
+  function TabsTriggerMock({ value, children, _tabsCtx, ...props }: Record<string, unknown>) {
+    const ctx = _tabsCtx as { active: string; setActive: (v: string) => void } | undefined;
+    return <button role="tab" data-state={ctx?.active === value ? 'active' : 'inactive'} onClick={() => ctx?.setActive(value as string)} {...props}>{children as React.ReactNode}</button>;
+  }
+  function TabsContentMock({ value, children, _tabsCtx, ...props }: Record<string, unknown>) {
+    const ctx = _tabsCtx as { active: string } | undefined;
+    if (ctx?.active !== value) return null;
+    return <div role="tabpanel" {...props}>{children as React.ReactNode}</div>;
+  }
+  return { Tabs: TabsMock, TabsList: TabsListMock, TabsTrigger: TabsTriggerMock, TabsContent: TabsContentMock };
+});
+
+// Mock Select to avoid Radix Presence issues
+vi.mock('@/components/ui/select', () => ({
+  Select: ({ children, ...props }: Record<string, unknown>) => <div {...props}>{children as React.ReactNode}</div>,
+  SelectTrigger: ({ children, ...props }: Record<string, unknown>) => <button {...props}>{children as React.ReactNode}</button>,
+  SelectContent: ({ children }: Record<string, unknown>) => <div>{children as React.ReactNode}</div>,
+  SelectItem: ({ children, value, ...props }: Record<string, unknown>) => <option value={value as string} {...props}>{children as React.ReactNode}</option>,
+  SelectValue: ({ placeholder }: Record<string, unknown>) => <span>{placeholder as string}</span>,
 }));
 
 import NewNodePopover from '@/features/ontology/components/NewNodePopover';
@@ -45,6 +89,12 @@ function resetStore() {
     expandedNodes: new Set<string>(),
     focusNodeId: null,
   });
+}
+
+/** Switch to the text input tab in the NewNodePopover */
+function switchToTextTab() {
+  const textTab = screen.getByRole('tab', { name: /텍스트 입력/ });
+  fireEvent.click(textTab);
 }
 
 describe('NewNodePopover', () => {
@@ -68,6 +118,8 @@ describe('NewNodePopover', () => {
     render(<NewNodePopover />);
     expect(screen.getByText('새 노드')).toBeInTheDocument();
     expect(screen.getByText('취소')).toBeInTheDocument();
+    // Switch to text tab to find the generate button
+    switchToTextTab();
     expect(screen.getByText('생성')).toBeInTheDocument();
   });
 
@@ -79,6 +131,7 @@ describe('NewNodePopover', () => {
     });
 
     render(<NewNodePopover />);
+    switchToTextTab();
     const textarea = screen.getByPlaceholderText(/자유 형식으로 입력하세요/);
     expect(textarea).toBeInTheDocument();
   });
@@ -91,6 +144,7 @@ describe('NewNodePopover', () => {
     });
 
     render(<NewNodePopover />);
+    switchToTextTab();
     const generateBtn = screen.getByText('생성').closest('button');
     expect(generateBtn).toBeDisabled();
   });
@@ -103,6 +157,7 @@ describe('NewNodePopover', () => {
     });
 
     render(<NewNodePopover />);
+    switchToTextTab();
     const textarea = screen.getByPlaceholderText(/자유 형식으로 입력하세요/);
     fireEvent.change(textarea, { target: { value: 'Animal' } });
 
@@ -118,6 +173,7 @@ describe('NewNodePopover', () => {
     });
 
     render(<NewNodePopover />);
+    switchToTextTab();
     const textarea = screen.getByPlaceholderText(/자유 형식으로 입력하세요/);
     fireEvent.change(textarea, { target: { value: '# Animal\n# Plant' } });
 
@@ -143,6 +199,7 @@ describe('NewNodePopover', () => {
     });
 
     render(<NewNodePopover />);
+    switchToTextTab();
     fireEvent.change(screen.getByPlaceholderText(/자유 형식으로 입력하세요/), {
       target: { value: 'TestClass' },
     });
@@ -164,6 +221,7 @@ describe('NewNodePopover', () => {
     });
 
     render(<NewNodePopover />);
+    switchToTextTab();
     fireEvent.change(screen.getByPlaceholderText(/자유 형식으로 입력하세요/), {
       target: { value: '# ClassA\n# ClassB' },
     });
@@ -203,6 +261,7 @@ describe('NewNodePopover', () => {
     });
 
     render(<NewNodePopover />);
+    switchToTextTab();
     fireEvent.change(screen.getByPlaceholderText(/자유 형식으로 입력하세요/), {
       target: { value: 'GoBack' },
     });
@@ -227,6 +286,7 @@ describe('NewNodePopover', () => {
     });
 
     const { container } = render(<NewNodePopover />);
+    switchToTextTab();
     fireEvent.change(screen.getByPlaceholderText(/자유 형식으로 입력하세요/), {
       target: { value: '# Dog\n# Cat' },
     });
@@ -256,6 +316,7 @@ describe('NewNodePopover', () => {
     });
 
     render(<NewNodePopover />);
+    switchToTextTab();
     fireEvent.change(screen.getByPlaceholderText(/자유 형식으로 입력하세요/), {
       target: { value: '# Animal\n# Dog\nAnimal -> Dog' },
     });
@@ -281,6 +342,7 @@ describe('NewNodePopover', () => {
     });
 
     render(<NewNodePopover />);
+    switchToTextTab();
     fireEvent.change(screen.getByPlaceholderText(/자유 형식으로 입력하세요/), {
       target: { value: '# A\n# B\n# C' },
     });
@@ -334,6 +396,7 @@ describe('NewNodePopover', () => {
     });
 
     render(<NewNodePopover />);
+    switchToTextTab();
     fireEvent.change(screen.getByPlaceholderText(/자유 형식으로 입력하세요/), {
       target: { value: '# MyClass\nprop: age:integer' },
     });

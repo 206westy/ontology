@@ -1,16 +1,27 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { X, Paperclip, ClipboardPaste, ArrowRight, ArrowLeft, Check, Trash2, Loader2, ChevronRight, Link2, Circle } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { X, Paperclip, ClipboardPaste, ArrowRight, ArrowLeft, Check, Trash2, Loader2, ChevronRight, Link2, Circle, Plus, Table } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useOntologyStore } from '../hooks/useOntologyStore';
 import { NODE_COLORS } from '../constants/colors';
 import { llmApi } from '../api';
 import { toast } from 'sonner';
 import { calcPopoverPosition } from '../lib/popover-position';
+import { useClassAutocomplete, fuzzyMatch } from '../hooks/useAutocomplete';
+import AutocompleteSuggestions from './AutocompleteSuggestions';
 
 interface ParsedResult {
   classes: { name: string; description: string; color: string | null; parentName: string | null }[];
@@ -36,8 +47,8 @@ function mockParse(input: string): ParsedResult {
         isRequired: false,
         enumValues: null,
       });
-    } else if (line.includes('->') || line.includes('→')) {
-      const parts = line.split(/->|→/).map((s) => s.trim());
+    } else if (line.includes('->') || line.includes('\u2192')) {
+      const parts = line.split(/->|\u2192/).map((s) => s.trim());
       if (parts.length >= 2) {
         result.relations.push({ relationName: 'relates_to', sourceName: parts[0], targetName: parts[1] });
       }
@@ -133,14 +144,41 @@ function buildTreeItems(
   return items;
 }
 
+interface CsvRow {
+  name: string;
+  type: 'class' | 'instance';
+  description: string;
+  parentClass: string;
+}
+
+function parseCsv(input: string): CsvRow[] {
+  const lines = input.split('\n').map((l) => l.trim()).filter(Boolean);
+  if (lines.length === 0) return [];
+
+  // Detect if first line is a header
+  const firstLine = lines[0].toLowerCase();
+  const hasHeader = firstLine.includes('name') || firstLine.includes('이름') || firstLine.includes('type') || firstLine.includes('타입');
+  const dataLines = hasHeader ? lines.slice(1) : lines;
+
+  return dataLines.map((line) => {
+    const cols = line.split(',').map((c) => c.trim());
+    return {
+      name: cols[0] ?? '',
+      type: (cols[1]?.toLowerCase() === 'instance' ? 'instance' : 'class') as 'class' | 'instance',
+      description: cols[2] ?? '',
+      parentClass: cols[3] ?? '',
+    };
+  }).filter((row) => row.name.length > 0);
+}
+
 const popoverAnimation = {
   initial: { opacity: 0, scale: 0.95, y: -8 },
-  animate: { opacity: 1, scale: 1, y: 0, transition: { type: 'spring', damping: 25, stiffness: 350 } },
+  animate: { opacity: 1, scale: 1, y: 0, transition: { type: 'spring' as const, damping: 25, stiffness: 350 } },
   exit: { opacity: 0, scale: 0.95, y: -8, transition: { duration: 0.15 } },
 };
 
-const POPOVER_WIDTH = 360;
-const POPOVER_EST_HEIGHT = 320;
+const POPOVER_WIDTH = 400;
+const POPOVER_EST_HEIGHT = 400;
 
 export default function NewNodePopover() {
   const popoverState = useOntologyStore((s) => s.popoverState);
@@ -154,6 +192,7 @@ export default function NewNodePopover() {
   const classes = useOntologyStore((s) => s.classes);
   const relationTypes = useOntologyStore((s) => s.relationTypes);
 
+  const [activeTab, setActiveTab] = useState<'quick' | 'text' | 'csv'>('quick');
   const [phase, setPhase] = useState<'input' | 'loading' | 'preview'>('input');
   const [inputText, setInputText] = useState('');
   const [parsed, setParsed] = useState<ParsedResult | null>(null);
@@ -162,7 +201,42 @@ export default function NewNodePopover() {
   const [loadingSteps, setLoadingSteps] = useState<{ label: string; status: 'pending' | 'running' | 'done' }[]>([]);
   const abortControllerRef = useRef<AbortController | null>(null);
 
+  // Quick input state
+  const [quickName, setQuickName] = useState('');
+  const [quickDesc, setQuickDesc] = useState('');
+  const [quickType, setQuickType] = useState<'class' | 'instance'>('class');
+  const [quickParentId, setQuickParentId] = useState<string>('');
+
+  // CSV state
+  const [csvText, setCsvText] = useState('');
+  const [csvRows, setCsvRows] = useState<CsvRow[]>([]);
+  const [csvPreviewed, setCsvPreviewed] = useState(false);
+
+  // Autocomplete state
+  const classAC = useClassAutocomplete();
+  const [showClassAC, setShowClassAC] = useState(false);
+  const localClassMatches = useMemo(
+    () => fuzzyMatch(classes, quickName),
+    [classes, quickName],
+  );
+
   const isOpen = popoverState?.type === 'newNode';
+  const initialTextRef = useRef<string | null>(null);
+  const autoTriggerRef = useRef(false);
+
+  // Pre-fill text from EmptyState inline input
+  useEffect(() => {
+    if (isOpen && popoverState?.initialText && popoverState.initialText !== initialTextRef.current) {
+      initialTextRef.current = popoverState.initialText;
+      setInputText(popoverState.initialText);
+      setActiveTab('text');
+      autoTriggerRef.current = true;
+    }
+    if (!isOpen) {
+      initialTextRef.current = null;
+      autoTriggerRef.current = false;
+    }
+  }, [isOpen, popoverState?.initialText]);
 
   const existingClassNames = useMemo(
     () => new Set(classes.map((c) => c.name)),
@@ -186,13 +260,23 @@ export default function NewNodePopover() {
       abortControllerRef.current = null;
     }
     setPhase('input');
+    setActiveTab('quick');
     setInputText('');
     setParsed(null);
     setIsLoading(false);
     setLoadingProgress(0);
     setLoadingSteps([]);
+    setQuickName('');
+    setQuickDesc('');
+    setQuickType('class');
+    setQuickParentId('');
+    setCsvText('');
+    setCsvRows([]);
+    setCsvPreviewed(false);
+    classAC.clear();
+    setShowClassAC(false);
     closePopover();
-  }, [closePopover]);
+  }, [closePopover, classAC]);
 
   // Esc key handler
   useEffect(() => {
@@ -220,6 +304,88 @@ export default function NewNodePopover() {
 
   if (!isOpen) return null;
 
+  // --- Quick input handler ---
+  const handleQuickAdd = () => {
+    if (!quickName.trim()) return;
+
+    if (quickType === 'class') {
+      addClass({
+        name: quickName.trim(),
+        description: quickDesc.trim(),
+        color: NODE_COLORS.mid,
+        parentId: quickParentId || undefined,
+        positionX: popoverState!.position.x + Math.random() * 200 - 100,
+        positionY: popoverState!.position.y + Math.random() * 200 - 100,
+      });
+    } else {
+      if (!quickParentId) {
+        toast.error('인스턴스는 부모 클래스가 필요합니다');
+        return;
+      }
+      addInstance({
+        name: quickName.trim(),
+        classId: quickParentId,
+      });
+    }
+
+    toast.success(`${quickType === 'class' ? '클래스' : '인스턴스'} "${quickName.trim()}" 추가됨`);
+    setQuickName('');
+    setQuickDesc('');
+    setQuickType('class');
+    setQuickParentId('');
+  };
+
+  // --- CSV handlers ---
+  const handleCsvPreview = () => {
+    const rows = parseCsv(csvText);
+    if (rows.length === 0) {
+      toast.error('CSV 데이터를 파싱할 수 없습니다');
+      return;
+    }
+    setCsvRows(rows);
+    setCsvPreviewed(true);
+  };
+
+  const handleCsvConfirm = () => {
+    if (csvRows.length === 0) return;
+
+    const classIdMap = new Map<string, string>();
+    classes.forEach((c) => classIdMap.set(c.name, c.id));
+
+    // First pass: add classes
+    csvRows
+      .filter((r) => r.type === 'class')
+      .forEach((row) => {
+        if (existingClassNames.has(row.name)) return;
+        const parentId = row.parentClass ? classIdMap.get(row.parentClass) : undefined;
+        const id = addClass({
+          name: row.name,
+          description: row.description,
+          color: NODE_COLORS.mid,
+          parentId,
+          positionX: popoverState!.position.x + Math.random() * 200 - 100,
+          positionY: popoverState!.position.y + Math.random() * 200 - 100,
+        });
+        classIdMap.set(row.name, id);
+      });
+
+    // Second pass: add instances
+    csvRows
+      .filter((r) => r.type === 'instance')
+      .forEach((row) => {
+        const classId = classIdMap.get(row.parentClass);
+        if (!classId) {
+          toast.error(`인스턴스 "${row.name}"의 부모 클래스 "${row.parentClass}"를 찾을 수 없습니다`);
+          return;
+        }
+        addInstance({ name: row.name, classId });
+      });
+
+    toast.success(`CSV에서 ${csvRows.length}개 항목 추가됨`);
+    resetAndClose();
+  };
+
+  // --- Text input (LLM) handler ---
   const handleGenerate = async () => {
     if (!inputText.trim()) return;
 
@@ -387,9 +553,9 @@ export default function NewNodePopover() {
     >
       <AnimatePresence mode="wait">
         <motion.div
-          key={phase}
+          key={phase === 'input' ? `input-${activeTab}` : phase}
           {...popoverAnimation}
-          className="absolute w-[360px] max-w-[360px] bg-white dark:bg-card border border-border rounded-xl shadow-lg p-4"
+          className="absolute w-[400px] max-w-[400px] bg-white dark:bg-card border border-border rounded-xl shadow-lg p-4"
           style={{
             left: popoverPos.left,
             top: popoverPos.top,
@@ -406,47 +572,253 @@ export default function NewNodePopover() {
                 </button>
               </div>
 
-              <Textarea
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                placeholder="자유 형식으로 입력하세요. 클래스명, 속성, 관계 등..."
-                className="min-h-[120px] text-xs resize-none mb-2"
-                autoFocus
-              />
+              <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'quick' | 'text' | 'csv')}>
+                <TabsList className="w-full h-8 mb-3">
+                  <TabsTrigger value="quick" className="flex-1 text-xs h-6 gap-1">
+                    <Plus className="w-3 h-3" />
+                    빠른 입력
+                  </TabsTrigger>
+                  <TabsTrigger value="text" className="flex-1 text-xs h-6 gap-1">
+                    <ClipboardPaste className="w-3 h-3" />
+                    텍스트 입력
+                  </TabsTrigger>
+                  <TabsTrigger value="csv" className="flex-1 text-xs h-6 gap-1">
+                    <Table className="w-3 h-3" />
+                    CSV
+                  </TabsTrigger>
+                </TabsList>
 
-              <p className="text-[10px] text-muted-foreground mb-3">
-                형식 제한 없음 — LLM이 자동 구조화합니다
-              </p>
+                {/* Quick Input Tab */}
+                <TabsContent value="quick" className="space-y-2.5 mt-0">
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-[10px] text-muted-foreground block">{'\uC774\uB984'}</label>
+                      {quickType === 'class' && (
+                        <AutocompleteSuggestions
+                          suggestions={classAC.suggestions}
+                          isLoading={classAC.isLoading}
+                          error={classAC.error}
+                          visible={showClassAC}
+                          label={`AI \uCD94\uCC9C`}
+                          onTrigger={() => {
+                            setShowClassAC(true);
+                            const parentName = quickParentId
+                              ? classes.find((c) => c.id === quickParentId)?.name
+                              : undefined;
+                            classAC.trigger(quickName, parentName);
+                          }}
+                          onSelect={(s) => {
+                            setQuickName(s.name);
+                            if (s.description) setQuickDesc(s.description);
+                            setShowClassAC(false);
+                            classAC.clear();
+                          }}
+                        />
+                      )}
+                    </div>
+                    <Input
+                      value={quickName}
+                      onChange={(e) => setQuickName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.ctrlKey && e.key === ' ' && quickType === 'class') {
+                          e.preventDefault();
+                          setShowClassAC(true);
+                          const parentName = quickParentId
+                            ? classes.find((c) => c.id === quickParentId)?.name
+                            : undefined;
+                          classAC.trigger(quickName, parentName);
+                        }
+                      }}
+                      placeholder={'\uB178\uB4DC \uC774\uB984'}
+                      className="h-8 text-xs"
+                      autoFocus
+                    />
+                    {/* Local fuzzy matches */}
+                    {quickName.trim() && localClassMatches.length > 0 && quickType === 'class' && (
+                      <div className="mt-1 text-[10px] text-muted-foreground">
+                        {'\uC720\uC0AC: '}{localClassMatches.map((c) => c.name).join(', ')}
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-muted-foreground mb-1 block">설명</label>
+                    <Textarea
+                      value={quickDesc}
+                      onChange={(e) => setQuickDesc(e.target.value)}
+                      placeholder="노드에 대한 간단한 설명 (선택)"
+                      className="min-h-[60px] text-xs resize-none"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <label className="text-[10px] text-muted-foreground mb-1 block">타입</label>
+                      <Select value={quickType} onValueChange={(v) => setQuickType(v as 'class' | 'instance')}>
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="class">클래스</SelectItem>
+                          <SelectItem value="instance">인스턴스</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex-1">
+                      <label className="text-[10px] text-muted-foreground mb-1 block">
+                        부모 클래스 {quickType === 'instance' && <span className="text-destructive">*</span>}
+                      </label>
+                      <Select value={quickParentId} onValueChange={setQuickParentId}>
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue placeholder="선택 (없음)" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {classes.map((c) => (
+                            <SelectItem key={c.id} value={c.id}>
+                              {c.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-2 pt-1">
+                    <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={resetAndClose}>
+                      취소
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="h-7 text-xs gap-1"
+                      onClick={handleQuickAdd}
+                      disabled={!quickName.trim() || (quickType === 'instance' && !quickParentId)}
+                    >
+                      <Plus className="w-3 h-3" />
+                      추가
+                    </Button>
+                  </div>
+                </TabsContent>
 
-              <div className="flex items-center gap-2 mb-3">
-                <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-muted-foreground">
-                  <Paperclip className="w-3 h-3" />
-                  파일
-                </Button>
-                <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-muted-foreground">
-                  <ClipboardPaste className="w-3 h-3" />
-                  붙여넣기
-                </Button>
-              </div>
+                {/* Text Input Tab (LLM) */}
+                <TabsContent value="text" className="mt-0">
+                  <Textarea
+                    value={inputText}
+                    onChange={(e) => setInputText(e.target.value)}
+                    placeholder="자유 형식으로 입력하세요. 클래스명, 속성, 관계 등..."
+                    className="min-h-[120px] text-xs resize-none mb-2"
+                    autoFocus
+                  />
 
-              <div className="flex justify-end gap-2">
-                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={resetAndClose}>
-                  취소
-                </Button>
-                <Button size="sm" className="h-7 text-xs gap-1" onClick={handleGenerate} disabled={!inputText.trim() || isLoading}>
-                  {isLoading ? (
+                  <p className="text-[10px] text-muted-foreground mb-3">
+                    형식 제한 없음 — LLM이 자동 구조화합니다
+                  </p>
+
+                  <div className="flex items-center gap-2 mb-3">
+                    <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-muted-foreground">
+                      <Paperclip className="w-3 h-3" />
+                      파일
+                    </Button>
+                    <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-muted-foreground">
+                      <ClipboardPaste className="w-3 h-3" />
+                      붙여넣기
+                    </Button>
+                  </div>
+
+                  <div className="flex justify-end gap-2">
+                    <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={resetAndClose}>
+                      취소
+                    </Button>
+                    <Button size="sm" className="h-7 text-xs gap-1" onClick={handleGenerate} disabled={!inputText.trim() || isLoading}>
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                          분석 중...
+                        </>
+                      ) : (
+                        <>
+                          생성
+                          <ArrowRight className="w-3 h-3" />
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </TabsContent>
+
+                {/* CSV Tab */}
+                <TabsContent value="csv" className="mt-0">
+                  {!csvPreviewed ? (
                     <>
-                      <Loader2 className="w-3 h-3 animate-spin" />
-                      분석 중...
+                      <Textarea
+                        value={csvText}
+                        onChange={(e) => setCsvText(e.target.value)}
+                        placeholder={"이름,타입,설명,부모클래스\n동물,class,동물 클래스,\n강아지,instance,,동물"}
+                        className="min-h-[120px] text-xs resize-none font-mono mb-2"
+                        autoFocus
+                      />
+                      <p className="text-[10px] text-muted-foreground mb-3">
+                        CSV 형식: 이름, 타입(class/instance), 설명, 부모클래스
+                      </p>
+                      <div className="flex justify-end gap-2">
+                        <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={resetAndClose}>
+                          취소
+                        </Button>
+                        <Button size="sm" className="h-7 text-xs gap-1" onClick={handleCsvPreview} disabled={!csvText.trim()}>
+                          미리보기
+                          <ArrowRight className="w-3 h-3" />
+                        </Button>
+                      </div>
                     </>
                   ) : (
                     <>
-                      생성
-                      <ArrowRight className="w-3 h-3" />
+                      <div className="max-h-[240px] overflow-y-auto mb-3">
+                        <table className="w-full text-[11px]">
+                          <thead>
+                            <tr className="border-b border-border">
+                              <th className="text-left py-1 px-1.5 text-muted-foreground font-medium">이름</th>
+                              <th className="text-left py-1 px-1.5 text-muted-foreground font-medium">타입</th>
+                              <th className="text-left py-1 px-1.5 text-muted-foreground font-medium">설명</th>
+                              <th className="text-left py-1 px-1.5 text-muted-foreground font-medium">부모</th>
+                              <th className="w-6" />
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {csvRows.map((row, i) => (
+                              <tr key={i} className="border-b border-border/50 group">
+                                <td className="py-1 px-1.5 font-medium">{row.name}</td>
+                                <td className="py-1 px-1.5">
+                                  <Badge variant="secondary" className="text-[9px] h-4 px-1">
+                                    {row.type === 'class' ? '클래스' : '인스턴스'}
+                                  </Badge>
+                                </td>
+                                <td className="py-1 px-1.5 text-muted-foreground truncate max-w-[80px]">{row.description}</td>
+                                <td className="py-1 px-1.5 text-muted-foreground">{row.parentClass}</td>
+                                <td className="py-1">
+                                  <button
+                                    className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                                    onClick={() => setCsvRows((prev) => prev.filter((_, idx) => idx !== i))}
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground mb-3">
+                        {csvRows.length}개 항목이 추가됩니다
+                      </p>
+                      <div className="flex justify-end gap-2">
+                        <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={() => setCsvPreviewed(false)}>
+                          <ArrowLeft className="w-3 h-3" />
+                          수정
+                        </Button>
+                        <Button size="sm" className="h-7 text-xs gap-1" onClick={handleCsvConfirm} disabled={csvRows.length === 0}>
+                          확정
+                          <Check className="w-3 h-3" />
+                        </Button>
+                      </div>
                     </>
                   )}
-                </Button>
-              </div>
+                </TabsContent>
+              </Tabs>
             </>
           )}
 

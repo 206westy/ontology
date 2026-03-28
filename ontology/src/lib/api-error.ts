@@ -20,8 +20,24 @@ interface DbError {
   detail?: string;
 }
 
+function extractDbError(err: unknown): DbError | null {
+  if (typeof err !== 'object' || err === null) return null;
+  // Direct postgres error (has numeric code like '23505')
+  if ('code' in err && typeof (err as DbError).code === 'string') {
+    return err as DbError;
+  }
+  // Drizzle wraps postgres errors in err.cause
+  if ('cause' in err) {
+    const cause = (err as { cause: unknown }).cause;
+    if (typeof cause === 'object' && cause !== null && 'code' in cause) {
+      return cause as DbError;
+    }
+  }
+  return null;
+}
+
 function isDbError(err: unknown): err is DbError {
-  return typeof err === 'object' && err !== null && 'code' in err;
+  return extractDbError(err) !== null;
 }
 
 interface Neo4jError {
@@ -249,9 +265,10 @@ export function handleApiError(err: unknown): NextResponse<ApiErrorResponse> {
     return handleLlmError(err);
   }
 
-  // Supabase / Database errors
-  if (isDbError(err)) {
-    return handleDbError(err);
+  // Supabase / Database errors (including Drizzle-wrapped errors)
+  const dbErr = extractDbError(err);
+  if (dbErr) {
+    return handleDbError(dbErr);
   }
 
   // Generic errors

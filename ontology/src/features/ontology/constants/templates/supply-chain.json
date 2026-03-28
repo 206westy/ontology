@@ -1,0 +1,56 @@
+{
+  "classes": [
+    { "name": "Supplier", "description": "공급업체", "color": "#7c3aed" },
+    { "name": "Manufacturer", "description": "제조업체", "color": "#7c3aed" },
+    { "name": "Warehouse", "description": "물류 창고/배송 센터", "color": "#dc2626" },
+    { "name": "Inventory", "description": "재고 항목", "color": "#2563eb", "parentName": "Warehouse" },
+    { "name": "Product", "description": "제품 (SKU 기준)", "color": "#6366f1" },
+    { "name": "RawMaterial", "description": "원자재", "color": "#8b5cf6" },
+    { "name": "Order", "description": "주문 (발주/수주)", "color": "#14b8a6" },
+    { "name": "PurchaseOrder", "description": "발주서", "color": "#14b8a6", "parentName": "Order" },
+    { "name": "SalesOrder", "description": "수주/판매 주문", "color": "#14b8a6", "parentName": "Order" },
+    { "name": "Shipment", "description": "배송/운송 건", "color": "#d97706" },
+    { "name": "Customer", "description": "고객사", "color": "#d97706" },
+    { "name": "TransportRoute", "description": "운송 경로", "color": "#0891b2" },
+    { "name": "QualityCheck", "description": "품질 검사 기록", "color": "#db2777" }
+  ],
+  "properties": [
+    { "className": "Supplier", "name": "company_name", "dataType": "string", "isRequired": true },
+    { "className": "Supplier", "name": "country", "dataType": "string", "isRequired": true },
+    { "className": "Supplier", "name": "lead_time_days", "dataType": "integer", "isRequired": false },
+    { "className": "Manufacturer", "name": "factory_name", "dataType": "string", "isRequired": true },
+    { "className": "Manufacturer", "name": "capacity_per_day", "dataType": "integer", "isRequired": false },
+    { "className": "Warehouse", "name": "location", "dataType": "string", "isRequired": true },
+    { "className": "Warehouse", "name": "area_sqm", "dataType": "float", "isRequired": false },
+    { "className": "Inventory", "name": "quantity", "dataType": "integer", "isRequired": true },
+    { "className": "Inventory", "name": "reorder_level", "dataType": "integer", "isRequired": true },
+    { "className": "Product", "name": "sku", "dataType": "string", "isRequired": true },
+    { "className": "Product", "name": "unit_price_krw", "dataType": "float", "isRequired": true },
+    { "className": "Product", "name": "category", "dataType": "string", "isRequired": true },
+    { "className": "RawMaterial", "name": "material_code", "dataType": "string", "isRequired": true },
+    { "className": "Order", "name": "order_date", "dataType": "date", "isRequired": true },
+    { "className": "Order", "name": "total_amount_krw", "dataType": "float", "isRequired": true },
+    { "className": "Order", "name": "status", "dataType": "enum", "isRequired": true },
+    { "className": "Shipment", "name": "tracking_number", "dataType": "string", "isRequired": true },
+    { "className": "Shipment", "name": "ship_date", "dataType": "date", "isRequired": true },
+    { "className": "Shipment", "name": "carrier", "dataType": "string", "isRequired": true },
+    { "className": "Customer", "name": "company_name", "dataType": "string", "isRequired": true },
+    { "className": "TransportRoute", "name": "origin", "dataType": "string", "isRequired": true },
+    { "className": "QualityCheck", "name": "pass_rate_percent", "dataType": "float", "isRequired": true }
+  ],
+  "relationTypes": [
+    { "name": "supplies_to", "sourceClassName": "Supplier", "targetClassName": "Warehouse" },
+    { "name": "produces", "sourceClassName": "Manufacturer", "targetClassName": "Product" },
+    { "name": "stores", "sourceClassName": "Warehouse", "targetClassName": "Inventory" },
+    { "name": "ordered_by", "sourceClassName": "Order", "targetClassName": "Customer" },
+    { "name": "ships_via", "sourceClassName": "Order", "targetClassName": "Shipment" },
+    { "name": "inspected_by", "sourceClassName": "Product", "targetClassName": "QualityCheck" }
+  ],
+  "instances": [
+    { "name": "삼성전자 반도체", "className": "Supplier", "description": "칩셋 주요 공급업체" },
+    { "name": "인천 물류센터", "className": "Warehouse", "description": "수도권 허브 물류 창고" },
+    { "name": "스마트폰 X-200", "className": "Product", "description": "2024년형 플래그십 스마트폰" },
+    { "name": "PO-2024-0312", "className": "PurchaseOrder", "description": "Q1 반도체 발주" },
+    { "name": "CJ대한통운", "className": "Shipment", "description": "국내 주요 배송 건" }
+  ]
+}

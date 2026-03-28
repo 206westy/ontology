@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Undo2, List, ArrowUpCircle, GitCommitHorizontal, Loader2 } from 'lucide-react';
+import { Undo2, List, ArrowUpCircle, GitCommitHorizontal, Loader2, History } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -15,6 +15,9 @@ import { useOntologyStore, useTemporalStore } from '../hooks/useOntologyStore';
 import { commitsApi } from '../api';
 import { toast } from 'sonner';
 import NeoConfirmSheet from './neo4j/NeoConfirmSheet';
+import CommitHistoryPanel from './CommitHistoryPanel';
+import AutoSaveIndicator, { type AutoSaveState } from './AutoSaveIndicator';
+import { useAutoSave } from '../hooks/useAutoSave';
 
 const OP_STYLES: Record<string, { label: string; className: string }> = {
   ADD: { label: 'ADD', className: 'bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-900/40 dark:text-emerald-400 dark:border-emerald-700' },
@@ -28,6 +31,8 @@ export default function CommitBar() {
   const undo = useTemporalStore((s) => s.undo);
   const [showChanges, setShowChanges] = useState(false);
   const [showNeoPush, setShowNeoPush] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const { enabled: autoSaveEnabled, toggle: toggleAutoSave } = useAutoSave();
 
   const opCounts = useMemo(() => {
     const counts = { ADD: 0, MOD: 0, DEL: 0 };
@@ -41,11 +46,18 @@ export default function CommitBar() {
   const [isCommitting, setIsCommitting] = useState(false);
   const hasChanges = pendingChanges.length > 0;
 
+  const autoSaveState: AutoSaveState = isCommitting
+    ? 'saving'
+    : hasChanges
+      ? 'unsaved'
+      : 'idle';
+
   const handleCommit = async () => {
     setIsCommitting(true);
     try {
       await commitsApi.create({
         message: `${opCounts.ADD} added, ${opCounts.MOD} modified, ${opCounts.DEL} deleted`,
+        isAutoSave: false,
         details: pendingChanges.map((c) => ({
           operation: c.operation as 'ADD' | 'MOD' | 'DEL',
           targetTable: c.targetTable,
@@ -55,9 +67,9 @@ export default function CommitBar() {
         })),
       });
       clearChanges();
-      toast.success('커밋 완료', { description: '변경사항이 Supabase에 저장되었습니다.' });
+      toast.success('저장 완료', { description: '변경사항이 Supabase에 저장되었습니다.' });
     } catch {
-      toast.error('커밋 실패', { description: '다시 시도해주세요.' });
+      toast.error('저장 실패', { description: '다시 시도해주세요.' });
     } finally {
       setIsCommitting(false);
     }
@@ -66,9 +78,11 @@ export default function CommitBar() {
   return (
     <div className="h-[38px] min-h-[38px] flex items-center justify-between px-3 border-t border-border bg-card/80 backdrop-blur-sm">
       <div className="flex items-center gap-2">
-        {hasChanges && (
-          <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-        )}
+        <AutoSaveIndicator
+          state={autoSaveState}
+          autoEnabled={autoSaveEnabled}
+          onToggleAuto={toggleAutoSave}
+        />
         <span className="text-[11px] text-foreground">
           변경사항 {pendingChanges.length}건
         </span>
@@ -109,20 +123,32 @@ export default function CommitBar() {
           변경 내역
         </Button>
         <Button
-          variant="outline"
+          variant="ghost"
           size="sm"
-          className="h-6 text-[11px] px-2.5 gap-1"
-          disabled={!hasChanges || isCommitting}
-          onClick={handleCommit}
-          data-testid="commit-btn"
+          className="h-6 text-[11px] px-2 gap-1"
+          onClick={() => setShowHistory(true)}
+          title="커밋 히스토리"
         >
-          {isCommitting ? (
-            <Loader2 className="w-3 h-3 animate-spin" />
-          ) : (
-            <GitCommitHorizontal className="w-3 h-3" />
-          )}
-          {isCommitting ? '커밋 중...' : '커밋'}
+          <History className="w-3 h-3" />
+          히스토리
         </Button>
+        {!autoSaveEnabled && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-6 text-[11px] px-2.5 gap-1"
+            disabled={!hasChanges || isCommitting}
+            onClick={handleCommit}
+            data-testid="commit-btn"
+          >
+            {isCommitting ? (
+              <Loader2 className="w-3 h-3 animate-spin" />
+            ) : (
+              <GitCommitHorizontal className="w-3 h-3" />
+            )}
+            {isCommitting ? '저장 중...' : '저장'}
+          </Button>
+        )}
         <Button
           size="sm"
           className="h-6 text-[11px] px-2.5 gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
@@ -131,7 +157,7 @@ export default function CommitBar() {
           data-testid="neo4j-push-btn"
         >
           <ArrowUpCircle className="w-3 h-3" />
-          Neo4j 푸시
+          반영
         </Button>
       </div>
 
@@ -168,6 +194,9 @@ export default function CommitBar() {
 
       {/* Neo4j push confirmation sheet */}
       <NeoConfirmSheet open={showNeoPush} onOpenChange={setShowNeoPush} />
+
+      {/* Commit history panel */}
+      <CommitHistoryPanel open={showHistory} onOpenChange={setShowHistory} />
     </div>
   );
 }

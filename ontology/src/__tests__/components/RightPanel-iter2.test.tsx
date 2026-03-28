@@ -1,22 +1,97 @@
+import React from 'react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { useOntologyStore } from '@/features/ontology/hooks/useOntologyStore';
 
-vi.mock('framer-motion', () => ({
+// Mock motion/react with forwardRef support
+vi.mock('motion/react', () => ({
   motion: new Proxy({}, {
     get: (_target, prop: string) => {
-      return ({ children, variants, initial, animate, exit, ...props }: Record<string, unknown>) => {
-        const Component = prop as keyof JSX.IntrinsicElements;
-        return <Component {...props}>{children}</Component>;
-      };
+      const Component = React.forwardRef(({ children, variants, initial, animate, exit, ...props }: Record<string, unknown>, ref: React.Ref<unknown>) => {
+        const Tag = prop as keyof JSX.IntrinsicElements;
+        return <Tag ref={ref as React.Ref<HTMLElement>} {...props}>{children as React.ReactNode}</Tag>;
+      });
+      Component.displayName = `motion.${prop}`;
+      return Component;
     },
   }),
   AnimatePresence: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
-vi.mock('@/hooks/use-toast', () => ({
-  toast: vi.fn(),
+// Mock zustand/shallow useShallow with deep equality via JSON to avoid React 19 infinite loop
+vi.mock('zustand/shallow', () => {
+  function useShallow<S, U>(selector: (state: S) => U): (state: S) => U {
+    const prevRef = React.useRef<{ value: U; json: string } | null>(null);
+    const selectorRef = React.useRef(selector);
+    selectorRef.current = selector;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return React.useCallback((state: S) => {
+      const next = selectorRef.current(state);
+      const nextJson = JSON.stringify(next);
+      if (prevRef.current && prevRef.current.json === nextJson) return prevRef.current.value;
+      prevRef.current = { value: next, json: nextJson };
+      return next;
+    }, []);
+  }
+  return { useShallow };
+});
+
+// Mock sonner toast
+vi.mock('sonner', () => ({
+  toast: Object.assign(vi.fn(), {
+    success: vi.fn(),
+    error: vi.fn(),
+    warning: vi.fn(),
+  }),
 }));
+
+// Mock AIAssistantTab to avoid complex deps
+vi.mock('@/features/ontology/components/AIAssistantTab', () => ({
+  default: ({ nodeName }: { nodeName: string }) => <div data-testid="ai-tab">AI: {nodeName}</div>,
+}));
+
+// Mock Text2CypherTab to avoid complex deps
+vi.mock('@/features/ontology/components/Text2CypherTab', () => ({
+  default: () => <div data-testid="cypher-tab">Text2Cypher</div>,
+}));
+
+// Mock ScrollArea to avoid @radix-ui/react-compose-refs infinite loop with React 19
+vi.mock('@/components/ui/scroll-area', () => {
+  const ScrollAreaMock = React.forwardRef(({ className, children, ...props }: Record<string, unknown>, ref: React.Ref<HTMLDivElement>) => (
+    <div ref={ref} className={className as string} {...props}>{children as React.ReactNode}</div>
+  ));
+  ScrollAreaMock.displayName = 'ScrollArea';
+  return { ScrollArea: ScrollAreaMock, ScrollBar: () => null };
+});
+
+// Mock Tabs to avoid @radix-ui/react-presence infinite loop with React 19
+vi.mock('@/components/ui/tabs', () => {
+  function TabsMock({ value, defaultValue, onValueChange, children, ...props }: Record<string, unknown>) {
+    const [active, setActive] = React.useState((value || defaultValue || '') as string);
+    React.useEffect(() => { if (value != null) setActive(value as string); }, [value]);
+    const ctx = React.useMemo(() => ({ active, setActive: (v: string) => { setActive(v); if (onValueChange) (onValueChange as (v: string) => void)(v); } }), [active, onValueChange]);
+    return <div data-testid="tabs" {...props}>{React.Children.map(children as React.ReactElement[], (child) => {
+      if (!React.isValidElement(child)) return child;
+      return React.cloneElement(child as React.ReactElement, { _tabsCtx: ctx } as Record<string, unknown>);
+    })}</div>;
+  }
+  function TabsListMock({ children, _tabsCtx, ...props }: Record<string, unknown>) {
+    return <div role="tablist" {...props}>{React.Children.map(children as React.ReactElement[], (child) => {
+      if (!React.isValidElement(child)) return child;
+      return React.cloneElement(child as React.ReactElement, { _tabsCtx } as Record<string, unknown>);
+    })}</div>;
+  }
+  function TabsTriggerMock({ value, children, _tabsCtx, ...props }: Record<string, unknown>) {
+    const ctx = _tabsCtx as { active: string; setActive: (v: string) => void } | undefined;
+    return <button role="tab" data-state={ctx?.active === value ? 'active' : 'inactive'} onClick={() => ctx?.setActive(value as string)} {...props}>{children as React.ReactNode}</button>;
+  }
+  function TabsContentMock({ value, children, _tabsCtx, ...props }: Record<string, unknown>) {
+    const ctx = _tabsCtx as { active: string } | undefined;
+    if (ctx?.active !== value) return null;
+    return <div role="tabpanel" {...props}>{children as React.ReactNode}</div>;
+  }
+  return { Tabs: TabsMock, TabsList: TabsListMock, TabsTrigger: TabsTriggerMock, TabsContent: TabsContentMock };
+});
 
 import RightPanel from '@/features/ontology/components/RightPanel';
 
@@ -46,7 +121,7 @@ describe('RightPanel — Iteration 2', () => {
   });
 
   // B-2: Tab structure — Relations is a separate tab (differs from PRD single scroll)
-  it('should have separate tabs: 상세, 관계, AI (B-2 PRD gap)', () => {
+  it('should have separate tabs: 상세, 관계, AI, Cypher (B-2 PRD gap)', () => {
     useOntologyStore.getState().addClass({ id: 'c1', name: 'Test' });
     useOntologyStore.getState().selectNode('c1', 'class');
 
@@ -54,6 +129,7 @@ describe('RightPanel — Iteration 2', () => {
     expect(screen.getByText('상세')).toBeInTheDocument();
     expect(screen.getByText('관계')).toBeInTheDocument();
     expect(screen.getByText('AI')).toBeInTheDocument();
+    expect(screen.getByText('Cypher')).toBeInTheDocument();
   });
 
   // B-3: AI tab exists but is not the default active tab

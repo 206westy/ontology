@@ -1,0 +1,61 @@
+{
+  "classes": [
+    { "name": "Fab", "description": "반도체 제조 공장 (Fabrication Plant)", "color": "#7c3aed" },
+    { "name": "CleanRoom", "description": "클린룸 — 미세먼지 등급별 관리 공간", "color": "#dc2626", "parentName": "Fab" },
+    { "name": "Equipment", "description": "반도체 제조 장비 최상위 클래스", "color": "#2563eb" },
+    { "name": "Etcher", "description": "식각 장비 (건식/습식)", "color": "#0891b2", "parentName": "Equipment" },
+    { "name": "Depositor", "description": "증착 장비 (CVD/PVD/ALD)", "color": "#0891b2", "parentName": "Equipment" },
+    { "name": "Lithographer", "description": "포토리소그래피 (노광) 장비", "color": "#0891b2", "parentName": "Equipment" },
+    { "name": "Inspector", "description": "검사/계측 장비", "color": "#0891b2", "parentName": "Equipment" },
+    { "name": "Wafer", "description": "실리콘 웨이퍼", "color": "#14b8a6" },
+    { "name": "Lot", "description": "웨이퍼 묶음 단위 (Lot)", "color": "#14b8a6" },
+    { "name": "Process", "description": "반도체 공정 (예: 산화, 식각, 세정)", "color": "#6366f1" },
+    { "name": "Recipe", "description": "공정 레시피 — 장비 파라미터 세트", "color": "#6366f1" },
+    { "name": "Engineer", "description": "공정/장비 엔지니어", "color": "#d97706" },
+    { "name": "Defect", "description": "공정 중 발생하는 결함", "color": "#db2777" },
+    { "name": "Material", "description": "공정에 사용되는 원자재/화학물질", "color": "#8b5cf6" },
+    { "name": "Maintenance", "description": "장비 유지보수 이벤트", "color": "#db2777" }
+  ],
+  "properties": [
+    { "className": "Fab", "name": "location", "dataType": "string", "isRequired": true },
+    { "className": "Fab", "name": "cleanroom_class", "dataType": "enum", "isRequired": true },
+    { "className": "CleanRoom", "name": "iso_class", "dataType": "integer", "isRequired": true },
+    { "className": "CleanRoom", "name": "area_sqm", "dataType": "float", "isRequired": false },
+    { "className": "Equipment", "name": "model_name", "dataType": "string", "isRequired": true },
+    { "className": "Equipment", "name": "serial_number", "dataType": "string", "isRequired": true },
+    { "className": "Equipment", "name": "install_date", "dataType": "date", "isRequired": false },
+    { "className": "Equipment", "name": "status", "dataType": "enum", "isRequired": true },
+    { "className": "Wafer", "name": "diameter_mm", "dataType": "integer", "isRequired": true },
+    { "className": "Wafer", "name": "material_type", "dataType": "string", "isRequired": true },
+    { "className": "Lot", "name": "lot_id", "dataType": "string", "isRequired": true },
+    { "className": "Lot", "name": "wafer_count", "dataType": "integer", "isRequired": true },
+    { "className": "Process", "name": "process_type", "dataType": "string", "isRequired": true },
+    { "className": "Process", "name": "target_thickness_nm", "dataType": "float", "isRequired": false },
+    { "className": "Recipe", "name": "version", "dataType": "string", "isRequired": true },
+    { "className": "Recipe", "name": "temperature_c", "dataType": "float", "isRequired": false },
+    { "className": "Recipe", "name": "pressure_torr", "dataType": "float", "isRequired": false },
+    { "className": "Engineer", "name": "employee_id", "dataType": "string", "isRequired": true },
+    { "className": "Engineer", "name": "specialization", "dataType": "string", "isRequired": false },
+    { "className": "Defect", "name": "defect_code", "dataType": "string", "isRequired": true },
+    { "className": "Defect", "name": "severity", "dataType": "enum", "isRequired": true },
+    { "className": "Material", "name": "cas_number", "dataType": "string", "isRequired": false },
+    { "className": "Material", "name": "purity_percent", "dataType": "float", "isRequired": false },
+    { "className": "Maintenance", "name": "maintenance_type", "dataType": "enum", "isRequired": true },
+    { "className": "Maintenance", "name": "scheduled_date", "dataType": "date", "isRequired": true }
+  ],
+  "relationTypes": [
+    { "name": "contains", "sourceClassName": "Fab", "targetClassName": "CleanRoom" },
+    { "name": "installed_in", "sourceClassName": "Equipment", "targetClassName": "CleanRoom" },
+    { "name": "processes", "sourceClassName": "Equipment", "targetClassName": "Wafer" },
+    { "name": "uses_recipe", "sourceClassName": "Process", "targetClassName": "Recipe" },
+    { "name": "assigned_to", "sourceClassName": "Engineer", "targetClassName": "Equipment" },
+    { "name": "detected_on", "sourceClassName": "Defect", "targetClassName": "Wafer" }
+  ],
+  "instances": [
+    { "name": "FAB-A 이천", "className": "Fab", "description": "이천 캠퍼스 1공장" },
+    { "name": "ASML NXE:3600D", "className": "Lithographer", "description": "EUV 노광기" },
+    { "name": "Lam Kiyo CX", "className": "Etcher", "description": "메모리 식각 장비" },
+    { "name": "김현우 수석", "className": "Engineer", "description": "식각 공정 전문 수석 엔지니어" },
+    { "name": "LOT-2024-001", "className": "Lot", "description": "300mm 25매 웨이퍼 LOT" }
+  ]
+}

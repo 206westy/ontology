@@ -1,8 +1,9 @@
+import React from 'react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { useOntologyStore } from '@/features/ontology/hooks/useOntologyStore';
 
-vi.mock('framer-motion', () => ({
+vi.mock('motion/react', () => ({
   motion: new Proxy({}, {
     get: (_target, prop: string) => {
       return ({ children, variants, initial, animate, exit, ...props }: Record<string, unknown>) => {
@@ -14,7 +15,7 @@ vi.mock('framer-motion', () => ({
   AnimatePresence: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
-// Mock LLM API — return instances and parentName in the response
+// Mock LLM API -- return instances and parentName in the response
 const mockLlmParse = vi.fn();
 vi.mock('@/features/ontology/api', () => ({
   llmApi: {
@@ -22,11 +23,61 @@ vi.mock('@/features/ontology/api', () => ({
   },
 }));
 
-vi.mock('@/hooks/use-toast', () => ({
-  toast: vi.fn(),
+// Mock sonner toast
+vi.mock('sonner', () => ({
+  toast: Object.assign(vi.fn(), {
+    success: vi.fn(),
+    error: vi.fn(),
+    warning: vi.fn(),
+    info: vi.fn(),
+  }),
+}));
+
+// Mock Tabs to avoid @radix-ui/react-presence infinite loop with React 19
+vi.mock('@/components/ui/tabs', () => {
+  function TabsMock({ value, defaultValue, onValueChange, children, ...props }: Record<string, unknown>) {
+    const [active, setActive] = React.useState((value || defaultValue || 'quick') as string);
+    React.useEffect(() => { if (value != null) setActive(value as string); }, [value]);
+    const ctx = React.useMemo(() => ({ active, setActive: (v: string) => { setActive(v); if (onValueChange) (onValueChange as (v: string) => void)(v); } }), [active, onValueChange]);
+    return <div data-testid="tabs" {...props}>{React.Children.map(children as React.ReactElement[], (child) => {
+      if (!React.isValidElement(child)) return child;
+      return React.cloneElement(child as React.ReactElement, { _tabsCtx: ctx } as Record<string, unknown>);
+    })}</div>;
+  }
+  function TabsListMock({ children, _tabsCtx, ...props }: Record<string, unknown>) {
+    return <div role="tablist" {...props}>{React.Children.map(children as React.ReactElement[], (child) => {
+      if (!React.isValidElement(child)) return child;
+      return React.cloneElement(child as React.ReactElement, { _tabsCtx } as Record<string, unknown>);
+    })}</div>;
+  }
+  function TabsTriggerMock({ value, children, _tabsCtx, ...props }: Record<string, unknown>) {
+    const ctx = _tabsCtx as { active: string; setActive: (v: string) => void } | undefined;
+    return <button role="tab" data-state={ctx?.active === value ? 'active' : 'inactive'} onClick={() => ctx?.setActive(value as string)} {...props}>{children as React.ReactNode}</button>;
+  }
+  function TabsContentMock({ value, children, _tabsCtx, ...props }: Record<string, unknown>) {
+    const ctx = _tabsCtx as { active: string } | undefined;
+    if (ctx?.active !== value) return null;
+    return <div role="tabpanel" {...props}>{children as React.ReactNode}</div>;
+  }
+  return { Tabs: TabsMock, TabsList: TabsListMock, TabsTrigger: TabsTriggerMock, TabsContent: TabsContentMock };
+});
+
+// Mock Select to avoid Radix Presence issues
+vi.mock('@/components/ui/select', () => ({
+  Select: ({ children, ...props }: Record<string, unknown>) => <div {...props}>{children as React.ReactNode}</div>,
+  SelectTrigger: ({ children, ...props }: Record<string, unknown>) => <button {...props}>{children as React.ReactNode}</button>,
+  SelectContent: ({ children }: Record<string, unknown>) => <div>{children as React.ReactNode}</div>,
+  SelectItem: ({ children, value, ...props }: Record<string, unknown>) => <option value={value as string} {...props}>{children as React.ReactNode}</option>,
+  SelectValue: ({ placeholder }: Record<string, unknown>) => <span>{placeholder as string}</span>,
 }));
 
 import NewNodePopover from '@/features/ontology/components/NewNodePopover';
+
+/** Switch to the text input tab in the NewNodePopover */
+function switchToTextTab() {
+  const textTab = screen.getByRole('tab', { name: /텍스트 입력/ });
+  fireEvent.click(textTab);
+}
 
 function resetStore() {
   useOntologyStore.setState({
@@ -72,6 +123,7 @@ describe('NewNodePopover — Iteration 2', () => {
     });
 
     render(<NewNodePopover />);
+    switchToTextTab();
     fireEvent.change(screen.getByPlaceholderText(/자유 형식으로 입력하세요/), {
       target: { value: 'Equipment: SUPRA, GENEVA' },
     });
@@ -113,6 +165,7 @@ describe('NewNodePopover — Iteration 2', () => {
     });
 
     render(<NewNodePopover />);
+    switchToTextTab();
     fireEvent.change(screen.getByPlaceholderText(/자유 형식으로 입력하세요/), {
       target: { value: 'test' },
     });
@@ -143,6 +196,7 @@ describe('NewNodePopover — Iteration 2', () => {
     });
 
     render(<NewNodePopover />);
+    switchToTextTab();
     fireEvent.change(screen.getByPlaceholderText(/자유 형식으로 입력하세요/), {
       target: { value: 'DryAsher is a type of Equipment' },
     });
@@ -157,8 +211,8 @@ describe('NewNodePopover — Iteration 2', () => {
     const state = useOntologyStore.getState();
     const dryAsher = state.classes.find((c) => c.name === 'DryAsher');
     expect(dryAsher).toBeDefined();
-    // BUG (B-7): parentName is 'Equipment' but parentId is NOT set
-    expect(dryAsher!.parentId).toBeNull();
+    // B-7 was fixed: parentName 'Equipment' now resolves to existing class parentId
+    expect(dryAsher!.parentId).toBe('existing-equip');
   });
 
   // A-6: Popover uses calcPopoverPosition (position is set via style)
@@ -195,6 +249,7 @@ describe('NewNodePopover — Iteration 2', () => {
     });
 
     render(<NewNodePopover />);
+    switchToTextTab();
     fireEvent.change(screen.getByPlaceholderText(/자유 형식으로 입력하세요/), {
       target: { value: 'some text' },
     });

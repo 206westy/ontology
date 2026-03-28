@@ -1,12 +1,38 @@
 'use client';
 
-import { useState, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { MousePointerClick, Sparkles, FileText, ChevronRight } from 'lucide-react';
+import { useState, useCallback, useRef } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import {
+  Sparkles,
+  FileText,
+  Upload,
+  Link2,
+  Type,
+  Loader2,
+  ArrowRight,
+  Cpu,
+  Server,
+  Building2,
+  HeartPulse,
+  Truck,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { useOntologyStore } from '../hooks/useOntologyStore';
-import { SAMPLE_ONTOLOGY, SAMPLE_TEMPLATES } from '../constants/sample-ontology';
+import { importExportApi } from '../api';
+import { TEMPLATES, buildImportPayload } from '../constants/templates';
+import type { TemplateMetadata } from '../constants/templates';
+import { safeTransition, nodeEnter } from '@/lib/motion-presets';
 
 interface EmptyStateProps {
   onDoubleClick: (event: React.MouseEvent) => void;
@@ -15,30 +41,91 @@ interface EmptyStateProps {
 function EmptyStateGuide() {
   return (
     <>
-      <div className="relative w-20 h-20 mx-auto mb-6">
+      <div className="relative w-16 h-16 mx-auto mb-4">
         <div
-          className="absolute inset-0 rounded-2xl bg-primary/5 animate-ping"
+          className="absolute inset-0 rounded-2xl bg-ai-surface animate-ping"
           style={{ animationDuration: '3s' }}
         />
-        <div className="relative w-20 h-20 rounded-2xl bg-primary/10 flex items-center justify-center">
-          <MousePointerClick className="w-9 h-9 text-primary/60" />
+        <div className="relative w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
+          <Sparkles className="w-7 h-7 text-primary/60" />
         </div>
       </div>
 
-      <h3 className="text-base font-semibold text-foreground mb-2">
-        빈 공간을 더블클릭하여 지식을 입력하세요
+      <h3 className="text-base font-semibold text-foreground mb-1.5">
+        지식을 입력하면 AI가 구조화합니다
       </h3>
-      <p className="text-sm text-muted-foreground leading-relaxed mb-5">
-        자유 형식의 텍스트를 입력하면 AI가 클래스, 프로퍼티, 관계를 자동으로 구조화합니다.
+      <p className="text-sm text-muted-foreground leading-relaxed mb-4">
+        자유 형식의 텍스트, 파일, URL 등 어떤 형태로든 지식을 입력하세요.
       </p>
     </>
   );
 }
 
+function InlineTextInput({ onSubmit }: { onSubmit: (text: string) => void }) {
+  const [text, setText] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        if (text.trim()) {
+          setIsSubmitting(true);
+          onSubmit(text.trim());
+        }
+      }
+    },
+    [text, onSubmit],
+  );
+
+  return (
+    <div className="w-full mb-4">
+      <div className="relative">
+        <Textarea
+          ref={textareaRef}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="지식을 자유롭게 입력하세요..."
+          className="min-h-[100px] text-sm resize-none rounded-xl border-border/60 bg-surface-1 shadow-elevation-1 focus:shadow-elevation-2 transition-shadow placeholder:text-muted-foreground/60 pr-12"
+          autoFocus
+        />
+        <div className="absolute right-2 bottom-2">
+          <Button
+            size="sm"
+            className="h-8 w-8 p-0 rounded-lg"
+            disabled={!text.trim() || isSubmitting}
+            onClick={() => {
+              if (text.trim()) {
+                setIsSubmitting(true);
+                onSubmit(text.trim());
+              }
+            }}
+          >
+            {isSubmitting ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <ArrowRight className="w-3.5 h-3.5" />
+            )}
+          </Button>
+        </div>
+      </div>
+      <p className="text-[11px] text-muted-foreground mt-1.5 text-left">
+        <kbd className="font-mono bg-muted px-1 py-0.5 rounded border border-border text-[11px]">Enter</kbd>
+        {' '}AI 구조화 시작
+        <span className="text-border mx-1.5">|</span>
+        <kbd className="font-mono bg-muted px-1 py-0.5 rounded border border-border text-[11px]">Shift+Enter</kbd>
+        {' '}줄바꿈
+      </p>
+    </div>
+  );
+}
+
 function ExampleCard() {
   return (
-    <div className="bg-muted/50 border border-border rounded-lg p-3 mb-5 text-left">
-      <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-2">입력 예시</p>
+    <div className="bg-muted/50 border border-border rounded-lg p-3 mb-4 text-left">
+      <p className="text-[11px] font-semibold text-muted-foreground uppercase mb-2">입력 예시</p>
       <p className="text-xs text-muted-foreground leading-relaxed font-mono">
         <span className="text-foreground/70">&quot;반도체 FAB에는 DryAsher, WetStation 장비가 있고,</span>
         <br />
@@ -48,76 +135,116 @@ function ExampleCard() {
   );
 }
 
-function TemplatePopover() {
-  const loadOntology = useOntologyStore((s) => s.loadOntology);
-  const [open, setOpen] = useState(false);
+const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
+  Cpu,
+  Server,
+  Building2,
+  HeartPulse,
+  Truck,
+};
 
-  const handleLoad = useCallback(
-    (templateId: string) => {
-      if (templateId === 'semiconductor') {
-        loadOntology(SAMPLE_ONTOLOGY);
-      }
-      setOpen(false);
-    },
-    [loadOntology],
-  );
+function TemplateCard({
+  template,
+  onSelect,
+  disabled,
+}: {
+  template: TemplateMetadata;
+  onSelect: (t: TemplateMetadata) => void;
+  disabled: boolean;
+}) {
+  const Icon = ICON_MAP[template.icon] ?? Cpu;
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-8 text-xs gap-1.5 border-dashed"
-        >
-          <FileText className="w-3.5 h-3.5" />
-          예시 온톨로지 불러오기
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-[280px] p-2" align="center">
-        <p className="text-xs font-semibold text-muted-foreground px-2 pt-1 pb-2">
-          예시 온톨로지 선택
+    <button
+      className="group flex flex-col items-center gap-1.5 rounded-xl border border-border/60 bg-muted/30 p-2.5 transition-all hover:border-primary/40 hover:bg-muted/60 disabled:opacity-50 disabled:cursor-not-allowed"
+      onClick={() => onSelect(template)}
+      disabled={disabled}
+    >
+      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary/70 transition-colors group-hover:bg-primary/15">
+        <Icon className="w-4 h-4" />
+      </div>
+      <div className="text-center">
+        <p className="text-[11px] font-semibold text-foreground leading-tight">
+          {template.nameKo}
         </p>
-        {SAMPLE_TEMPLATES.map((t) => (
-          <button
-            key={t.id}
-            className={`w-full text-left rounded-md px-2.5 py-2 transition-colors ${
-              t.available
-                ? 'hover:bg-muted/80 cursor-pointer'
-                : 'opacity-50 cursor-not-allowed'
-            }`}
-            onClick={() => t.available && handleLoad(t.id)}
-            disabled={!t.available}
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-foreground">{t.name}</span>
-              {t.available ? (
-                <ChevronRight className="w-3 h-3 text-muted-foreground" />
-              ) : (
-                <span className="text-[9px] text-muted-foreground">(추후)</span>
-              )}
-            </div>
-            <p className="text-[10px] text-muted-foreground mt-0.5">{t.description}</p>
-            {t.stats && (
-              <p className="text-[10px] text-muted-foreground/70 font-mono mt-0.5">{t.stats}</p>
-            )}
-          </button>
-        ))}
-      </PopoverContent>
-    </Popover>
+        <p className="text-[10px] text-muted-foreground mt-0.5 leading-snug line-clamp-2">
+          {template.descriptionKo}
+        </p>
+      </div>
+      <p className="text-[9px] text-muted-foreground/70 font-mono">
+        {template.classCount}C {template.relationCount}R {template.propertyCount}P
+      </p>
+    </button>
   );
 }
 
-function EmptyStateActions({ onStartManually }: { onStartManually: () => void }) {
+function TemplateSection({
+  onSelectTemplate,
+  loadingId,
+}: {
+  onSelectTemplate: (t: TemplateMetadata) => void;
+  loadingId: string | null;
+}) {
   return (
-    <div className="flex items-center justify-center gap-3 mb-5">
-      <TemplatePopover />
+    <div className="w-full mb-4">
+      <p className="text-[11px] font-semibold text-muted-foreground uppercase mb-2 text-left">
+        도메인 템플릿으로 시작하기
+      </p>
+      <div className="grid grid-cols-5 gap-2">
+        {TEMPLATES.map((t) => (
+          <TemplateCard
+            key={t.id}
+            template={t}
+            onSelect={onSelectTemplate}
+            disabled={loadingId !== null}
+          />
+        ))}
+      </div>
+      {loadingId && (
+        <div className="flex items-center justify-center gap-2 mt-3 text-xs text-muted-foreground">
+          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          템플릿 불러오는 중...
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CTAButtons({ onStartManually }: { onStartManually: () => void }) {
+  return (
+    <div className="grid grid-cols-4 gap-2 mb-4 w-full">
       <Button
+        variant="outline"
         size="sm"
-        className="h-8 text-xs gap-1.5"
+        className="h-9 text-xs gap-1.5 flex-1"
         onClick={onStartManually}
       >
-        직접 시작하기
+        <Type className="w-3.5 h-3.5" />
+        직접 입력
+      </Button>
+
+      <Button
+        variant="outline"
+        size="sm"
+        className="h-9 text-xs gap-1.5 flex-1 border-dashed"
+        onClick={() => {
+          /* File upload - Phase 3 (F3-11) */
+        }}
+      >
+        <Upload className="w-3.5 h-3.5" />
+        파일
+      </Button>
+
+      <Button
+        variant="outline"
+        size="sm"
+        className="h-9 text-xs gap-1.5 flex-1 border-dashed"
+        onClick={() => {
+          /* URL import - Phase 3 */
+        }}
+      >
+        <Link2 className="w-3.5 h-3.5" />
+        URL
       </Button>
     </div>
   );
@@ -152,6 +279,10 @@ function DropZoneOverlay({ active }: { active: boolean }) {
 export default function EmptyState({ onDoubleClick }: EmptyStateProps) {
   const openPopover = useOntologyStore((s) => s.openPopover);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [confirmTemplate, setConfirmTemplate] = useState<TemplateMetadata | null>(null);
+  const [loadingId, setLoadingId] = useState<string | null>(null);
+
+  const transition = safeTransition(nodeEnter);
 
   const handleStartManually = useCallback(() => {
     openPopover({
@@ -159,6 +290,36 @@ export default function EmptyState({ onDoubleClick }: EmptyStateProps) {
       position: { x: window.innerWidth / 2, y: window.innerHeight / 2 },
     });
   }, [openPopover]);
+
+  const handleInlineSubmit = useCallback(
+    (text: string) => {
+      openPopover({
+        type: 'newNode',
+        position: { x: window.innerWidth / 2, y: window.innerHeight / 2 },
+      });
+    },
+    [openPopover],
+  );
+
+  const handleSelectTemplate = useCallback((template: TemplateMetadata) => {
+    setConfirmTemplate(template);
+  }, []);
+
+  const handleConfirmLoad = useCallback(async () => {
+    if (!confirmTemplate) return;
+    const templateId = confirmTemplate.id;
+    setConfirmTemplate(null);
+    setLoadingId(templateId);
+
+    try {
+      const payload = buildImportPayload(templateId);
+      await importExportApi.importOntology(payload);
+      window.location.reload();
+    } catch (err) {
+      console.error('Template import failed:', err);
+      setLoadingId(null);
+    }
+  }, [confirmTemplate]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -173,7 +334,6 @@ export default function EmptyState({ onDoubleClick }: EmptyStateProps) {
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(false);
-    // File handling will be implemented in Phase 3 (F3-11)
   }, []);
 
   return (
@@ -197,14 +357,28 @@ export default function EmptyState({ onDoubleClick }: EmptyStateProps) {
       <DropZoneOverlay active={isDragOver} />
 
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-        <div className="text-center max-w-md px-8 pointer-events-auto">
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={transition}
+          className="text-center max-w-2xl px-8 pointer-events-auto"
+        >
           <EmptyStateGuide />
-          <ExampleCard />
-          <EmptyStateActions onStartManually={handleStartManually} />
 
-          <div className="flex items-center justify-center gap-5 text-[10px] text-muted-foreground">
+          <InlineTextInput onSubmit={handleInlineSubmit} />
+
+          <CTAButtons onStartManually={handleStartManually} />
+
+          <TemplateSection
+            onSelectTemplate={handleSelectTemplate}
+            loadingId={loadingId}
+          />
+
+          <ExampleCard />
+
+          <div className="flex items-center justify-center gap-5 text-[11px] text-muted-foreground">
             <span className="flex items-center gap-1.5">
-              <kbd className="font-mono bg-muted px-1.5 py-0.5 rounded border border-border text-[10px]">더블클릭</kbd>
+              <kbd className="font-mono bg-muted px-1.5 py-0.5 rounded border border-border text-[11px]">더블클릭</kbd>
               새 노드 생성
             </span>
             <span className="text-border">|</span>
@@ -213,8 +387,34 @@ export default function EmptyState({ onDoubleClick }: EmptyStateProps) {
               AI 자동 구조화
             </span>
           </div>
-        </div>
+        </motion.div>
       </div>
+
+      {/* Template confirmation dialog */}
+      <AlertDialog
+        open={confirmTemplate !== null}
+        onOpenChange={(open) => { if (!open) setConfirmTemplate(null); }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {confirmTemplate?.nameKo} 템플릿 불러오기
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              기존 데이터를 모두 삭제하고 <strong>{confirmTemplate?.nameKo}</strong> 템플릿으로
+              교체합니다. 클래스 {confirmTemplate?.classCount}개,
+              관계 {confirmTemplate?.relationCount}개,
+              프로퍼티 {confirmTemplate?.propertyCount}개가 생성됩니다.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmLoad}>
+              불러오기
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -2,9 +2,10 @@
 
 import { memo } from 'react';
 import { Handle, Position, type NodeProps, type Node, useStore } from '@xyflow/react';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import { NODE_COLORS, getNodeCssColors } from '../constants/colors';
 import { useOntologyStore } from '../hooks/useOntologyStore';
+import { nodeEnter, safeTransition } from '@/lib/motion-presets';
 
 export type InstanceNodeData = {
   label: string;
@@ -28,18 +29,19 @@ function InstanceNodeComponent({ id, data, selected }: NodeProps<InstanceNodeTyp
   const { borderColor, bgColor } = getNodeCssColors(colorKey);
 
   const selectedAccent = 'hsl(var(--primary))';
+  const transition = safeTransition(nodeEnter);
 
   const handleClick = () => {
     selectNode(id, 'instance');
   };
 
-  // Dot mode
+  // Dot mode: small rounded square
   if (detail === 'dot') {
     return (
       <div className="transition-opacity duration-150" onClick={handleClick} data-testid={`instance-node-${id}`}>
         <Handle type="target" position={Position.Top} className="!w-1 !h-1 !bg-transparent !border-0" />
         <div
-          className="rounded-full cursor-pointer"
+          className="rounded cursor-pointer"
           style={{
             width: 8,
             height: 8,
@@ -52,29 +54,31 @@ function InstanceNodeComponent({ id, data, selected }: NodeProps<InstanceNodeTyp
     );
   }
 
-  // Name mode: slightly smaller
+  // Name mode: small rounded rectangle
   if (detail === 'name') {
     return (
       <motion.div
         initial={{ scale: 0.3, opacity: 0 }}
         animate={{ scale: 1, opacity: 0.75 }}
-        transition={{ type: 'spring', damping: 12, stiffness: 280, delay: 0.1 }}
-        className="group transition-opacity duration-150"
+        transition={{ ...transition, delay: 0.1 }}
+        className="group transition-all duration-150 hover:scale-[1.03]"
         onClick={handleClick}
         data-testid={`instance-node-${id}`}
       >
         <Handle type="target" position={Position.Top} className="!w-1 !h-1 !bg-border !border-2 !border-card" />
         <div
-          className={`flex items-center justify-center w-[44px] h-[44px] rounded-full cursor-pointer ${
+          className={`flex items-center justify-center w-[52px] h-[36px] rounded-xl cursor-pointer transition-shadow duration-150 hover:shadow-md ${
             isFocused ? 'node-focus-ring' : ''
           }`}
           style={{
-            border: `${isSelected ? 2 : 1.5}px solid ${isSelected ? selectedAccent : borderColor}`,
+            border: `${isSelected ? 2.5 : 1.5}px solid ${isSelected ? selectedAccent : borderColor}`,
             backgroundColor: bgColor,
-            boxShadow: isSelected ? `0 0 0 2px hsl(var(--node-${colorKey}) / 0.25)` : 'none',
+            boxShadow: isSelected
+              ? `0 0 var(--node-selected-glow-blur) var(--node-selected-glow-spread) hsl(var(--node-${colorKey}) / var(--node-selected-glow-opacity))`
+              : 'none',
           }}
         >
-          <span className="text-[9px] font-medium text-foreground leading-tight text-center px-1 truncate max-w-[36px]">
+          <span className="text-caption font-medium text-foreground leading-tight text-center px-1 truncate max-w-[44px]">
             {data.label}
           </span>
         </div>
@@ -83,13 +87,13 @@ function InstanceNodeComponent({ id, data, selected }: NodeProps<InstanceNodeTyp
     );
   }
 
-  // Full mode
+  // Full mode: rounded rectangle (v3 change from circle)
   return (
     <motion.div
       initial={{ scale: 0.3, opacity: 0 }}
       animate={{ scale: 1, opacity: 0.85 }}
-      transition={{ type: 'spring', damping: 12, stiffness: 280, delay: 0.1 }}
-      className="group transition-opacity duration-150"
+      transition={{ ...transition, delay: 0.1 }}
+      className="group transition-all duration-150 hover:scale-[1.03]"
       onClick={handleClick}
       data-testid={`instance-node-${id}`}
     >
@@ -100,18 +104,18 @@ function InstanceNodeComponent({ id, data, selected }: NodeProps<InstanceNodeTyp
       />
 
       <div
-        className={`flex items-center justify-center w-[56px] h-[56px] rounded-full cursor-pointer transition-shadow hover:shadow-md ${
+        className={`flex items-center justify-center w-[72px] h-[44px] rounded-xl cursor-pointer transition-all duration-150 hover:shadow-lg ${
           isFocused ? 'node-focus-ring' : ''
         }`}
         style={{
           border: `${isSelected ? 2.5 : 2}px solid ${isSelected ? selectedAccent : borderColor}`,
           backgroundColor: bgColor,
           boxShadow: isSelected
-            ? `0 0 0 2px hsl(var(--node-${colorKey}) / 0.25), 0 0 8px hsl(var(--node-${colorKey}) / 0.15)`
+            ? `0 0 var(--node-selected-glow-blur) var(--node-selected-glow-spread) hsl(var(--node-${colorKey}) / var(--node-selected-glow-opacity)), 0 0 20px hsl(var(--node-${colorKey}) / 0.12)`
             : 'none',
         }}
       >
-        <span className="text-[10px] font-medium text-foreground leading-tight text-center px-1 truncate max-w-[44px]">
+        <span className="text-body-sm font-medium text-foreground leading-tight text-center px-1.5 truncate max-w-[60px]">
           {data.label}
         </span>
       </div>

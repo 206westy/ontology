@@ -48,7 +48,7 @@ export const createPropertySchema = z
     dataType: dataTypeEnum.optional().default('string'),
     isRequired: z.boolean().optional().default(false),
     enumValues: z.array(z.string()).nullable().optional(),
-    constraintRule: z.record(z.unknown()).nullable().optional(),
+    constraintRule: z.record(z.string(), z.unknown()).nullable().optional(),
     sortOrder: z.number().int().optional().default(0),
   })
   .refine(
@@ -63,7 +63,7 @@ export const updatePropertySchema = z.object({
   dataType: dataTypeEnum.optional(),
   isRequired: z.boolean().optional(),
   enumValues: z.array(z.string()).nullable().optional(),
-  constraintRule: z.record(z.unknown()).nullable().optional(),
+  constraintRule: z.record(z.string(), z.unknown()).nullable().optional(),
   sortOrder: z.number().int().optional(),
 });
 
@@ -150,7 +150,7 @@ const severityEnum = z.enum(['info', 'warning', 'error']);
 export const createAxiomSchema = z.object({
   id: z.string().uuid().optional(),
   description: z.string().min(1),
-  ruleLogic: z.record(z.unknown()).optional().default({}),
+  ruleLogic: z.record(z.string(), z.unknown()).optional().default({}),
   severity: severityEnum.optional().default('warning'),
   classIds: z.array(z.string().uuid()).optional().default([]),
 });
@@ -159,7 +159,7 @@ export type CreateAxiomInput = z.infer<typeof createAxiomSchema>;
 
 export const updateAxiomSchema = z.object({
   description: z.string().min(1).optional(),
-  ruleLogic: z.record(z.unknown()).optional(),
+  ruleLogic: z.record(z.string(), z.unknown()).optional(),
   severity: severityEnum.optional(),
   classIds: z.array(z.string().uuid()).optional(),
 });
@@ -171,15 +171,144 @@ const operationEnum = z.enum(['ADD', 'MOD', 'DEL']);
 
 export const createCommitSchema = z.object({
   message: z.string().optional().default(''),
+  isAutoSave: z.boolean().optional().default(false),
   details: z.array(
     z.object({
       operation: operationEnum,
       targetTable: z.string().min(1),
       targetId: z.string().uuid(),
-      beforeSnapshot: z.record(z.unknown()).nullable().optional(),
-      afterSnapshot: z.record(z.unknown()).nullable().optional(),
+      beforeSnapshot: z.record(z.string(), z.unknown()).nullable().optional(),
+      afterSnapshot: z.record(z.string(), z.unknown()).nullable().optional(),
     }),
   ),
 });
 
-export type CreateCommitInput = z.infer<typeof createCommitSchema>;
+export type CreateCommitInput = z.input<typeof createCommitSchema>;
+
+// ─── Constraints (v3) ─────────────────────────────────────
+const constraintTypeEnum = z.enum([
+  'cardinality',
+  'disjoint',
+  'domain_range',
+  'property_value',
+]);
+
+export const createConstraintSchema = z.object({
+  id: z.string().uuid().optional(),
+  constraintType: constraintTypeEnum,
+  description: z.string().optional().default(''),
+  sourceClassId: z.string().uuid().nullable().optional(),
+  targetClassId: z.string().uuid().nullable().optional(),
+  relationTypeId: z.string().uuid().nullable().optional(),
+  propertyId: z.string().uuid().nullable().optional(),
+  config: z.record(z.string(), z.unknown()).optional().default({}),
+  severity: severityEnum.optional().default('error'),
+  isActive: z.boolean().optional().default(true),
+});
+
+export type CreateConstraintInput = z.infer<typeof createConstraintSchema>;
+
+export const updateConstraintSchema = z.object({
+  constraintType: constraintTypeEnum.optional(),
+  description: z.string().optional(),
+  sourceClassId: z.string().uuid().nullable().optional(),
+  targetClassId: z.string().uuid().nullable().optional(),
+  relationTypeId: z.string().uuid().nullable().optional(),
+  propertyId: z.string().uuid().nullable().optional(),
+  config: z.record(z.string(), z.unknown()).optional(),
+  severity: severityEnum.optional(),
+  isActive: z.boolean().optional(),
+});
+
+export type UpdateConstraintInput = z.infer<typeof updateConstraintSchema>;
+
+// ─── Batch Operations (v3) ────────────────────────────────
+const batchEntityType = z.enum([
+  'class',
+  'instance',
+  'property',
+  'edge',
+  'relation_type',
+  'axiom',
+  'instance_value',
+]);
+
+const batchAction = z.enum(['create', 'update', 'delete']);
+
+export const batchOperationSchema = z.object({
+  type: batchEntityType,
+  action: batchAction,
+  id: z.string().uuid().optional(),
+  data: z.record(z.string(), z.unknown()).optional().default({}),
+});
+
+export const batchRequestSchema = z.object({
+  operations: z.array(batchOperationSchema).min(1).max(200),
+});
+
+export type BatchOperation = z.infer<typeof batchOperationSchema>;
+export type BatchRequestInput = z.infer<typeof batchRequestSchema>;
+
+// ─── Validate (v3) ────────────────────────────────────────
+export const validateRequestSchema = z.object({
+  rules: z
+    .array(
+      z.enum([
+        'cyclic_isa',
+        'required_properties',
+        'cardinality',
+        'orphan_nodes',
+        'similar_names',
+      ]),
+    )
+    .optional(),
+});
+
+export type ValidateRequestInput = z.infer<typeof validateRequestSchema>;
+
+// ─── LLM Chat (v3) ───────────────────────────────────────
+export const llmChatRequestSchema = z.object({
+  messages: z.array(
+    z.object({
+      role: z.enum(['user', 'assistant']),
+      content: z.string(),
+    }),
+  ),
+  context: z
+    .object({
+      selectedNodeIds: z.array(z.string()).optional(),
+      selectedNodeType: z.string().optional(),
+      ontologySummary: z.string().optional(),
+    })
+    .optional(),
+});
+
+export type LlmChatRequestInput = z.infer<typeof llmChatRequestSchema>;
+
+// ─── Text2Cypher (v3) ────────────────────────────────────
+export const text2CypherRequestSchema = z.object({
+  question: z.string().min(1),
+  executeQuery: z.boolean().optional().default(false),
+  maxRetries: z.number().int().min(0).max(3).optional().default(1),
+});
+
+export type Text2CypherRequestInput = z.infer<typeof text2CypherRequestSchema>;
+
+// ─── Import / Export (v3) ─────────────────────────────────
+export const importRequestSchema = z.object({
+  version: z.string().default('1.0'),
+  ontology: z.object({
+    classes: z.array(z.record(z.string(), z.unknown())).default([]),
+    properties: z.array(z.record(z.string(), z.unknown())).default([]),
+    instances: z.array(z.record(z.string(), z.unknown())).default([]),
+    instanceValues: z.array(z.record(z.string(), z.unknown())).default([]),
+    relationTypes: z.array(z.record(z.string(), z.unknown())).default([]),
+    edges: z.array(z.record(z.string(), z.unknown())).default([]),
+    axioms: z.array(z.record(z.string(), z.unknown())).default([]),
+    axiomClasses: z.array(z.record(z.string(), z.unknown())).default([]),
+    constraints: z.array(z.record(z.string(), z.unknown())).default([]),
+  }),
+  strategy: z.enum(['replace', 'merge']).default('replace'),
+});
+
+export type ImportRequestInput = z.infer<typeof importRequestSchema>;

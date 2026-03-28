@@ -24,8 +24,8 @@ export const commitDetailSchema = z.object({
   operation: operationEnum,
   targetTable: targetTableEnum,
   targetId: z.string().uuid(),
-  beforeSnapshot: z.record(z.unknown()).nullable().optional(),
-  afterSnapshot: z.record(z.unknown()).nullable().optional(),
+  beforeSnapshot: z.record(z.string(), z.unknown()).nullable().optional(),
+  afterSnapshot: z.record(z.string(), z.unknown()).nullable().optional(),
 });
 
 export type CommitDetail = z.infer<typeof commitDetailSchema>;

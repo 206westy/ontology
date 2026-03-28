@@ -205,8 +205,8 @@ test.describe('커밋 플로우', () => {
     // 커밋 실행
     await app.clickCommit();
 
-    // 성공 메시지 "커밋 완료"
-    await expect(app.page.locator('text=커밋 완료').first()).toBeVisible({ timeout: 5000 });
+    // 성공 메시지 "저장 완료"
+    await expect(app.page.locator('text=저장 완료').first()).toBeVisible({ timeout: 5000 });
   });
 });
 

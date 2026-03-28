@@ -24,13 +24,11 @@ export function useApiSync() {
 
         for (const change of newChanges) {
           syncedRef.current.add(change.id);
+        }
 
-          // Fire-and-forget API call based on change type
-          syncChange(change, state).catch((err) => {
-            console.error(`[API Sync] Failed to sync ${change.operation} ${change.targetTable}/${change.targetId}:`, err);
-            toast.error('동기화 실패', {
-              description: `${change.targetName} ${change.operation} 저장에 실패했습니다.`,
-            });
+        if (newChanges.length > 0) {
+          syncChangesInOrder(newChanges, state).catch(() => {
+            // Individual errors are already handled inside syncChangesInOrder
           });
         }
 
@@ -57,6 +55,49 @@ export function useApiSync() {
     );
     return unsub;
   }, [qc]);
+}
+
+// Tables that must be synced before dependent tables
+const SYNC_PRIORITY: Record<string, number> = {
+  classes: 0,
+  relation_types: 0,
+  properties: 1,
+  instances: 1,
+  edges: 2,
+  instance_values: 2,
+  axioms: 2,
+};
+
+type PendingChange = { id: string; operation: string; targetTable: string; targetId: string; targetName: string };
+
+async function syncChangesInOrder(
+  changes: PendingChange[],
+  state: ReturnType<typeof useOntologyStore.getState>,
+) {
+  // Group by priority
+  const groups = new Map<number, PendingChange[]>();
+  for (const change of changes) {
+    const p = SYNC_PRIORITY[change.targetTable] ?? 2;
+    const group = groups.get(p) ?? [];
+    group.push(change);
+    groups.set(p, group);
+  }
+
+  // Process each priority group sequentially; within a group, fire in parallel
+  const priorities = [...groups.keys()].sort((a, b) => a - b);
+  for (const p of priorities) {
+    const group = groups.get(p)!;
+    await Promise.allSettled(
+      group.map((change) =>
+        syncChange(change, state).catch((err) => {
+          console.error(`[API Sync] Failed to sync ${change.operation} ${change.targetTable}/${change.targetId}:`, err);
+          toast.error('동기화 실패', {
+            description: `${change.targetName} ${change.operation} 저장에 실패했습니다.`,
+          });
+        }),
+      ),
+    );
+  }
 }
 
 async function syncChange(

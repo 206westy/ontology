@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { useOntologyStore } from '@/features/ontology/hooks/useOntologyStore';
 
-// Mock framer-motion
-vi.mock('framer-motion', () => ({
+// Mock motion/react
+vi.mock('motion/react', () => ({
   motion: new Proxy({}, {
     get: (_target, prop: string) => {
       return ({ children, variants, initial, animate, exit, ...props }: Record<string, unknown>) => {
@@ -60,7 +60,7 @@ describe('ExplorerPanel', () => {
 
     render(<ExplorerPanel />);
 
-    const searchInput = screen.getByPlaceholderText('검색...');
+    const searchInput = screen.getByPlaceholderText('검색... (Ctrl+F)');
     fireEvent.change(searchInput, { target: { value: 'Ani' } });
 
     expect(screen.getByText('Animal')).toBeInTheDocument();
@@ -72,7 +72,7 @@ describe('ExplorerPanel', () => {
 
     render(<ExplorerPanel />);
 
-    const searchInput = screen.getByPlaceholderText('검색...');
+    const searchInput = screen.getByPlaceholderText('검색... (Ctrl+F)');
     fireEvent.change(searchInput, { target: { value: 'zzzzz' } });
 
     expect(screen.getByText('검색 결과가 없습니다')).toBeInTheDocument();

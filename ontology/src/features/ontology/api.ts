@@ -12,6 +12,14 @@ import type {
   UpdateAxiomInput,
   CreateCommitInput,
   CreateInstanceValueInput,
+  CreateConstraintInput,
+  UpdateConstraintInput,
+  BatchRequestInput,
+  BatchOperation,
+  ValidateRequestInput,
+  LlmChatRequestInput,
+  Text2CypherRequestInput,
+  ImportRequestInput,
 } from './lib/schemas';
 
 async function handleResponse<T>(res: Response): Promise<T> {
@@ -197,9 +205,36 @@ export const llmApi = {
     }).then((r) => handleResponse<LlmParseResult>(r)),
 };
 
+// ─── LLM Autocomplete (v4) ──────────────────────────────────
+export interface AutocompleteRequest {
+  type: 'class' | 'property' | 'relation';
+  context: {
+    classHierarchy: string;
+    propertyMap: string;
+    relationTypes: string;
+    statistics: string;
+  };
+  currentInput: string;
+  extra?: Record<string, string>;
+}
+
+export const llmAutocompleteApi = {
+  suggest: (data: AutocompleteRequest) =>
+    fetch('/api/llm/autocomplete', {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify(data),
+    }).then((r) => handleResponse(r)),
+};
+
 // ─── Commits ───────────────────────────────────────────────
 export const commitsApi = {
-  list: () => fetch('/api/commits').then((r) => handleResponse(r)),
+  list: (params?: { autoSave?: boolean }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.autoSave != null) searchParams.set('autoSave', String(params.autoSave));
+    const qs = searchParams.toString();
+    return fetch(`/api/commits${qs ? `?${qs}` : ''}`).then((r) => handleResponse(r));
+  },
   create: (data: CreateCommitInput) =>
     fetch('/api/commits', {
       method: 'POST',
@@ -233,6 +268,14 @@ export interface Neo4jStatusResponse {
   suggestion?: string;
 }
 
+export interface Neo4jQueryResponse {
+  success: boolean;
+  data: unknown[];
+  columns: string[];
+  rowCount: number;
+  error?: string;
+}
+
 export const neo4jApi = {
   status: () =>
     fetch('/api/neo4j/status').then((r) => handleResponse<Neo4jStatusResponse>(r)),
@@ -242,4 +285,235 @@ export const neo4jApi = {
       headers: jsonHeaders,
       body: JSON.stringify(data),
     }).then((r) => handleResponse<Neo4jPushResponse>(r)),
+  query: (cypher: string) =>
+    fetch('/api/neo4j/query', {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify({ cypher }),
+    }).then((r) => handleResponse<Neo4jQueryResponse>(r)),
+};
+
+// ─── Batch Operations (v3) ────────────────────────────────
+export interface BatchResult {
+  success: boolean;
+  operationCount: number;
+  results: Array<{
+    index: number;
+    type: string;
+    action: string;
+    success: boolean;
+    id?: string;
+    error?: string;
+  }>;
+}
+
+export const batchApi = {
+  execute: (data: BatchRequestInput): Promise<BatchResult> =>
+    fetch('/api/batch', {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify(data),
+    }).then((r) => handleResponse<BatchResult>(r)),
+};
+
+// ─── Constraints (v3) ─────────────────────────────────────
+export const constraintsApi = {
+  list: (params?: { constraintType?: string; sourceClassId?: string }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.constraintType) searchParams.set('constraintType', params.constraintType);
+    if (params?.sourceClassId) searchParams.set('sourceClassId', params.sourceClassId);
+    const qs = searchParams.toString();
+    return fetch(`/api/constraints${qs ? `?${qs}` : ''}`).then((r) =>
+      handleResponse(r),
+    );
+  },
+  get: (id: string) =>
+    fetch(`/api/constraints/${id}`).then((r) => handleResponse(r)),
+  create: (data: CreateConstraintInput) =>
+    fetch('/api/constraints', {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify(data),
+    }).then((r) => handleResponse(r)),
+  update: (id: string, data: UpdateConstraintInput) =>
+    fetch(`/api/constraints/${id}`, {
+      method: 'PATCH',
+      headers: jsonHeaders,
+      body: JSON.stringify(data),
+    }).then((r) => handleResponse(r)),
+  delete: (id: string) =>
+    fetch(`/api/constraints/${id}`, { method: 'DELETE' }).then((r) =>
+      handleResponse(r),
+    ),
+};
+
+// ─── Validation (v3) ──────────────────────────────────────
+export interface ValidationIssue {
+  severity: 'error' | 'warning' | 'info';
+  ruleCode: string;
+  message: string;
+  targetTable: string;
+  targetId: string;
+  constraintId?: string;
+}
+
+export interface ValidationResult {
+  runId: string;
+  summary: {
+    total: number;
+    errors: number;
+    warnings: number;
+    infos: number;
+  };
+  errors: ValidationIssue[];
+  warnings: ValidationIssue[];
+  infos: ValidationIssue[];
+}
+
+export const validateApi = {
+  run: (data?: ValidateRequestInput): Promise<ValidationResult> =>
+    fetch('/api/validate', {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify(data ?? {}),
+    }).then((r) => handleResponse<ValidationResult>(r)),
+};
+
+// ─── LLM Chat (v3) ───────────────────────────────────────
+export const llmChatApi = {
+  stream: async (data: LlmChatRequestInput): Promise<ReadableStream<Uint8Array>> => {
+    const res = await fetch('/api/llm/chat', {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const errorData = await res.json();
+      throw new Error(errorData.error ?? 'Chat request failed');
+    }
+    if (!res.body) {
+      throw new Error('No response body');
+    }
+    return res.body;
+  },
+};
+
+// ─── Text2Cypher (v3) ────────────────────────────────────
+export interface Text2CypherResult {
+  question: string;
+  cypher: string;
+  explanation: string;
+  executed: boolean;
+  results?: unknown[];
+  error?: string;
+}
+
+export const text2CypherApi = {
+  generate: (data: Text2CypherRequestInput): Promise<Text2CypherResult> =>
+    fetch('/api/llm/text2cypher', {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify(data),
+    }).then((r) => handleResponse<Text2CypherResult>(r)),
+};
+
+// ─── Import / Export (v3 + v4 JSON-LD / Turtle) ──────────
+export type ExportFormat = 'json' | 'jsonld' | 'turtle' | 'owl';
+
+export interface ExportResult {
+  version: string;
+  exportedAt: string;
+  ontology: Record<string, unknown[]>;
+  stats: Record<string, number>;
+}
+
+export interface ImportResult {
+  success: boolean;
+  strategy: string;
+  format?: string;
+  stats: Record<string, number>;
+}
+
+const FORMAT_META: Record<ExportFormat, { extension: string; contentType: string }> = {
+  json: { extension: 'json', contentType: 'application/json' },
+  jsonld: { extension: 'jsonld', contentType: 'application/ld+json' },
+  turtle: { extension: 'ttl', contentType: 'text/turtle' },
+  owl: { extension: 'owl', contentType: 'application/rdf+xml' },
+};
+
+export const importExportApi = {
+  /** Fetch export as parsed JSON (only works for format=json) */
+  exportOntology: (): Promise<ExportResult> =>
+    fetch('/api/export').then((r) => handleResponse<ExportResult>(r)),
+
+  /** Download export as a file in the specified format */
+  exportAsFile: async (format: ExportFormat = 'json'): Promise<void> => {
+    const res = await fetch(`/api/export?format=${format}`);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({ error: 'Export failed' }));
+      throw new Error(data.error ?? 'Export failed');
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const meta = FORMAT_META[format];
+    a.download = `ontology-export-${new Date().toISOString().slice(0, 10)}.${meta.extension}`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  },
+
+  /** Import from structured JSON (original format) */
+  importOntology: (data: ImportRequestInput): Promise<ImportResult> =>
+    fetch('/api/import', {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify(data),
+    }).then((r) => handleResponse<ImportResult>(r)),
+
+  /**
+   * Import from a file. Auto-detects format by file extension:
+   * - .json -> JSON import
+   * - .jsonld -> JSON-LD import
+   * - .ttl / .turtle -> Turtle import
+   */
+  importFromFile: async (
+    file: File,
+    strategy: 'replace' | 'merge' = 'replace',
+  ): Promise<ImportResult> => {
+    const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
+
+    // JSON-LD
+    if (ext === 'jsonld') {
+      const text = await file.text();
+      const jsonLdDoc = JSON.parse(text);
+      jsonLdDoc._strategy = strategy;
+      return fetch('/api/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/ld+json' },
+        body: JSON.stringify(jsonLdDoc),
+      }).then((r) => handleResponse<ImportResult>(r));
+    }
+
+    // Turtle
+    if (ext === 'ttl' || ext === 'turtle') {
+      const text = await file.text();
+      return fetch(`/api/import?strategy=${strategy}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/turtle' },
+        body: text,
+      }).then((r) => handleResponse<ImportResult>(r));
+    }
+
+    // Default: JSON
+    const text = await file.text();
+    const json = JSON.parse(text);
+    return fetch('/api/import', {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify({ ...json, strategy }),
+    }).then((r) => handleResponse<ImportResult>(r));
+  },
 };
