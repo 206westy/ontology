@@ -49,6 +49,7 @@ interface GraphContextMenuProps {
 
   onReverseEdge?: (edgeId: string) => void;
   onDeleteEdge?: (edgeId: string) => void;
+  onClearAll?: () => void;
 }
 
 function MenuItem({
@@ -122,6 +123,7 @@ export default function GraphContextMenu({
   onDeleteNode,
   onReverseEdge,
   onDeleteEdge,
+  onClearAll,
 }: GraphContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -179,6 +181,11 @@ export default function GraphContextMenu({
             <Maximize2 className="w-3.5 h-3.5" />
             전체 보기
             <span className="ml-auto text-[10px] text-muted-foreground">Fit</span>
+          </MenuItem>
+          <MenuSeparator />
+          <MenuItem destructive onClick={() => handleAction(() => onClearAll?.())}>
+            <Trash2 className="w-3.5 h-3.5" />
+            전체 초기화
           </MenuItem>
         </>
       )}

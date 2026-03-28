@@ -22,6 +22,16 @@ import EmptyState from './EmptyState';
 import InstanceNode from './InstanceNode';
 import GraphContextMenu, { type ContextMenuTarget, type ContextMenuPosition } from './GraphContextMenu';
 import FocusModeBar from './FocusModeBar';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { NODE_COLORS, NODE_COLORS_DARK } from '../constants/colors';
 import { useOntologyStore } from '../hooks/useOntologyStore';
 import { useTheme } from 'next-themes';
@@ -567,12 +577,8 @@ function GraphCanvasInner() {
   const handleContextDeleteNode = useCallback(
     (nodeId: string) => {
       const store = useOntologyStore.getState();
-      const cls = store.classes.find((c) => c.id === nodeId);
-      if (cls) {
-        store.removeClass(nodeId);
-      } else {
-        store.removeInstance(nodeId);
-      }
+      const isClass = store.classes.some((c) => c.id === nodeId);
+      store.deleteNodeById(nodeId, isClass ? 'class' : 'instance');
     },
     [],
   );
@@ -600,6 +606,17 @@ function GraphCanvasInner() {
     },
     [],
   );
+
+  const [clearAllOpen, setClearAllOpen] = useState(false);
+
+  const handleContextClearAll = useCallback(() => {
+    setClearAllOpen(true);
+  }, []);
+
+  const handleClearAllConfirm = useCallback(() => {
+    useOntologyStore.getState().clearOntology();
+    setClearAllOpen(false);
+  }, []);
 
   const [zoomLevel, setZoomLevel] = useState(100);
   const { zoomIn, zoomOut, getZoom } = useReactFlow();
@@ -631,6 +648,7 @@ function GraphCanvasInner() {
         onNodeContextMenu={onNodeContextMenu}
         onPaneContextMenu={onPaneContextMenu}
         onEdgeContextMenu={onEdgeContextMenu}
+        connectionMode="loose"
         zoomOnDoubleClick={false}
         onNodeDragStop={onNodeDragStop}
         nodeTypes={nodeTypes}
@@ -685,7 +703,31 @@ function GraphCanvasInner() {
         onFocusMode={handleContextFocusMode}
         onDeleteNode={handleContextDeleteNode}
         onDeleteEdge={handleContextDeleteEdge}
+        onClearAll={handleContextClearAll}
       />
+
+      {/* Clear all confirmation dialog */}
+      <AlertDialog open={clearAllOpen} onOpenChange={(o) => { if (!o) setClearAllOpen(false); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>전체 초기화</AlertDialogTitle>
+            <AlertDialogDescription>
+              모든 클래스({classes.length}개), 인스턴스({instances.length}개), 관계를 삭제하시겠습니까?
+              <br />
+              이 작업은 Ctrl+Z로 되돌릴 수 있습니다.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setClearAllOpen(false)}>취소</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleClearAllConfirm}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              전체 삭제
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* v3: Unified hint bar + zoom control */}
       <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-3 px-3 py-1.5 rounded-full bg-card/80 backdrop-blur-sm border border-border shadow-elevation-1 text-caption text-muted-foreground">

@@ -191,24 +191,21 @@ export const createEntitySlice: SliceCreator<EntitySlice> = (set, get) => ({
       };
     }),
 
-  deleteSelectedNode: () =>
+  deleteNodeById: (id, type) =>
     set((state) => {
-      const { selectedNodeId, selectedNodeType } = state;
-      if (!selectedNodeId || !selectedNodeType) return state;
-
-      if (selectedNodeType === 'class') {
-        const cls = state.classes.find((c) => c.id === selectedNodeId);
+      if (type === 'class') {
+        const cls = state.classes.find((c) => c.id === id);
         if (!cls) return state;
 
-        const deletedInstances = state.instances.filter((i) => i.classId === selectedNodeId);
+        const deletedInstances = state.instances.filter((i) => i.classId === id);
         const instanceIds = deletedInstances.map((i) => i.id);
-        const affectedNodeIds = new Set([selectedNodeId, ...instanceIds]);
-        const deletedProperties = state.properties.filter((p) => p.classId === selectedNodeId);
+        const affectedNodeIds = new Set([id, ...instanceIds]);
+        const deletedProperties = state.properties.filter((p) => p.classId === id);
         const deletedEdges = state.edges.filter((e) => affectedNodeIds.has(e.sourceId) || affectedNodeIds.has(e.targetId));
-        const deletedAxioms = state.axioms.filter((a) => a.classIds.includes(selectedNodeId));
+        const deletedAxioms = state.axioms.filter((a) => a.classIds.includes(id));
 
         const cascadeChanges: Change[] = [
-          createChange('DEL', 'classes', selectedNodeId, cls.name,
+          createChange('DEL', 'classes', id, cls.name,
             cls as unknown as Record<string, unknown>),
           ...deletedInstances.map((i) => createChange('DEL', 'instances', i.id, i.name,
             i as unknown as Record<string, unknown>)),
@@ -222,42 +219,82 @@ export const createEntitySlice: SliceCreator<EntitySlice> = (set, get) => ({
 
         return {
           classes: state.classes
-            .filter((c) => c.id !== selectedNodeId)
-            .map((c) => c.parentId === selectedNodeId ? { ...c, parentId: null } : c),
-          instances: state.instances.filter((i) => i.classId !== selectedNodeId),
-          properties: state.properties.filter((p) => p.classId !== selectedNodeId),
+            .filter((c) => c.id !== id)
+            .map((c) => c.parentId === id ? { ...c, parentId: null } : c),
+          instances: state.instances.filter((i) => i.classId !== id),
+          properties: state.properties.filter((p) => p.classId !== id),
           edges: state.edges.filter((e) => !affectedNodeIds.has(e.sourceId) && !affectedNodeIds.has(e.targetId)),
-          axioms: state.axioms.filter((a) => !a.classIds.includes(selectedNodeId)),
+          axioms: state.axioms.filter((a) => !a.classIds.includes(id)),
           instanceValues: state.instanceValues.filter((iv) => !instanceIds.includes(iv.instanceId)),
-          selectedNodeId: null,
-          selectedNodeType: null,
+          selectedNodeId: state.selectedNodeId === id ? null : state.selectedNodeId,
+          selectedNodeType: state.selectedNodeId === id ? null : state.selectedNodeType,
           pendingChanges: [...state.pendingChanges, ...cascadeChanges],
         };
       }
 
-      if (selectedNodeType === 'instance') {
-        const inst = state.instances.find((i) => i.id === selectedNodeId);
+      if (type === 'instance') {
+        const inst = state.instances.find((i) => i.id === id);
         if (!inst) return state;
 
-        const deletedEdges = state.edges.filter((e) => e.sourceId === selectedNodeId || e.targetId === selectedNodeId);
+        const deletedEdges = state.edges.filter((e) => e.sourceId === id || e.targetId === id);
         const instanceCascadeChanges: Change[] = [
-          createChange('DEL', 'instances', selectedNodeId, inst.name,
+          createChange('DEL', 'instances', id, inst.name,
             inst as unknown as Record<string, unknown>),
           ...deletedEdges.map((e) => createChange('DEL', 'edges', e.id, state.relationTypes.find((r) => r.id === e.relationTypeId)?.name ?? 'relation',
             { ...e, relationTypeName: state.relationTypes.find((r) => r.id === e.relationTypeId)?.name } as unknown as Record<string, unknown>)),
         ];
 
         return {
-          instances: state.instances.filter((i) => i.id !== selectedNodeId),
-          edges: state.edges.filter((e) => e.sourceId !== selectedNodeId && e.targetId !== selectedNodeId),
-          instanceValues: state.instanceValues.filter((iv) => iv.instanceId !== selectedNodeId),
-          selectedNodeId: null,
-          selectedNodeType: null,
+          instances: state.instances.filter((i) => i.id !== id),
+          edges: state.edges.filter((e) => e.sourceId !== id && e.targetId !== id),
+          instanceValues: state.instanceValues.filter((iv) => iv.instanceId !== id),
+          selectedNodeId: state.selectedNodeId === id ? null : state.selectedNodeId,
+          selectedNodeType: state.selectedNodeId === id ? null : state.selectedNodeType,
           pendingChanges: [...state.pendingChanges, ...instanceCascadeChanges],
         };
       }
 
       return state;
+    }),
+
+  deleteSelectedNode: () => {
+    const { selectedNodeId, selectedNodeType } = get();
+    if (!selectedNodeId || !selectedNodeType) return;
+    get().deleteNodeById(selectedNodeId, selectedNodeType);
+  },
+
+  clearOntology: () =>
+    set((state) => {
+      const changes: Change[] = [
+        ...state.edges.map((e) => createChange('DEL', 'edges', e.id,
+          state.relationTypes.find((r) => r.id === e.relationTypeId)?.name ?? 'relation',
+          { ...e, relationTypeName: state.relationTypes.find((r) => r.id === e.relationTypeId)?.name } as unknown as Record<string, unknown>)),
+        ...state.axioms.map((a) => createChange('DEL', 'axioms', a.id, a.description,
+          a as unknown as Record<string, unknown>)),
+        ...state.instanceValues.map((iv) => createChange('DEL', 'instance_values', iv.id, iv.value,
+          iv as unknown as Record<string, unknown>)),
+        ...state.properties.map((p) => createChange('DEL', 'properties', p.id, p.name,
+          p as unknown as Record<string, unknown>)),
+        ...state.instances.map((i) => createChange('DEL', 'instances', i.id, i.name,
+          i as unknown as Record<string, unknown>)),
+        ...state.classes.map((c) => createChange('DEL', 'classes', c.id, c.name,
+          c as unknown as Record<string, unknown>)),
+        ...state.relationTypes.map((rt) => createChange('DEL', 'relation_types', rt.id, rt.name,
+          rt as unknown as Record<string, unknown>)),
+      ];
+
+      return {
+        classes: [],
+        instances: [],
+        properties: [],
+        edges: [],
+        axioms: [],
+        instanceValues: [],
+        relationTypes: [],
+        selectedNodeId: null,
+        selectedNodeType: null,
+        pendingChanges: [...state.pendingChanges, ...changes],
+      };
     }),
 
   addProperty: (data) => {

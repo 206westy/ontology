@@ -39,7 +39,7 @@ function InstanceNodeComponent({ id, data, selected }: NodeProps<InstanceNodeTyp
   if (detail === 'dot') {
     return (
       <div className="transition-opacity duration-150" onClick={handleClick} data-testid={`instance-node-${id}`}>
-        <Handle type="target" position={Position.Top} className="!w-1 !h-1 !bg-transparent !border-0" />
+        <Handle type="target" position={Position.Top} className="!w-1.5 !h-1.5 !bg-transparent !border-0" />
         <div
           className="rounded cursor-pointer"
           style={{
@@ -49,7 +49,7 @@ function InstanceNodeComponent({ id, data, selected }: NodeProps<InstanceNodeTyp
             opacity: 0.6,
           }}
         />
-        <Handle type="source" position={Position.Bottom} className="!w-1 !h-1 !bg-transparent !border-0" />
+        <Handle type="source" position={Position.Bottom} className="!w-1.5 !h-1.5 !bg-transparent !border-0" />
       </div>
     );
   }
@@ -65,7 +65,7 @@ function InstanceNodeComponent({ id, data, selected }: NodeProps<InstanceNodeTyp
         onClick={handleClick}
         data-testid={`instance-node-${id}`}
       >
-        <Handle type="target" position={Position.Top} className="!w-1 !h-1 !bg-border !border-2 !border-card" />
+        <Handle type="target" position={Position.Top} className="!w-2.5 !h-2.5 !bg-muted-foreground/40 !border-2 !border-card group-hover:!bg-primary/60 group-hover:!w-3 group-hover:!h-3 !transition-all !duration-150" />
         <div
           className={`flex items-center justify-center w-[52px] h-[36px] rounded-xl cursor-pointer transition-shadow duration-150 hover:shadow-md ${
             isFocused ? 'node-focus-ring' : ''
@@ -82,7 +82,7 @@ function InstanceNodeComponent({ id, data, selected }: NodeProps<InstanceNodeTyp
             {data.label}
           </span>
         </div>
-        <Handle type="source" position={Position.Bottom} className="!w-1 !h-1 !bg-border !border-2 !border-card" />
+        <Handle type="source" position={Position.Bottom} className="!w-2.5 !h-2.5 !bg-muted-foreground/40 !border-2 !border-card group-hover:!bg-primary/60 group-hover:!w-3 group-hover:!h-3 !transition-all !duration-150" />
       </motion.div>
     );
   }
@@ -100,7 +100,7 @@ function InstanceNodeComponent({ id, data, selected }: NodeProps<InstanceNodeTyp
       <Handle
         type="target"
         position={Position.Top}
-        className="!w-1.5 !h-1.5 !bg-border !border-2 !border-card"
+        className="!w-3 !h-3 !bg-muted-foreground/40 !border-2 !border-card group-hover:!bg-primary/60 group-hover:!w-4 group-hover:!h-4 !transition-all !duration-150"
       />
 
       <div
@@ -123,7 +123,7 @@ function InstanceNodeComponent({ id, data, selected }: NodeProps<InstanceNodeTyp
       <Handle
         type="source"
         position={Position.Bottom}
-        className="!w-1.5 !h-1.5 !bg-border !border-2 !border-card"
+        className="!w-3 !h-3 !bg-muted-foreground/40 !border-2 !border-card group-hover:!bg-primary/60 group-hover:!w-4 group-hover:!h-4 !transition-all !duration-150"
       />
     </motion.div>
   );

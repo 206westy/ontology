@@ -45,6 +45,8 @@ export interface EntitySlice {
   removeAxiom: (id: string) => void;
 
   deleteSelectedNode: () => void;
+  deleteNodeById: (id: string, type: 'class' | 'instance') => void;
+  clearOntology: () => void;
 
   loadOntology: (data: {
     classes: OntologyClass[];
