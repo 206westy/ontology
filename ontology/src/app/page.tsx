@@ -15,6 +15,7 @@ import HierarchyPopover from '@/features/ontology/components/HierarchyPopover';
 import DeleteConfirmDialog from '@/features/ontology/components/DeleteConfirmDialog';
 import CommandPalette from '@/features/ontology/components/CommandPalette';
 import OnboardingGuide from '@/features/ontology/components/OnboardingGuide';
+import SplashScreen from '@/features/ontology/components/SplashScreen';
 import { useLoadOntology } from '@/features/ontology/hooks/useLoadOntology';
 import { useKeyboardShortcuts } from '@/features/ontology/hooks/useKeyboardShortcuts';
 import { useApiSync } from '@/features/ontology/hooks/useApiSync';
@@ -65,6 +66,7 @@ export default function Home() {
   const { showDeleteDialog, requestDelete, confirmDelete, cancelDelete } = useKeyboardShortcuts();
   useApiSync();
 
+  const [splashDone, setSplashDone] = useState(false);
   const [savedLayout, setSavedLayout] = useState<Layout | undefined>(undefined);
 
   useEffect(() => {
@@ -84,6 +86,10 @@ export default function Home() {
   const rightPanelRef = usePanelRef();
   const [explorerCollapsed, setExplorerCollapsed] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(false);
+
+  if (!splashDone) {
+    return <SplashScreen onComplete={() => setSplashDone(true)} />;
+  }
 
   if (isLoading) {
     return (

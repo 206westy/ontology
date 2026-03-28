@@ -48,7 +48,6 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Separator } from '@/components/ui/separator';
 import { useOntologyStore } from '../hooks/useOntologyStore';
-import { useShallow } from 'zustand/shallow';
 import { constraintsApi, validateApi } from '../api';
 import { toast } from 'sonner';
 import type { ConstraintType, OntologyConstraint } from '../lib/types';
@@ -166,13 +165,9 @@ function buildConfig(form: AddConstraintFormState): Record<string, unknown> {
 }
 
 export default function ConstraintsPanel() {
-  const { classes, relationTypes, properties } = useOntologyStore(
-    useShallow((s) => ({
-      classes: s.classes,
-      relationTypes: s.relationTypes,
-      properties: s.properties,
-    })),
-  );
+  const classes = useOntologyStore((s) => s.classes);
+  const relationTypes = useOntologyStore((s) => s.relationTypes);
+  const properties = useOntologyStore((s) => s.properties);
 
   const selectedNodeId = useOntologyStore((s) => s.selectedNodeId);
   const selectedNodeType = useOntologyStore((s) => s.selectedNodeType);

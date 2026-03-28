@@ -41,7 +41,16 @@ Guidelines:
 
 ${contextParts.length > 0 ? `\nCurrent context:\n${contextParts.join('\n\n')}` : ''}`;
 
-    const modelMessages = await convertToModelMessages(messages);
+    // Normalize messages to UIMessage format (defense against direct API calls without useChat)
+    const normalized: UIMessage[] = messages.map((m: any) => ({
+      id: m.id ?? crypto.randomUUID(),
+      role: m.role,
+      content: m.content ?? '',
+      parts: m.parts ?? [{ type: 'text' as const, text: m.content ?? '' }],
+      ...m,
+    }));
+
+    const modelMessages = await convertToModelMessages(normalized);
 
     const result = streamText({
       model: openai('gpt-4o-mini'),

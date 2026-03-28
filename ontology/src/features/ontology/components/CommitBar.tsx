@@ -76,7 +76,7 @@ export default function CommitBar() {
   };
 
   return (
-    <div className="h-[38px] min-h-[38px] flex items-center justify-between px-3 border-t border-border bg-card/80 backdrop-blur-sm">
+    <div className="h-[38px] min-h-[38px] flex items-center justify-between px-3 border-t border-border bg-card/80 backdrop-blur-sm" data-testid="commit-bar">
       <div className="flex items-center gap-2">
         <AutoSaveIndicator
           state={autoSaveState}

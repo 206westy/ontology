@@ -21,7 +21,6 @@ import {
   CommandShortcut,
 } from '@/components/ui/command';
 import { useOntologyStore } from '../hooks/useOntologyStore';
-import { useShallow } from 'zustand/shallow';
 import { NODE_COLORS } from '../constants/colors';
 
 interface CommandAction {
@@ -40,27 +39,28 @@ export default function CommandPalette() {
   const focusNode = useOntologyStore((s) => s.focusNode);
   const selectNode = useOntologyStore((s) => s.selectNode);
 
-  const nodes = useOntologyStore(
-    useShallow((s) => {
-      const classNodes = s.classes.map((c) => ({
-        id: c.id,
-        name: c.name,
-        type: 'class' as const,
-        color: c.color,
-      }));
-      const instanceNodes = s.instances.map((i) => {
-        const parentClass = s.classes.find((c) => c.id === i.classId);
-        return {
-          id: i.id,
-          name: i.name,
-          type: 'instance' as const,
-          color: parentClass?.color ?? NODE_COLORS.instance,
-          className: parentClass?.name,
-        };
-      });
-      return [...classNodes, ...instanceNodes];
-    }),
-  );
+  const classes = useOntologyStore((s) => s.classes);
+  const instances = useOntologyStore((s) => s.instances);
+
+  const nodes = useMemo(() => {
+    const classNodes = classes.map((c) => ({
+      id: c.id,
+      name: c.name,
+      type: 'class' as const,
+      color: c.color,
+    }));
+    const instanceNodes = instances.map((i) => {
+      const parentClass = classes.find((c) => c.id === i.classId);
+      return {
+        id: i.id,
+        name: i.name,
+        type: 'instance' as const,
+        color: parentClass?.color ?? NODE_COLORS.instance,
+        className: parentClass?.name,
+      };
+    });
+    return [...classNodes, ...instanceNodes];
+  }, [classes, instances]);
 
   const pendingChangesCount = useOntologyStore((s) => s.pendingChanges.length);
 

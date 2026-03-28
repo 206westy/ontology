@@ -6,7 +6,6 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { useOntologyStore } from '../hooks/useOntologyStore';
-import { useShallow } from 'zustand/shallow';
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
 
@@ -15,27 +14,28 @@ export default function AIAssistantTab({ nodeName }: { nodeName: string }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const context = useOntologyStore(
-    useShallow((s) => {
-      const id = s.selectedNodeId;
-      const type = s.selectedNodeType;
-      const classCount = s.classes.length;
-      const instanceCount = s.instances.length;
-      const edgeCount = s.edges.length;
-      const selectedClass = type === 'class' ? s.classes.find((c) => c.id === id) : null;
-      const selectedInstance = type === 'instance' ? s.instances.find((i) => i.id === id) : null;
+  const selectedNodeId = useOntologyStore((s) => s.selectedNodeId);
+  const selectedNodeType = useOntologyStore((s) => s.selectedNodeType);
+  const aiClasses = useOntologyStore((s) => s.classes);
+  const aiInstances = useOntologyStore((s) => s.instances);
+  const aiEdges = useOntologyStore((s) => s.edges);
 
-      const summary = `Classes: ${classCount}, Instances: ${instanceCount}, Relations: ${edgeCount}`;
-      const classNames = s.classes.map((c) => c.name).join(', ');
+  const context = useMemo(() => {
+    const id = selectedNodeId;
+    const type = selectedNodeType;
+    const selectedClass = type === 'class' ? aiClasses.find((c) => c.id === id) : null;
+    const selectedInstance = type === 'instance' ? aiInstances.find((i) => i.id === id) : null;
 
-      return {
-        selectedNodeIds: id ? [id] : [],
-        selectedNodeType: type ?? undefined,
-        ontologySummary: `${summary}\nClass list: ${classNames}`,
-        selectedName: selectedClass?.name ?? selectedInstance?.name ?? '',
-      };
-    }),
-  );
+    const summary = `Classes: ${aiClasses.length}, Instances: ${aiInstances.length}, Relations: ${aiEdges.length}`;
+    const classNames = aiClasses.map((c) => c.name).join(', ');
+
+    return {
+      selectedNodeIds: id ? [id] : [],
+      selectedNodeType: type ?? undefined,
+      ontologySummary: `${summary}\nClass list: ${classNames}`,
+      selectedName: selectedClass?.name ?? selectedInstance?.name ?? '',
+    };
+  }, [selectedNodeId, selectedNodeType, aiClasses, aiInstances, aiEdges]);
 
   const transport = useMemo(
     () =>

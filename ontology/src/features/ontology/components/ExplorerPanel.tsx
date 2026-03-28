@@ -255,6 +255,7 @@ export default function ExplorerPanel() {
   return (
     <aside
       className="w-full h-full flex flex-col bg-card overflow-hidden"
+      data-testid="explorer-panel"
     >
       {/* Logo */}
       <div className="flex items-center gap-2 px-4 h-[52px] shrink-0">

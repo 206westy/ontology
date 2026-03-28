@@ -80,7 +80,7 @@ export default function Toolbar() {
   };
 
   return (
-    <div className="h-[46px] min-h-[46px] flex items-center px-4 gap-2 border-b border-border bg-card/80 backdrop-blur-sm">
+    <div className="h-[46px] min-h-[46px] flex items-center px-4 gap-2 border-b border-border bg-card/80 backdrop-blur-sm" data-testid="toolbar">
       <span className="text-sm font-semibold tracking-tight gradient-brand-text">PSK PEE Ontology</span>
       <Badge variant="secondary" className="h-5 text-[10px] px-1.5 font-mono">
         v0.1 draft

@@ -588,7 +588,7 @@ function GraphCanvasInner() {
   const handleContextFocusMode = useCallback(
     (nodeId: string) => {
       const store = useOntologyStore.getState();
-      store.focusNode(nodeId);
+      store.enterFocusMode(nodeId);
     },
     [],
   );
@@ -620,7 +620,7 @@ function GraphCanvasInner() {
   }
 
   return (
-    <div className="flex-1 relative" onDoubleClick={onPaneDoubleClick}>
+    <div className="flex-1 relative" data-testid="graph-canvas" onDoubleClick={onPaneDoubleClick}>
       <ReactFlow
         nodes={nodes}
         edges={edges}

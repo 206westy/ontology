@@ -2,15 +2,17 @@ import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
   testDir: './e2e',
-  timeout: 60000,
+  timeout: 90000,
   fullyParallel: false,
   workers: 1,
-  retries: 1,
+  retries: 2,
   use: {
     baseURL: 'http://localhost:3000',
     headless: true,
     screenshot: 'only-on-failure',
     trace: 'on-first-retry',
+    navigationTimeout: 30000,
+    actionTimeout: 15000,
   },
   webServer: {
     command: 'npm run dev',

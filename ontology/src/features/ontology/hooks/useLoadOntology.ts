@@ -51,14 +51,25 @@ export function useLoadOntology() {
     relationTypesQuery.isError ||
     axiomsQuery.isError;
 
-  const initialLoadDone = useRef(false);
+  // Track the latest dataUpdatedAt across all queries to detect fresh data
+  const latestUpdatedAt = allLoaded
+    ? Math.max(
+        classesQuery.dataUpdatedAt,
+        instancesQuery.dataUpdatedAt,
+        propertiesQuery.dataUpdatedAt,
+        edgesQuery.dataUpdatedAt,
+        relationTypesQuery.dataUpdatedAt,
+        axiomsQuery.dataUpdatedAt,
+      )
+    : 0;
+
+  const lastSyncedAt = useRef(0);
 
   useEffect(() => {
-    if (!allLoaded) return;
-    // Only load from DB on initial mount — not on every refetch
-    // This prevents overwriting local Zustand state with stale DB data
-    if (initialLoadDone.current) return;
-    initialLoadDone.current = true;
+    if (!allLoaded || latestUpdatedAt === 0) return;
+    // Only sync to Zustand when React Query data is newer than the last sync
+    if (latestUpdatedAt <= lastSyncedAt.current) return;
+    lastSyncedAt.current = latestUpdatedAt;
 
     loadOntology({
       classes: (classesQuery.data as OntologyClass[]) ?? [],
@@ -71,6 +82,7 @@ export function useLoadOntology() {
     });
   }, [
     allLoaded,
+    latestUpdatedAt,
     classesQuery.data,
     instancesQuery.data,
     propertiesQuery.data,

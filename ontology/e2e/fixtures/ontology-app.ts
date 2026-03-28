@@ -56,7 +56,7 @@ export class OntologyApp {
 
     // Popover
     this.newNodeHeading = page.getByRole('heading', { name: '새 노드' });
-    this.textarea = page.locator('textarea');
+    this.textarea = page.locator('role=dialog >> textarea').first();
     this.generateButton = page.locator('button:has-text("생성")');
     this.confirmButton = page.locator('button:has-text("확정")');
     this.cancelButton = page.locator('button:has-text("취소")');
@@ -68,6 +68,32 @@ export class OntologyApp {
   async goto() {
     await this.page.goto('/');
     await this.page.waitForLoadState('networkidle');
+    // Wait for splash screen to complete (if present)
+    await this.page.waitForFunction(
+      () => !document.querySelector('[class*="fixed"][class*="z-"]')?.textContent?.includes('Loading workspace'),
+      { timeout: 15000 },
+    ).catch(() => { /* splash may not be present or already done */ });
+  }
+
+  /**
+   * Navigate and wait until React Flow nodes are rendered on canvas.
+   * Use after createClassViaApi() to ensure nodes are visible before interacting.
+   */
+  async gotoAndWaitForNodes(expectedCount = 1) {
+    await this.page.goto('/');
+    await this.page.waitForLoadState('networkidle');
+    // Wait for splash screen to disappear (if present)
+    await this.page.waitForFunction(
+      () => !document.querySelector('[class*="fixed"][class*="z-"]')?.textContent?.includes('Loading workspace'),
+      { timeout: 15000 },
+    ).catch(() => { /* splash may not be present */ });
+    // Wait for React Flow nodes to render
+    await this.page.waitForSelector('.react-flow__node', { timeout: 30000 });
+    await this.page.waitForFunction(
+      (count) => document.querySelectorAll('.react-flow__node').length >= count,
+      expectedCount,
+      { timeout: 30000 },
+    );
   }
 
   // ── API Cleanup ─────────────────────────────────────────
@@ -124,10 +150,9 @@ export class OntologyApp {
   // ── Canvas Interactions ─────────────────────────────────
 
   async doubleClickCanvas(x = 400, y = 300) {
-    await this.page.locator('.bg-background, .react-flow').first().dblclick({
-      position: { x, y },
-      force: true,
-    });
+    const canvas = this.page.locator('.react-flow__pane, [data-testid="empty-state"]').first();
+    await canvas.waitFor({ state: 'visible', timeout: 10000 });
+    await canvas.dblclick({ position: { x, y }, force: true });
   }
 
   async openNewNodePopover(x = 400, y = 300) {
@@ -155,6 +180,7 @@ export class OntologyApp {
 
   async selectNodeOnCanvas(index = 0) {
     const node = this.getCanvasNodes().nth(index);
+    await node.waitFor({ state: 'visible', timeout: 15000 });
     await node.click();
     await this.page.waitForTimeout(500);
   }
@@ -265,6 +291,10 @@ type OntologyFixtures = {
 
 export const test = base.extend<OntologyFixtures>({
   app: async ({ page }, use) => {
+    // Skip onboarding overlay in all tests
+    await page.addInitScript(() => {
+      localStorage.setItem('onboarding_completed', 'true');
+    });
     const app = new OntologyApp(page);
     await app.cleanupAll();
     await use(app);

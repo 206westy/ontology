@@ -23,7 +23,6 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useOntologyStore } from '../hooks/useOntologyStore';
-import { useShallow } from 'zustand/shallow';
 import { toast } from 'sonner';
 import type { DataType } from '../lib/types';
 import { getInheritedProperties, type InheritedProperty } from '../lib/property-inheritance';
@@ -666,48 +665,54 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
   const updateClass = useOntologyStore((s) => s.updateClass);
   const selectNode = useOntologyStore((s) => s.selectNode);
 
-  // Derive only the data relevant to the selected node — avoids full-store re-renders
-  const nodeDetail = useOntologyStore(
-    useShallow((s) => {
-      const id = s.selectedNodeId;
-      const type = s.selectedNodeType;
-      if (!id) return null;
+  // Individual selectors avoid useShallow + React 19 useSyncExternalStore conflict
+  const storeClasses = useOntologyStore((s) => s.classes);
+  const storeInstances = useOntologyStore((s) => s.instances);
+  const storeProperties = useOntologyStore((s) => s.properties);
+  const storeInstanceValues = useOntologyStore((s) => s.instanceValues);
+  const storeEdges = useOntologyStore((s) => s.edges);
+  const storeAxioms = useOntologyStore((s) => s.axioms);
+  const storeRelationTypes = useOntologyStore((s) => s.relationTypes);
 
-      const selectedClass = type === 'class' ? s.classes.find((c) => c.id === id) : null;
-      const selectedInstance = type === 'instance' ? s.instances.find((i) => i.id === id) : null;
-      if (!selectedClass && !selectedInstance) return null;
+  const nodeDetail = useMemo(() => {
+    const id = selectedNodeId;
+    const type = selectedNodeType;
+    if (!id) return null;
 
-      const parentClass = selectedInstance
-        ? s.classes.find((c) => c.id === selectedInstance.classId) ?? null
-        : null;
+    const selectedClass = type === 'class' ? storeClasses.find((c) => c.id === id) : null;
+    const selectedInstance = type === 'instance' ? storeInstances.find((i) => i.id === id) : null;
+    if (!selectedClass && !selectedInstance) return null;
 
-      return {
-        selectedClass,
-        selectedInstance,
-        parentClass,
-        nodeName: selectedClass?.name ?? selectedInstance?.name ?? '',
-        nodeColor: selectedClass?.color ?? parentClass?.color ?? '#86efac',
-        nodeDescription: selectedClass?.description ?? '',
-        subclasses: selectedClass ? s.classes.filter((c) => c.parentId === id) : [],
-        nodeProperties: selectedClass
-          ? s.properties.filter((p) => p.classId === id).sort((a, b) => a.sortOrder - b.sortOrder)
-          : [],
-        instanceProperties: selectedInstance && parentClass
-          ? s.properties.filter((p) => p.classId === parentClass.id).sort((a, b) => a.sortOrder - b.sortOrder)
-          : [],
-        instanceValues: selectedInstance
-          ? s.instanceValues.filter((iv) => iv.instanceId === id)
-          : [],
-        nodeInstances: selectedClass ? s.instances.filter((i) => i.classId === id) : [],
-        nodeEdges: s.edges.filter((e) => e.sourceId === id || e.targetId === id),
-        nodeAxioms: selectedClass ? s.axioms.filter((a) => a.classIds.includes(id)) : [],
-        allProperties: s.properties,
-        relationTypes: s.relationTypes,
-        classes: s.classes,
-        instances: s.instances,
-      };
-    }),
-  );
+    const parentClass = selectedInstance
+      ? storeClasses.find((c) => c.id === selectedInstance.classId) ?? null
+      : null;
+
+    return {
+      selectedClass,
+      selectedInstance,
+      parentClass,
+      nodeName: selectedClass?.name ?? selectedInstance?.name ?? '',
+      nodeColor: selectedClass?.color ?? parentClass?.color ?? '#86efac',
+      nodeDescription: selectedClass?.description ?? '',
+      subclasses: selectedClass ? storeClasses.filter((c) => c.parentId === id) : [],
+      nodeProperties: selectedClass
+        ? storeProperties.filter((p) => p.classId === id).sort((a, b) => a.sortOrder - b.sortOrder)
+        : [],
+      instanceProperties: selectedInstance && parentClass
+        ? storeProperties.filter((p) => p.classId === parentClass.id).sort((a, b) => a.sortOrder - b.sortOrder)
+        : [],
+      instanceValues: selectedInstance
+        ? storeInstanceValues.filter((iv) => iv.instanceId === id)
+        : [],
+      nodeInstances: selectedClass ? storeInstances.filter((i) => i.classId === id) : [],
+      nodeEdges: storeEdges.filter((e) => e.sourceId === id || e.targetId === id),
+      nodeAxioms: selectedClass ? storeAxioms.filter((a) => a.classIds.includes(id)) : [],
+      allProperties: storeProperties,
+      relationTypes: storeRelationTypes,
+      classes: storeClasses,
+      instances: storeInstances,
+    };
+  }, [selectedNodeId, selectedNodeType, storeClasses, storeInstances, storeProperties, storeInstanceValues, storeEdges, storeAxioms, storeRelationTypes]);
 
   const addProperty = useOntologyStore((s) => s.addProperty);
   const addAxiom = useOntologyStore((s) => s.addAxiom);
@@ -725,6 +730,31 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
   const [showAddConstraint, setShowAddConstraint] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
+
+  // These useMemo hooks MUST be before the early return to maintain consistent hook order
+  const inheritedProperties = useMemo(() => {
+    if (!nodeDetail?.selectedClass) return [];
+    return getInheritedProperties(nodeDetail.selectedClass.id, nodeDetail.classes, nodeDetail.allProperties)
+      .filter((ip) => !ip.isOverridden);
+  }, [nodeDetail]);
+
+  const inheritedByAncestor = useMemo(() => {
+    const groups: Record<string, { name: string; props: InheritedProperty[] }> = {};
+    for (const ip of inheritedProperties) {
+      const key = ip.inheritedFrom!;
+      if (!groups[key]) {
+        groups[key] = { name: ip.inheritedFromName!, props: [] };
+      }
+      groups[key].props.push(ip);
+    }
+    return Object.entries(groups);
+  }, [inheritedProperties]);
+
+  const allInheritedForInstance = useMemo(() => {
+    if (!nodeDetail?.selectedInstance || !nodeDetail?.parentClass) return [];
+    return getInheritedProperties(nodeDetail.parentClass.id, nodeDetail.classes, nodeDetail.allProperties)
+      .filter((ip) => !ip.isOverridden);
+  }, [nodeDetail]);
 
   if (!selectedNodeId || !nodeDetail) return <EmptyState />;
 
@@ -747,30 +777,6 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
     classes,
     instances,
   } = nodeDetail;
-
-  const inheritedProperties = useMemo(() => {
-    if (!selectedClass) return [];
-    return getInheritedProperties(selectedClass.id, classes, allProperties)
-      .filter((ip) => !ip.isOverridden);
-  }, [selectedClass, classes, allProperties]);
-
-  const inheritedByAncestor = useMemo(() => {
-    const groups: Record<string, { name: string; props: InheritedProperty[] }> = {};
-    for (const ip of inheritedProperties) {
-      const key = ip.inheritedFrom!;
-      if (!groups[key]) {
-        groups[key] = { name: ip.inheritedFromName!, props: [] };
-      }
-      groups[key].props.push(ip);
-    }
-    return Object.entries(groups);
-  }, [inheritedProperties]);
-
-  const allInheritedForInstance = useMemo(() => {
-    if (!selectedInstance || !parentClass) return [];
-    return getInheritedProperties(parentClass.id, classes, allProperties)
-      .filter((ip) => !ip.isOverridden);
-  }, [selectedInstance, parentClass, classes, allProperties]);
 
   const handleOverride = (ip: InheritedProperty) => {
     if (!selectedClass) return;
@@ -800,7 +806,7 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
   };
 
   return (
-    <aside className="w-full h-full flex flex-col bg-card overflow-hidden">
+    <aside className="w-full h-full flex flex-col bg-card overflow-hidden" data-testid="right-panel">
       {/* Parent class breadcrumb for instances */}
       {selectedInstance && parentClass && (
         <button

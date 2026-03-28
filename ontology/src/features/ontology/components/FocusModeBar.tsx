@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import { X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useOntologyStore } from '../hooks/useOntologyStore';
@@ -11,6 +12,17 @@ export default function FocusModeBar() {
   const exitFocusMode = useOntologyStore((s) => s.exitFocusMode);
   const classes = useOntologyStore((s) => s.classes);
   const instances = useOntologyStore((s) => s.instances);
+
+  useEffect(() => {
+    if (!focusModeNodeId) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        exitFocusMode();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [focusModeNodeId, exitFocusMode]);
 
   if (!focusModeNodeId) return null;
 
