@@ -9,6 +9,8 @@ import {
   ShieldCheck,
   Search,
   Circle,
+  GitMerge,
+  Activity,
 } from 'lucide-react';
 import {
   CommandDialog,
@@ -112,6 +114,16 @@ export default function CommandPalette() {
     setOpen(false);
   }, []);
 
+  const handleDuplicateCheck = useCallback(() => {
+    window.dispatchEvent(new CustomEvent('ontology:duplicate-check'));
+    setOpen(false);
+  }, []);
+
+  const handleHealth = useCallback(() => {
+    window.dispatchEvent(new CustomEvent('ontology:health'));
+    setOpen(false);
+  }, []);
+
   const handleNodeSelect = useCallback(
     (nodeId: string, nodeType: 'class' | 'instance') => {
       selectNode(nodeId, nodeType);
@@ -155,8 +167,20 @@ export default function CommandPalette() {
         icon: <ShieldCheck className="w-4 h-4" />,
         action: handleValidate,
       },
+      {
+        id: 'duplicate-check',
+        label: '중복 검사 / 병합',
+        icon: <GitMerge className="w-4 h-4" />,
+        action: handleDuplicateCheck,
+      },
+      {
+        id: 'health',
+        label: '건강도 보기',
+        icon: <Activity className="w-4 h-4" />,
+        action: handleHealth,
+      },
     ],
-    [handleNewNode, handleCommit, handlePush, handleLayoutFit, handleValidate, pendingChangesCount],
+    [handleNewNode, handleCommit, handlePush, handleLayoutFit, handleValidate, handleDuplicateCheck, handleHealth, pendingChangesCount],
   );
 
   return (

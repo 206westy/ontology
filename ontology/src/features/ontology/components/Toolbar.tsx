@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   MousePointer2,
   Hand,
@@ -14,9 +14,13 @@ import {
   Sparkles,
   ShieldCheck,
   Loader2,
+  GitMerge,
+  Activity,
 } from 'lucide-react';
 import FilterPanel from './FilterPanel';
 import ValidationResultsPanel from './ValidationResultsPanel';
+import EntityResolutionSheet from './EntityResolutionSheet';
+import HealthDashboardSheet from './HealthDashboardSheet';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -37,6 +41,20 @@ export default function Toolbar() {
   const [validating, setValidating] = useState(false);
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
   const [showValidation, setShowValidation] = useState(false);
+  const [showEntityResolution, setShowEntityResolution] = useState(false);
+  const [showHealth, setShowHealth] = useState(false);
+
+  // Allow CommandPalette (and other components) to open these sheets via events.
+  useEffect(() => {
+    const openER = () => setShowEntityResolution(true);
+    const openHealth = () => setShowHealth(true);
+    window.addEventListener('ontology:duplicate-check', openER);
+    window.addEventListener('ontology:health', openHealth);
+    return () => {
+      window.removeEventListener('ontology:duplicate-check', openER);
+      window.removeEventListener('ontology:health', openHealth);
+    };
+  }, []);
 
   const handleImport = () => {
     openPopover({
@@ -163,6 +181,28 @@ export default function Toolbar() {
         variant="ghost"
         size="sm"
         className="h-7 text-xs gap-1"
+        onClick={() => setShowHealth(true)}
+        title="온톨로지 건강도"
+      >
+        <Activity className="w-3.5 h-3.5" />
+        건강도
+      </Button>
+
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-7 text-xs gap-1"
+        onClick={() => setShowEntityResolution(true)}
+        title="중복 검사 / 병합"
+      >
+        <GitMerge className="w-3.5 h-3.5" />
+        중복 검사
+      </Button>
+
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-7 text-xs gap-1"
         onClick={handleValidate}
         disabled={validating}
         title="스키마 검증"
@@ -210,6 +250,15 @@ export default function Toolbar() {
         result={validationResult}
         isLoading={validating}
       />
+
+      {/* Entity Resolution / Merge (P0-2) */}
+      <EntityResolutionSheet
+        open={showEntityResolution}
+        onOpenChange={setShowEntityResolution}
+      />
+
+      {/* Health Dashboard (P0-3) */}
+      <HealthDashboardSheet open={showHealth} onOpenChange={setShowHealth} />
     </div>
   );
 }

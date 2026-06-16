@@ -14,12 +14,38 @@ import {
   Clock,
   Trash2,
   AlertCircle,
+  Crosshair,
+  WifiOff,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { text2CypherApi, neo4jApi, type Text2CypherResult } from '../api';
+import { text2CypherApi, neo4jApi, type Text2CypherResult, type Neo4jStatusResponse } from '../api';
+import { useOntologyStore } from '../store';
+
+// Recursively collect string `id` values from Neo4j result rows.
+// Nodes preserve their Supabase id (== canvas node id), whether serialized
+// flat ({ _labels, id, name }) or nested ({ properties: { id } }).
+function extractNodeIds(data: unknown[]): string[] {
+  const ids = new Set<string>();
+  const visit = (value: unknown) => {
+    if (!value || typeof value !== 'object') return;
+    if (Array.isArray(value)) {
+      value.forEach(visit);
+      return;
+    }
+    const obj = value as Record<string, unknown>;
+    if (typeof obj.id === 'string') ids.add(obj.id);
+    if (obj.properties && typeof obj.properties === 'object') {
+      const props = obj.properties as Record<string, unknown>;
+      if (typeof props.id === 'string') ids.add(props.id);
+    }
+    Object.values(obj).forEach(visit);
+  };
+  data.forEach(visit);
+  return [...ids];
+}
 
 // ─── Shiki highlighter (lazy loaded) ──────────────────────
 type ShikiHighlighter = {
@@ -240,14 +266,6 @@ function ResultJson({ data: rawData }: { data: unknown }) {
 }
 
 function ResultGraph({ data }: { data: unknown[] }) {
-  if (data.length === 0) {
-    return (
-      <p className="text-[11px] text-muted-foreground py-4 text-center">
-        결과가 없습니다
-      </p>
-    );
-  }
-
   // Extract nodes and edges from query results
   const { graphNodes, graphEdges } = useMemo(() => {
     const nodeMap = new Map<string, { id: string; label: string; type: string }>();
@@ -387,6 +405,10 @@ export default function Text2CypherTab() {
   const [resultView, setResultView] = useState<'table' | 'graph' | 'json'>('table');
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [status, setStatus] = useState<Neo4jStatusResponse | null>(null);
+
+  const highlightNodes = useOntologyStore((s) => s.highlightNodes);
+  const pendingCount = useOntologyStore((s) => s.pendingChanges.length);
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const historyRef = useRef<HTMLDivElement>(null);
@@ -399,6 +421,22 @@ export default function Text2CypherTab() {
   // Load history on mount
   useEffect(() => {
     setHistory(loadHistory());
+  }, []);
+
+  // Check Neo4j connection on mount (production graph is the query target)
+  useEffect(() => {
+    let cancelled = false;
+    neo4jApi
+      .status()
+      .then((s) => {
+        if (!cancelled) setStatus(s);
+      })
+      .catch(() => {
+        if (!cancelled) setStatus({ connected: false, error: 'Neo4j 상태를 확인할 수 없습니다.' });
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Close history dropdown on outside click
@@ -519,6 +557,23 @@ export default function Text2CypherTab() {
     toast.success('히스토리가 삭제되었습니다');
   }, []);
 
+  const handleShowOnCanvas = useCallback(() => {
+    if (!results) return;
+    const resultIds = extractNodeIds(results);
+    const { classes, instances } = useOntologyStore.getState();
+    const canvasIds = new Set<string>([
+      ...classes.map((c) => c.id),
+      ...instances.map((i) => i.id),
+    ]);
+    const matched = resultIds.filter((id) => canvasIds.has(id));
+    if (matched.length === 0) {
+      toast.info('결과 노드가 현재 캔버스에 없습니다. push 이후의 데이터일 수 있습니다.');
+      return;
+    }
+    highlightNodes(matched);
+    toast.success(`${matched.length}개 노드를 캔버스에서 강조합니다`);
+  }, [results, highlightNodes]);
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -537,6 +592,21 @@ export default function Text2CypherTab() {
     <div className="flex flex-col h-full min-h-0">
       <ScrollArea className="flex-1 min-h-0">
         <div className="p-3 space-y-3">
+          {/* Neo4j connection guard (production graph is the query target) */}
+          {status && !status.connected && (
+            <div className="flex items-start gap-2 p-2.5 rounded-md bg-amber-500/10 border border-amber-500/20">
+              <WifiOff className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+              <div className="space-y-0.5">
+                <p className="text-[11px] font-medium text-amber-700 dark:text-amber-400">
+                  Neo4j(반영본)에 연결되어 있지 않습니다
+                </p>
+                <p className="text-[10px] text-muted-foreground leading-relaxed">
+                  {status.suggestion ?? status.error ?? '연결 설정을 확인한 뒤 다시 시도하세요.'}
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Mode toggle + history */}
           <div className="flex items-center justify-between gap-2">
             <button
@@ -718,37 +788,51 @@ export default function Text2CypherTab() {
           {/* Results area */}
           {results && (
             <div className="space-y-2">
-              <div className="flex items-center gap-1">
-                <button
-                  className={`text-[10px] px-2 py-0.5 rounded-md transition-colors ${
-                    resultView === 'table'
-                      ? 'bg-primary/10 text-primary font-medium'
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                  onClick={() => setResultView('table')}
-                >
-                  테이블
-                </button>
-                <button
-                  className={`text-[10px] px-2 py-0.5 rounded-md transition-colors ${
-                    resultView === 'graph'
-                      ? 'bg-primary/10 text-primary font-medium'
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                  onClick={() => setResultView('graph')}
-                >
-                  그래프
-                </button>
-                <button
-                  className={`text-[10px] px-2 py-0.5 rounded-md transition-colors ${
-                    resultView === 'json'
-                      ? 'bg-primary/10 text-primary font-medium'
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                  onClick={() => setResultView('json')}
-                >
-                  JSON
-                </button>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1">
+                  <button
+                    className={`text-[10px] px-2 py-0.5 rounded-md transition-colors ${
+                      resultView === 'table'
+                        ? 'bg-primary/10 text-primary font-medium'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                    onClick={() => setResultView('table')}
+                  >
+                    테이블
+                  </button>
+                  <button
+                    className={`text-[10px] px-2 py-0.5 rounded-md transition-colors ${
+                      resultView === 'graph'
+                        ? 'bg-primary/10 text-primary font-medium'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                    onClick={() => setResultView('graph')}
+                  >
+                    그래프
+                  </button>
+                  <button
+                    className={`text-[10px] px-2 py-0.5 rounded-md transition-colors ${
+                      resultView === 'json'
+                        ? 'bg-primary/10 text-primary font-medium'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                    onClick={() => setResultView('json')}
+                  >
+                    JSON
+                  </button>
+                </div>
+
+                {results.length > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-[10px] px-2 gap-1"
+                    onClick={handleShowOnCanvas}
+                  >
+                    <Crosshair className="w-3 h-3" />
+                    캔버스에 표시
+                  </Button>
+                )}
               </div>
 
               {resultView === 'table' ? (
@@ -758,6 +842,18 @@ export default function Text2CypherTab() {
               ) : (
                 <ResultJson data={results} />
               )}
+
+              {/* Production-basis note */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <p className="text-[10px] text-muted-foreground/70">
+                  이 결과는 Neo4j(반영본) 기준입니다. 최근 편집은 push 후 반영됩니다.
+                </p>
+                {pendingCount > 0 && (
+                  <Badge variant="outline" className="h-4 text-[9px] px-1 text-amber-600 border-amber-500/40">
+                    미반영 변경 {pendingCount}건
+                  </Badge>
+                )}
+              </div>
             </div>
           )}
 
