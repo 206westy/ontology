@@ -20,6 +20,8 @@ import type {
   LlmChatRequestInput,
   Text2CypherRequestInput,
   ImportRequestInput,
+  AssistRequestInput,
+  AssistantActionResponse,
 } from './lib/schemas';
 
 async function handleResponse<T>(res: Response): Promise<T> {
@@ -415,6 +417,50 @@ export const text2CypherApi = {
       headers: jsonHeaders,
       body: JSON.stringify(data),
     }).then((r) => handleResponse<Text2CypherResult>(r)),
+};
+
+// ─── AI Assistant structured actions (P0-1) ───────────────
+export const assistApi = {
+  send: (data: AssistRequestInput): Promise<AssistantActionResponse> =>
+    fetch('/api/llm/assist', {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify(data),
+    }).then((r) => handleResponse<AssistantActionResponse>(r)),
+};
+
+// ─── Health Dashboard (P0-3) ──────────────────────────────
+export interface HealthMetrics {
+  classes: number;
+  instances: number;
+  edges: number;
+  orphanNodes: number;
+  emptyClasses: number;
+  duplicateCandidates: number;
+  coverage: number;
+  unpushedChanges: number;
+}
+
+export const healthApi = {
+  get: (): Promise<{ metrics: HealthMetrics }> =>
+    fetch('/api/health').then((r) => handleResponse<{ metrics: HealthMetrics }>(r)),
+};
+
+// ─── Entity Resolution (P0-2) ─────────────────────────────
+export interface MergeCandidate {
+  id: string;
+  kind: 'class' | 'instance';
+  a: { id: string; name: string };
+  b: { id: string; name: string };
+  score: number;
+  reason: string;
+}
+
+export const entityResolutionApi = {
+  candidates: (): Promise<{ candidates: MergeCandidate[] }> =>
+    fetch('/api/entity-resolution/candidates').then((r) =>
+      handleResponse<{ candidates: MergeCandidate[] }>(r),
+    ),
 };
 
 // ─── Import / Export (v3 + v4 JSON-LD / Turtle) ──────────

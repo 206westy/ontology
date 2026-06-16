@@ -10,6 +10,7 @@ import {
   validationResults,
 } from '@/lib/drizzle/schema';
 import { validateRequestSchema } from '@/features/ontology/lib/schemas';
+import { findSimilarPairs } from '@/features/ontology/lib/similarity';
 import { eq } from 'drizzle-orm';
 import { handleApiError } from '@/lib/api-error';
 
@@ -229,74 +230,22 @@ async function checkOrphanNodes(
   return issues;
 }
 
-// Rule: Similar name detection (Levenshtein-based)
+// Rule: Similar name detection (shared Levenshtein-based util)
 async function checkSimilarNames(
   db: Awaited<ReturnType<typeof getDb>>,
 ): Promise<ValidationIssue[]> {
-  const issues: ValidationIssue[] = [];
+  const allClasses = (await db.query.classes.findMany()) as unknown as ClassRow[];
+  const pairs = findSimilarPairs(allClasses.map((c) => ({ id: c.id, name: c.name })));
 
-  const allClasses = await db.query.classes.findMany() as unknown as ClassRow[];
-
-  function levenshtein(a: string, b: string): number {
-    const matrix: number[][] = [];
-    for (let i = 0; i <= a.length; i++) matrix[i] = [i];
-    for (let j = 0; j <= b.length; j++) matrix[0][j] = j;
-
-    for (let i = 1; i <= a.length; i++) {
-      for (let j = 1; j <= b.length; j++) {
-        const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-        matrix[i][j] = Math.min(
-          matrix[i - 1][j] + 1,
-          matrix[i][j - 1] + 1,
-          matrix[i - 1][j - 1] + cost,
-        );
-      }
-    }
-    return matrix[a.length][b.length];
-  }
-
-  const checked = new Set<string>();
-  for (let i = 0; i < allClasses.length; i++) {
-    for (let j = i + 1; j < allClasses.length; j++) {
-      const a = allClasses[i];
-      const b = allClasses[j];
-      const key = [a.id, b.id].sort().join(':');
-      if (checked.has(key)) continue;
-      checked.add(key);
-
-      const nameA = a.name.toLowerCase();
-      const nameB = b.name.toLowerCase();
-
-      if (nameA === nameB) {
-        issues.push({
-          severity: 'warning',
-          ruleCode: 'similar_names',
-          message: `클래스 "${a.name}"과 "${b.name}"의 이름이 동일합니다 (다른 상위 클래스).`,
-          targetTable: 'classes',
-          targetId: b.id,
-        });
-        continue;
-      }
-
-      const maxLen = Math.max(nameA.length, nameB.length);
-      if (maxLen === 0) continue;
-
-      const distance = levenshtein(nameA, nameB);
-      const similarity = 1 - distance / maxLen;
-
-      if (similarity >= 0.8 && distance <= 2) {
-        issues.push({
-          severity: 'warning',
-          ruleCode: 'similar_names',
-          message: `클래스 "${a.name}"과 "${b.name}"의 이름이 매우 유사합니다 (유사도: ${Math.round(similarity * 100)}%). 중복 여부를 확인하세요.`,
-          targetTable: 'classes',
-          targetId: b.id,
-        });
-      }
-    }
-  }
-
-  return issues;
+  return pairs.map(({ a, b, score, exact }) => ({
+    severity: 'warning' as const,
+    ruleCode: 'similar_names',
+    message: exact
+      ? `클래스 "${a.name}"과 "${b.name}"의 이름이 동일합니다 (다른 상위 클래스).`
+      : `클래스 "${a.name}"과 "${b.name}"의 이름이 매우 유사합니다 (유사도: ${Math.round(score * 100)}%). 중복 여부를 확인하세요.`,
+    targetTable: 'classes',
+    targetId: b.id,
+  }));
 }
 
 // Map of all available rules
