@@ -12,6 +12,17 @@ import type {
   Change,
   PopoverState,
 } from '../lib/types';
+import type { OntologyAction } from '../lib/schemas';
+
+export interface ApplyActionsResult {
+  applied: string[]; // ids of created/updated nodes (for canvas highlight)
+  skipped: { label: string; reason: string }[];
+}
+
+export interface MergeResult {
+  ok: boolean;
+  reason?: string;
+}
 
 // ── Entity Slice ──────────────────────────────────────────────
 
@@ -48,6 +59,14 @@ export interface EntitySlice {
   deleteNodeById: (id: string, type: 'class' | 'instance') => void;
   clearOntology: () => void;
 
+  // Compound, single-undo actions (P0-1 / P0-2)
+  applyAssistantActions: (actions: OntologyAction[]) => ApplyActionsResult;
+  mergeEntities: (
+    survivorId: string,
+    mergedId: string,
+    kind: 'class' | 'instance',
+  ) => MergeResult;
+
   loadOntology: (data: {
     classes: OntologyClass[];
     instances: OntologyInstance[];
@@ -67,6 +86,7 @@ export interface UiSlice {
   popoverState: PopoverState | null;
   expandedNodes: Set<string>;
   focusNodeId: string | null;
+  highlightNodeIds: string[];
   toolMode: 'select' | 'pan';
   zoomAction: 'in' | 'out' | 'fit' | null;
 
@@ -88,6 +108,9 @@ export interface UiSlice {
 
   focusNode: (nodeId: string) => void;
   clearFocus: () => void;
+
+  highlightNodes: (ids: string[]) => void;
+  clearHighlight: () => void;
 
   setToolMode: (mode: 'select' | 'pan') => void;
   triggerZoom: (action: 'in' | 'out' | 'fit') => void;

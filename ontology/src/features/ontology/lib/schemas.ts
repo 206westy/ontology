@@ -312,3 +312,87 @@ export const importRequestSchema = z.object({
 });
 
 export type ImportRequestInput = z.infer<typeof importRequestSchema>;
+
+// ─── AI Assistant Structured Actions (P0-1) ──────────────────
+// Name-based payloads — resolved to ids inside the store's applyAssistantActions.
+export const ontologyActionSchema = z.discriminatedUnion('op', [
+  z.object({
+    op: z.literal('add_class'),
+    label: z.string(),
+    payload: z.object({
+      name: z.string().min(1),
+      parentName: z.string().optional(),
+      description: z.string().optional(),
+      color: z
+        .string()
+        .regex(/^#[0-9a-fA-F]{6}$/)
+        .optional(),
+    }),
+  }),
+  z.object({
+    op: z.literal('add_property'),
+    label: z.string(),
+    payload: z.object({
+      className: z.string().min(1),
+      name: z.string().min(1),
+      dataType: dataTypeEnum,
+      enumValues: z.array(z.string()).optional(),
+      isRequired: z.boolean().optional(),
+    }),
+  }),
+  z.object({
+    op: z.literal('add_instance'),
+    label: z.string(),
+    payload: z.object({
+      className: z.string().min(1),
+      name: z.string().min(1),
+    }),
+  }),
+  z.object({
+    op: z.literal('add_relation_type'),
+    label: z.string(),
+    payload: z.object({
+      name: z.string().min(1),
+      sourceClassName: z.string().optional(),
+      targetClassName: z.string().optional(),
+    }),
+  }),
+  z.object({
+    op: z.literal('add_edge'),
+    label: z.string(),
+    payload: z.object({
+      relationTypeName: z.string().min(1),
+      sourceName: z.string().min(1),
+      targetName: z.string().min(1),
+    }),
+  }),
+  z.object({
+    op: z.literal('update_class'),
+    label: z.string(),
+    payload: z.object({
+      className: z.string().min(1),
+      description: z.string().optional(),
+      color: z
+        .string()
+        .regex(/^#[0-9a-fA-F]{6}$/)
+        .optional(),
+    }),
+  }),
+]);
+
+export type OntologyAction = z.infer<typeof ontologyActionSchema>;
+
+export const assistantActionResponseSchema = z.object({
+  reply: z.string(),
+  actions: z.array(ontologyActionSchema),
+});
+
+export type AssistantActionResponse = z.infer<typeof assistantActionResponseSchema>;
+
+export const assistRequestSchema = z.object({
+  message: z.string().min(1),
+  selectedNodeId: z.string().optional(),
+  ontologySummary: z.string().optional().default(''),
+});
+
+export type AssistRequestInput = z.infer<typeof assistRequestSchema>;

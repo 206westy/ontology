@@ -8,6 +8,7 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
   popoverState: null,
   expandedNodes: new Set<string>(),
   focusNodeId: null,
+  highlightNodeIds: [],
   toolMode: 'select' as const,
   zoomAction: null,
 
@@ -48,6 +49,9 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
 
   focusNode: (nodeId) => set({ focusNodeId: nodeId }),
   clearFocus: () => set({ focusNodeId: null }),
+
+  highlightNodes: (ids) => set({ highlightNodeIds: ids }),
+  clearHighlight: () => set({ highlightNodeIds: [] }),
 
   setToolMode: (mode) => set({ toolMode: mode }),
   triggerZoom: (action) => set({ zoomAction: action }),

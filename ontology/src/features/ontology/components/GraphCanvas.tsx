@@ -54,7 +54,7 @@ function buildFlowNodes(
   classes: OntologyClass[],
   instances: OntologyInstance[],
   instanceCountMap: Map<string, number>,
-  highlightedNodeId: string | null,
+  highlightedIds: Set<string>,
 ): Node[] {
   const childClassIds = new Set(classes.filter((c) => c.parentId).map((c) => c.parentId!));
 
@@ -77,7 +77,7 @@ function buildFlowNodes(
         count,
         colorKey: getColorKey(cls.color),
         isEmpty: count === 0 && !hasChildren,
-        isFocused: highlightedNodeId === cls.id,
+        isFocused: highlightedIds.has(cls.id),
         nodeRole,
       },
     };
@@ -92,7 +92,7 @@ function buildFlowNodes(
       data: {
         label: inst.name,
         colorKey: parentClass ? getColorKey(parentClass.color) : 'instance',
-        isFocused: highlightedNodeId === inst.id,
+        isFocused: highlightedIds.has(inst.id),
       },
     };
   });
@@ -256,6 +256,8 @@ function GraphCanvasInner() {
   const selectedNodeId = useOntologyStore((s) => s.selectedNodeId);
   const focusNodeId = useOntologyStore((s) => s.focusNodeId);
   const clearFocus = useOntologyStore((s) => s.clearFocus);
+  const highlightNodeIds = useOntologyStore((s) => s.highlightNodeIds);
+  const clearHighlight = useOntologyStore((s) => s.clearHighlight);
   const openPopover = useOntologyStore((s) => s.openPopover);
   const updateClass = useOntologyStore((s) => s.updateClass);
   const clearSelection = useOntologyStore((s) => s.clearSelection);
@@ -273,7 +275,7 @@ function GraphCanvasInner() {
   const { fitView } = useReactFlow();
   const layoutApplied = useRef(false);
   const prevNodeCount = useRef(0);
-  const [highlightedNodeId, setHighlightedNodeId] = useState<string | null>(null);
+  const [highlightedIds, setHighlightedIds] = useState<Set<string>>(() => new Set());
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const instanceCountMap = useMemo(() => {
@@ -285,8 +287,8 @@ function GraphCanvasInner() {
   }, [instances]);
 
   const flowNodes = useMemo(
-    () => buildFlowNodes(classes, instances, instanceCountMap, highlightedNodeId),
-    [classes, instances, instanceCountMap, highlightedNodeId],
+    () => buildFlowNodes(classes, instances, instanceCountMap, highlightedIds),
+    [classes, instances, instanceCountMap, highlightedIds],
   );
 
   const flowEdges = useMemo(
@@ -382,6 +384,7 @@ function GraphCanvasInner() {
     }
   }, [flowNodes, flowEdges, setNodes, fitView]);
 
+  // Single-node focus (e.g. command palette, violation jump): center + ring pulse
   useEffect(() => {
     if (!focusNodeId) return;
     const targetNode = nodes.find((n) => n.id === focusNodeId);
@@ -390,15 +393,34 @@ function GraphCanvasInner() {
     }
 
     // Highlight ring pulse for 1.5s
-    setHighlightedNodeId(focusNodeId);
+    setHighlightedIds(new Set([focusNodeId]));
     if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
     highlightTimerRef.current = setTimeout(() => {
-      setHighlightedNodeId(null);
+      setHighlightedIds(new Set());
       highlightTimerRef.current = null;
     }, 1500);
 
     clearFocus();
   }, [focusNodeId, nodes, fitView, clearFocus]);
+
+  // Multi-node highlight (e.g. Cypher graph result, AI apply): fit + ring pulse
+  useEffect(() => {
+    if (highlightNodeIds.length === 0) return;
+    const idSet = new Set(highlightNodeIds);
+    const targetNodes = nodes.filter((n) => idSet.has(n.id));
+    if (targetNodes.length > 0) {
+      fitView({ nodes: targetNodes, padding: 0.4, duration: 300 });
+    }
+
+    setHighlightedIds(idSet);
+    if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+    highlightTimerRef.current = setTimeout(() => {
+      setHighlightedIds(new Set());
+      highlightTimerRef.current = null;
+    }, 1500);
+
+    clearHighlight();
+  }, [highlightNodeIds, nodes, fitView, clearHighlight]);
 
   // Terminate ELK worker on unmount
   useEffect(() => {
