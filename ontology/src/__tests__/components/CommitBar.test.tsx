@@ -41,6 +41,7 @@ vi.mock('@/components/ui/sheet', () => ({
   SheetContent: () => null,
   SheetHeader: ({ children }: Record<string, unknown>) => <div>{children as React.ReactNode}</div>,
   SheetTitle: ({ children }: Record<string, unknown>) => <div>{children as React.ReactNode}</div>,
+  SheetDescription: ({ children }: Record<string, unknown>) => <div>{children as React.ReactNode}</div>,
 }));
 
 // Mock ScrollArea
