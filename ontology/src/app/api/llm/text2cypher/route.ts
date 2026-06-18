@@ -107,7 +107,9 @@ export async function POST(request: NextRequest) {
 
     // 2. Use generateText with tool calling for generate -> execute -> correct loop
     const result = await generateText({
-      model: openai('gpt-4o'),
+      model: openai('gpt-5.4'),
+      providerOptions: { openai: { reasoningEffort: 'medium', textVerbosity: 'low' } },
+      maxOutputTokens: 30000,
       system: `You are a Neo4j Cypher expert. Given a user's natural language question and a Neo4j graph schema, generate a syntactically correct Cypher query.
 
 Rules:

@@ -47,6 +47,10 @@ export async function POST(request: NextRequest) {
         targetId: parsed.data.targetId,
         sourceKind: parsed.data.sourceKind,
         targetKind: parsed.data.targetKind,
+        isBridge: parsed.data.isBridge ?? false,
+        sourceType: parsed.data.sourceType ?? null,
+        confidence: parsed.data.confidence ?? null,
+        evidence: parsed.data.evidence ?? null,
       })
       .returning();
 

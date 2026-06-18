@@ -95,3 +95,17 @@ export function buildSchemaContext(store: StoreSnapshot): SchemaContext {
 
   return { classHierarchy, propertyMap, relationTypes: relationTypesStr, statistics };
 }
+
+// Compact context string for the parse pipeline (A-2). Gives the LLM the class
+// hierarchy (types) and existing relation types so it can decide "this new concept
+// is the same as existing X / attaches to X" instead of inventing duplicates.
+export function buildParseSchemaContext(store: StoreSnapshot): string {
+  const ctx = buildSchemaContext(store);
+  return [
+    'Class hierarchy (existing types — reuse these as an entity\'s type when it fits):',
+    ctx.classHierarchy,
+    '',
+    'Existing relation types:',
+    ctx.relationTypes,
+  ].join('\n');
+}

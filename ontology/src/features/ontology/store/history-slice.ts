@@ -1,9 +1,10 @@
 'use client';
 
 import type { HistorySlice, SliceCreator } from './types';
+import { uuid } from '../lib/uuid';
 
 function generateId(): string {
-  return crypto.randomUUID();
+  return uuid();
 }
 
 export const createHistorySlice: SliceCreator<HistorySlice> = (set) => ({

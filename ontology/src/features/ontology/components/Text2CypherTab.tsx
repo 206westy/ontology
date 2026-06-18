@@ -23,6 +23,7 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { text2CypherApi, neo4jApi, type Text2CypherResult, type Neo4jStatusResponse } from '../api';
 import { useOntologyStore } from '../store';
+import { uuid } from '../lib/uuid';
 
 // Recursively collect string `id` values from Neo4j result rows.
 // Nodes preserve their Supabase id (== canvas node id), whether serialized
@@ -184,7 +185,7 @@ function addToHistory(entry: Omit<HistoryEntry, 'id' | 'timestamp'>) {
   const entries = loadHistory();
   const newEntry: HistoryEntry = {
     ...entry,
-    id: crypto.randomUUID(),
+    id: uuid(),
     timestamp: Date.now(),
   };
   const updated = [newEntry, ...entries].slice(0, MAX_HISTORY);
@@ -278,7 +279,7 @@ function ResultGraph({ data }: { data: unknown[] }) {
           const v = value as Record<string, unknown>;
           // Neo4j node: has labels array and properties
           if (Array.isArray(v.labels) && v.properties) {
-            const id = String(v.elementId ?? v.identity ?? v.id ?? crypto.randomUUID());
+            const id = String(v.elementId ?? v.identity ?? v.id ?? uuid());
             if (!nodeMap.has(id)) {
               const props = v.properties as Record<string, unknown>;
               nodeMap.set(id, {
@@ -294,7 +295,7 @@ function ResultGraph({ data }: { data: unknown[] }) {
             const tgt = String(v.endNodeElementId ?? v.end ?? '');
             if (src && tgt) {
               edgeList.push({
-                id: String(v.elementId ?? v.identity ?? crypto.randomUUID()),
+                id: String(v.elementId ?? v.identity ?? uuid()),
                 source: src,
                 target: tgt,
                 label: String(v.type),

@@ -1,16 +1,30 @@
 import type { Metadata } from 'next';
-import { Outfit, JetBrains_Mono } from 'next/font/google';
+import localFont from 'next/font/local';
 import './globals.css';
 import Providers from './providers';
 
-const outfit = Outfit({
+// Self-hosted variable fonts (no network dependency — corporate network blocks
+// fonts.googleapis.com). Files live in ./fonts.
+const outfit = localFont({
+  src: './fonts/Outfit-Variable.woff2',
   variable: '--font-outfit',
-  subsets: ['latin'],
+  weight: '100 900',
+  display: 'swap',
 });
 
-const jetbrainsMono = JetBrains_Mono({
+const jetbrainsMono = localFont({
+  src: './fonts/JetBrainsMono-Variable.woff2',
   variable: '--font-jetbrains',
-  subsets: ['latin'],
+  weight: '100 800',
+  display: 'swap',
+});
+
+// Korean UI font, self-hosted (was a jsdelivr CDN <link>).
+const pretendard = localFont({
+  src: './fonts/PretendardVariable.woff2',
+  variable: '--font-pretendard',
+  weight: '45 920',
+  display: 'swap',
 });
 
 export const metadata: Metadata = {
@@ -27,15 +41,9 @@ export default function RootLayout({
     <html lang="ko" suppressHydrationWarning>
       <head>
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-        <link
-          rel="stylesheet"
-          as="style"
-          crossOrigin="anonymous"
-          href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css"
-        />
       </head>
       <body
-        className={`${outfit.variable} ${jetbrainsMono.variable} font-sans antialiased`}
+        className={`${outfit.variable} ${jetbrainsMono.variable} ${pretendard.variable} font-sans antialiased`}
       >
         <Providers>{children}</Providers>
       </body>

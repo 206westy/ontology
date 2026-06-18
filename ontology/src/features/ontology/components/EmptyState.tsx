@@ -1,23 +1,17 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Sparkles,
   FileText,
-  Upload,
-  Link2,
-  Type,
   Loader2,
-  ArrowRight,
   Cpu,
   Server,
   Building2,
   HeartPulse,
   Truck,
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,7 +22,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { useOntologyStore } from '../hooks/useOntologyStore';
 import { importExportApi } from '../api';
 import { TEMPLATES, buildImportPayload } from '../constants/templates';
 import type { TemplateMetadata } from '../constants/templates';
@@ -58,80 +51,6 @@ function EmptyStateGuide() {
         자유 형식의 텍스트, 파일, URL 등 어떤 형태로든 지식을 입력하세요.
       </p>
     </>
-  );
-}
-
-function InlineTextInput({ onSubmit }: { onSubmit: (text: string) => void }) {
-  const [text, setText] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        if (text.trim()) {
-          setIsSubmitting(true);
-          onSubmit(text.trim());
-        }
-      }
-    },
-    [text, onSubmit],
-  );
-
-  return (
-    <div className="w-full mb-4">
-      <div className="relative">
-        <Textarea
-          ref={textareaRef}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="지식을 자유롭게 입력하세요..."
-          className="min-h-[100px] text-sm resize-none rounded-xl border-border/60 bg-surface-1 shadow-elevation-1 focus:shadow-elevation-2 transition-shadow placeholder:text-muted-foreground/60 pr-12"
-          autoFocus
-        />
-        <div className="absolute right-2 bottom-2">
-          <Button
-            size="sm"
-            className="h-8 w-8 p-0 rounded-lg"
-            disabled={!text.trim() || isSubmitting}
-            onClick={() => {
-              if (text.trim()) {
-                setIsSubmitting(true);
-                onSubmit(text.trim());
-              }
-            }}
-          >
-            {isSubmitting ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <ArrowRight className="w-3.5 h-3.5" />
-            )}
-          </Button>
-        </div>
-      </div>
-      <p className="text-[11px] text-muted-foreground mt-1.5 text-left">
-        <kbd className="font-mono bg-muted px-1 py-0.5 rounded border border-border text-[11px]">Enter</kbd>
-        {' '}AI 구조화 시작
-        <span className="text-border mx-1.5">|</span>
-        <kbd className="font-mono bg-muted px-1 py-0.5 rounded border border-border text-[11px]">Shift+Enter</kbd>
-        {' '}줄바꿈
-      </p>
-    </div>
-  );
-}
-
-function ExampleCard() {
-  return (
-    <div className="bg-muted/50 border border-border rounded-lg p-3 mb-4 text-left">
-      <p className="text-[11px] font-semibold text-muted-foreground uppercase mb-2">입력 예시</p>
-      <p className="text-xs text-muted-foreground leading-relaxed font-mono">
-        <span className="text-foreground/70">&quot;반도체 FAB에는 DryAsher, WetStation 장비가 있고,</span>
-        <br />
-        <span className="text-foreground/70">엔지니어 김철수가 SUPRA 장비를 관리한다&quot;</span>
-      </p>
-    </div>
   );
 }
 
@@ -210,46 +129,6 @@ function TemplateSection({
   );
 }
 
-function CTAButtons({ onStartManually }: { onStartManually: () => void }) {
-  return (
-    <div className="grid grid-cols-4 gap-2 mb-4 w-full">
-      <Button
-        variant="outline"
-        size="sm"
-        className="h-9 text-xs gap-1.5 flex-1"
-        onClick={onStartManually}
-      >
-        <Type className="w-3.5 h-3.5" />
-        직접 입력
-      </Button>
-
-      <Button
-        variant="outline"
-        size="sm"
-        className="h-9 text-xs gap-1.5 flex-1 border-dashed"
-        onClick={() => {
-          /* File upload - Phase 3 (F3-11) */
-        }}
-      >
-        <Upload className="w-3.5 h-3.5" />
-        파일
-      </Button>
-
-      <Button
-        variant="outline"
-        size="sm"
-        className="h-9 text-xs gap-1.5 flex-1 border-dashed"
-        onClick={() => {
-          /* URL import - Phase 3 */
-        }}
-      >
-        <Link2 className="w-3.5 h-3.5" />
-        URL
-      </Button>
-    </div>
-  );
-}
-
 function DropZoneOverlay({ active }: { active: boolean }) {
   return (
     <AnimatePresence>
@@ -277,29 +156,11 @@ function DropZoneOverlay({ active }: { active: boolean }) {
 }
 
 export default function EmptyState({ onDoubleClick }: EmptyStateProps) {
-  const openPopover = useOntologyStore((s) => s.openPopover);
   const [isDragOver, setIsDragOver] = useState(false);
   const [confirmTemplate, setConfirmTemplate] = useState<TemplateMetadata | null>(null);
   const [loadingId, setLoadingId] = useState<string | null>(null);
 
   const transition = safeTransition(nodeEnter);
-
-  const handleStartManually = useCallback(() => {
-    openPopover({
-      type: 'newNode',
-      position: { x: window.innerWidth / 2, y: window.innerHeight / 2 },
-    });
-  }, [openPopover]);
-
-  const handleInlineSubmit = useCallback(
-    (text: string) => {
-      openPopover({
-        type: 'newNode',
-        position: { x: window.innerWidth / 2, y: window.innerHeight / 2 },
-      });
-    },
-    [openPopover],
-  );
 
   const handleSelectTemplate = useCallback((template: TemplateMetadata) => {
     setConfirmTemplate(template);
@@ -365,18 +226,14 @@ export default function EmptyState({ onDoubleClick }: EmptyStateProps) {
         >
           <EmptyStateGuide />
 
-          <InlineTextInput onSubmit={handleInlineSubmit} />
-
-          <CTAButtons onStartManually={handleStartManually} />
-
+          {/* B-4: 중앙 입력창(InlineTextInput)·CTA(파일/URL)·예시 카드는 더블클릭 팝오버와 중복이라 제거.
+              템플릿은 B-2 랜딩 전까지 빠른 시작용으로 유지. */}
           <TemplateSection
             onSelectTemplate={handleSelectTemplate}
             loadingId={loadingId}
           />
 
-          <ExampleCard />
-
-          <div className="flex items-center justify-center gap-5 text-[11px] text-muted-foreground">
+          <div className="mt-6 flex items-center justify-center gap-5 text-[11px] text-muted-foreground">
             <span className="flex items-center gap-1.5">
               <kbd className="font-mono bg-muted px-1.5 py-0.5 rounded border border-border text-[11px]">더블클릭</kbd>
               새 노드 생성

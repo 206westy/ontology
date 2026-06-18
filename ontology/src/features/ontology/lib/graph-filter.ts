@@ -1,14 +1,14 @@
-import type { Node, Edge } from '@xyflow/react';
+// 엔진 비종속 그래프 필터/이웃 유틸 — Cytoscape/React Flow 어느 쪽에도 의존하지 않는다.
+
+export interface EdgeLike {
+  source: string;
+  target: string;
+}
 
 /**
- * Get the N-hop neighborhood of a node.
- * Returns the set of node IDs within N hops (including the origin).
+ * 노드의 N-hop 이웃 집합(원점 포함)을 반환.
  */
-export function getNHopNeighborIds(
-  originId: string,
-  depth: number,
-  edges: Edge[],
-): Set<string> {
+export function getNHopNeighborIds(originId: string, depth: number, edges: EdgeLike[]): Set<string> {
   const neighborIds = new Set<string>([originId]);
   let frontier = new Set<string>([originId]);
 
@@ -32,36 +32,18 @@ export function getNHopNeighborIds(
 }
 
 /**
- * Apply type + color filters to nodes.
- */
-/**
- * Check if any filter is active (not at default state).
+ * 필터가 기본 상태(전부 표시)에서 벗어났는지 여부.
  */
 export function hasActiveFilter(options: {
   showClasses: boolean;
   showInstances: boolean;
   colorFilter: string[];
+  minDegree?: number;
 }): boolean {
-  return !options.showClasses || !options.showInstances || options.colorFilter.length > 0;
-}
-
-export function applyNodeFilters(
-  nodes: Node[],
-  options: {
-    showClasses: boolean;
-    showInstances: boolean;
-    colorFilter: string[];
-  },
-): Node[] {
-  return nodes.filter((node) => {
-    if (!options.showClasses && node.type === 'classNode') return false;
-    if (!options.showInstances && node.type === 'instanceNode') return false;
-
-    if (options.colorFilter.length > 0) {
-      const colorKey = (node.data as { colorKey?: string }).colorKey;
-      if (colorKey && !options.colorFilter.includes(colorKey)) return false;
-    }
-
-    return true;
-  });
+  return (
+    !options.showClasses ||
+    !options.showInstances ||
+    options.colorFilter.length > 0 ||
+    (options.minDegree ?? 0) > 0
+  );
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { Sparkles, Send, User, Bot, Loader2, RotateCcw } from 'lucide-react';
+import { Sparkles, Send, User, Bot, Loader2, RotateCcw, Import, X, AlertTriangle } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -9,6 +9,8 @@ import { toast } from 'sonner';
 import { useOntologyStore } from '../hooks/useOntologyStore';
 import { assistApi } from '../api';
 import type { OntologyAction } from '../lib/schemas';
+import { isBulkInput } from '../lib/input-heuristics';
+import { uuid } from '../lib/uuid';
 import ActionCard, { type ActionState } from './ai/ActionCard';
 
 interface ActionItem {
@@ -24,20 +26,27 @@ interface ChatMessage {
   actions?: ActionItem[];
 }
 
+const ASSIST_TIMEOUT_MS = 45_000;
+
 export default function AIAssistantTab({ nodeName }: { nodeName: string }) {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timedOutRef = useRef(false);
 
   const selectedNodeId = useOntologyStore((s) => s.selectedNodeId);
-  const selectedNodeType = useOntologyStore((s) => s.selectedNodeType);
   const aiClasses = useOntologyStore((s) => s.classes);
   const aiInstances = useOntologyStore((s) => s.instances);
   const aiEdges = useOntologyStore((s) => s.edges);
   const applyAssistantActions = useOntologyStore((s) => s.applyAssistantActions);
   const highlightNodes = useOntologyStore((s) => s.highlightNodes);
+  const openPopover = useOntologyStore((s) => s.openPopover);
 
   const ontologySummary = useMemo(() => {
     const summary = `Classes: ${aiClasses.length}, Instances: ${aiInstances.length}, Relations: ${aiEdges.length}`;
@@ -45,12 +54,14 @@ export default function AIAssistantTab({ nodeName }: { nodeName: string }) {
     return `${summary}\nClass list: ${classNames}`;
   }, [aiClasses, aiInstances, aiEdges]);
 
+  const bulky = useMemo(() => isBulkInput(input), [input]);
+
   // Auto-scroll on new messages
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages]);
+  }, [messages, loading]);
 
   // Auto-resize textarea
   const adjustTextareaHeight = useCallback(() => {
@@ -64,43 +75,99 @@ export default function AIAssistantTab({ nodeName }: { nodeName: string }) {
     adjustTextareaHeight();
   }, [input, adjustTextareaHeight]);
 
+  // Cleanup timers on unmount
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      if (tickRef.current) clearInterval(tickRef.current);
+      abortRef.current?.abort();
+    };
+  }, []);
+
+  const stopTimers = useCallback(() => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    if (tickRef.current) clearInterval(tickRef.current);
+    timeoutRef.current = null;
+    tickRef.current = null;
+  }, []);
+
+  // Open the import (parse) flow with the current input prefilled.
+  const handleRouteToImport = useCallback(() => {
+    const text = input.trim();
+    if (!text) return;
+    openPopover({
+      type: 'newNode',
+      position: { x: window.innerWidth / 2, y: 200 },
+      initialText: text,
+    });
+    setInput('');
+  }, [input, openPopover]);
+
+  const handleCancel = useCallback(() => {
+    abortRef.current?.abort();
+  }, []);
+
   const handleSubmit = useCallback(async () => {
     const trimmed = input.trim();
     if (!trimmed || loading) return;
 
-    const userMsg: ChatMessage = { id: crypto.randomUUID(), role: 'user', text: trimmed };
+    const userMsg: ChatMessage = { id: uuid(), role: 'user', text: trimmed };
     setMessages((prev) => [...prev, userMsg]);
     setInput('');
     setLoading(true);
+    setElapsed(0);
+    timedOutRef.current = false;
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const startedAt = Date.now();
+    tickRef.current = setInterval(() => setElapsed(Math.round((Date.now() - startedAt) / 1000)), 250);
+    timeoutRef.current = setTimeout(() => {
+      timedOutRef.current = true;
+      controller.abort();
+    }, ASSIST_TIMEOUT_MS);
 
     try {
-      const res = await assistApi.send({
-        message: trimmed,
-        selectedNodeId: selectedNodeId ?? undefined,
-        ontologySummary,
-      });
+      const res = await assistApi.send(
+        { message: trimmed, selectedNodeId: selectedNodeId ?? undefined, ontologySummary },
+        controller.signal,
+      );
       setMessages((prev) => [
         ...prev,
         {
-          id: crypto.randomUUID(),
+          id: uuid(),
           role: 'assistant',
           text: res.reply,
           actions: res.actions.map((action) => ({ action, state: 'pending' as ActionState })),
         },
       ]);
     } catch (err) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: crypto.randomUUID(),
-          role: 'assistant',
-          text: err instanceof Error ? err.message : '요청 처리에 실패했습니다.',
-        },
-      ]);
+      const aborted = err instanceof DOMException && err.name === 'AbortError';
+      if (aborted) {
+        // Restore the input so the user can retry or route to import.
+        setInput(trimmed);
+        setMessages((prev) => prev.filter((m) => m.id !== userMsg.id));
+        if (timedOutRef.current) {
+          toast.warning('응답이 지연되어 중단했습니다. 입력을 줄이거나 "가져오기"를 사용해 보세요.');
+        } else {
+          toast.info('요청을 취소했습니다.');
+        }
+      } else {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: uuid(),
+            role: 'assistant',
+            text: err instanceof Error ? err.message : '요청 처리에 실패했습니다.',
+          },
+        ]);
+      }
     } finally {
+      stopTimers();
+      abortRef.current = null;
       setLoading(false);
     }
-  }, [input, loading, selectedNodeId, ontologySummary]);
+  }, [input, loading, selectedNodeId, ontologySummary, stopTimers]);
 
   // Apply a set of action items (single compound store action = one undo step)
   const runApply = useCallback(
@@ -116,7 +183,6 @@ export default function AIAssistantTab({ nodeName }: { nodeName: string }) {
 
         const result = applyAssistantActions(targets.map(({ item }) => item.action));
 
-        // Consume skipped reasons by matching label.
         const skipQueue = [...result.skipped];
         const nextActions = msg.actions.map((item, idx) => {
           const hit = targets.find((t) => t.i === idx);
@@ -230,16 +296,25 @@ export default function AIAssistantTab({ nodeName }: { nodeName: string }) {
               );
             })}
             {loading && (
-              <div className="flex gap-2">
-                <div className="shrink-0 mt-0.5">
+              <div className="flex gap-2 items-center">
+                <div className="shrink-0">
                   <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center">
                     <Bot className="w-3 h-3 text-primary" />
                   </div>
                 </div>
                 <span className="inline-flex items-center gap-1 text-muted-foreground text-xs">
                   <Loader2 className="w-3 h-3 animate-spin" />
-                  생각하는 중...
+                  분석 중… ({elapsed}s)
                 </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-5 text-[10px] px-1.5 text-muted-foreground hover:text-destructive"
+                  onClick={handleCancel}
+                >
+                  <X className="w-3 h-3 mr-0.5" />
+                  취소
+                </Button>
               </div>
             )}
           </div>
@@ -275,6 +350,28 @@ export default function AIAssistantTab({ nodeName }: { nodeName: string }) {
             </Button>
           </div>
         )}
+
+        {/* Bulk input → suggest the import (parse) flow (PATCH-2) */}
+        {bulky && !loading && (
+          <div className="mb-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-2 space-y-1.5">
+            <div className="flex items-start gap-1.5">
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+              <p className="text-[10px] text-amber-700 dark:text-amber-400 leading-relaxed">
+                이건 문서에 가까워요. &lsquo;가져오기&rsquo;로 처리하면 더 빠르고 정확합니다.
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-6 w-full text-[10px] gap-1 border-amber-500/40"
+              onClick={handleRouteToImport}
+            >
+              <Import className="w-3 h-3" />
+              가져오기로 처리
+            </Button>
+          </div>
+        )}
+
         <div className="flex gap-1.5 items-end">
           <textarea
             ref={textareaRef}

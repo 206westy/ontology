@@ -2,11 +2,12 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Paperclip, ClipboardPaste, ArrowRight, ArrowLeft, Check, Trash2, Loader2, ChevronRight, Link2, Circle, Plus, Table } from 'lucide-react';
+import { X, Paperclip, ClipboardPaste, ArrowRight, ArrowLeft, Check, Trash2, Loader2, ChevronRight, Link2, Circle, Plus, Table, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
   Select,
@@ -17,18 +18,18 @@ import {
 } from '@/components/ui/select';
 import { useOntologyStore } from '../hooks/useOntologyStore';
 import { NODE_COLORS } from '../constants/colors';
-import { llmApi } from '../api';
+import { llmApi, enrichApi, type LlmParseResult, type DetectSubgraphInput } from '../api';
+import { mapParseResult, findPossibleDuplicates, computeIslands } from '../lib/parse-mapping';
+import { buildParseSchemaContext } from '../lib/schema-context';
+import type { EnrichmentItem, EnrichProposal } from '../lib/enrich-types';
+import IslandList from './preview/IslandList';
+import EnrichmentCard from './preview/EnrichmentCard';
 import { toast } from 'sonner';
 import { calcPopoverPosition } from '../lib/popover-position';
 import { useClassAutocomplete, fuzzyMatch } from '../hooks/useAutocomplete';
 import AutocompleteSuggestions from './AutocompleteSuggestions';
 
-interface ParsedResult {
-  classes: { name: string; description: string; color: string | null; parentName: string | null }[];
-  properties: { className: string; name: string; dataType: string; isRequired: boolean; enumValues: string[] | null }[];
-  relations: { sourceName: string; targetName: string; relationName: string }[];
-  instances: { className: string; name: string }[];
-}
+type ParsedResult = ReturnType<typeof mapParseResult>;
 
 function mockParse(input: string): ParsedResult {
   const lines = input.split('\n').map((l) => l.trim()).filter(Boolean);
@@ -90,6 +91,8 @@ function buildTreeItems(
     childrenOf.set(parent, list);
   });
 
+  const addedInst = new Set<number>();
+
   function walk(parentName: string | null, depth: number) {
     const children = childrenOf.get(parentName) ?? [];
     for (const idx of children) {
@@ -107,6 +110,7 @@ function buildTreeItems(
             isExisting: false,
             originalIndex: instIdx,
           });
+          addedInst.add(instIdx);
         }
       });
 
@@ -138,7 +142,22 @@ function buildTreeItems(
         isExisting: false,
         originalIndex: instIdx,
       });
+      addedInst.add(instIdx);
     }
+  });
+
+  // Orphan instances (no resolvable parent class — e.g. just converted from a
+  // class). Shown at depth 0 so the user can assign a parent.
+  parsed.instances.forEach((inst, instIdx) => {
+    if (addedInst.has(instIdx)) return;
+    items.push({
+      type: 'instance',
+      name: inst.name,
+      className: inst.className,
+      depth: 0,
+      isExisting: false,
+      originalIndex: instIdx,
+    });
   });
 
   return items;
@@ -188,14 +207,25 @@ export default function NewNodePopover() {
   const addRelationType = useOntologyStore((s) => s.addRelationType);
   const addEdge = useOntologyStore((s) => s.addEdge);
   const addInstance = useOntologyStore((s) => s.addInstance);
+  const setInstanceValue = useOntologyStore((s) => s.setInstanceValue);
 
   const classes = useOntologyStore((s) => s.classes);
   const relationTypes = useOntologyStore((s) => s.relationTypes);
+  const instances = useOntologyStore((s) => s.instances);
+  const properties = useOntologyStore((s) => s.properties);
+  const edges = useOntologyStore((s) => s.edges);
 
   const [activeTab, setActiveTab] = useState<'quick' | 'text' | 'csv'>('quick');
   const [phase, setPhase] = useState<'input' | 'loading' | 'preview'>('input');
   const [inputText, setInputText] = useState('');
   const [parsed, setParsed] = useState<ParsedResult | null>(null);
+  // A-5: enrichment proposals (populated by A-3/A-4) and the set the user adopts.
+  const [enrichments, setEnrichments] = useState<EnrichmentItem[]>([]);
+  const [adoptedEnrichments, setAdoptedEnrichments] = useState<Set<string>>(new Set());
+  const [enrichLoading, setEnrichLoading] = useState(false);
+  // A-4: web search is opt-in, OFF by default. Tracks which gaps are mid-sourcing.
+  const [useWeb, setUseWeb] = useState(false);
+  const [sourcingIds, setSourcingIds] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [loadingSteps, setLoadingSteps] = useState<{ label: string; status: 'pending' | 'running' | 'done' }[]>([]);
@@ -254,6 +284,30 @@ export default function NewNodePopover() {
     return { classes: newClasses, instances: parsed.instances.length };
   }, [parsed, existingClassNames]);
 
+  // A-2: new class names that resemble an existing class (synonym suspects). Not
+  // auto-merged — surfaced as a "중복 가능" flag that links to the P0-2 ER queue.
+  const possibleDuplicates = useMemo(() => {
+    if (!parsed) return new Map<string, string>();
+    const newNames = parsed.classes
+      .filter((c) => !existingClassNames.has(c.name))
+      .map((c) => c.name);
+    return findPossibleDuplicates(newNames, [...existingClassNames]);
+  }, [parsed, existingClassNames]);
+
+  // A-5: disconnected nodes (honest islands) shown in the 섬 area.
+  const islands = useMemo(
+    () => (parsed ? computeIslands(parsed) : []),
+    [parsed],
+  );
+
+  // A-1.1: class names available as instance parents (extracted + existing).
+  const allClassNames = useMemo(() => {
+    const names = new Set<string>();
+    parsed?.classes.forEach((c) => names.add(c.name));
+    classes.forEach((c) => names.add(c.name));
+    return [...names];
+  }, [parsed, classes]);
+
   const resetAndClose = useCallback(() => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -263,6 +317,11 @@ export default function NewNodePopover() {
     setActiveTab('quick');
     setInputText('');
     setParsed(null);
+    setEnrichments([]);
+    setAdoptedEnrichments(new Set());
+    setEnrichLoading(false);
+    setSourcingIds(new Set());
+    setUseWeb(false);
     setIsLoading(false);
     setLoadingProgress(0);
     setLoadingSteps([]);
@@ -385,9 +444,82 @@ export default function NewNodePopover() {
     resetAndClose();
   };
 
+  // A-3: detect enrichment gaps for the freshly-extracted subgraph (+ adjacent
+  // existing nodes). Runs after the preview is shown; failure is non-fatal.
+  const runGapDetection = async (mapped: ParsedResult) => {
+    const propCountByClassId = new Map<string, number>();
+    properties.forEach((p) => {
+      propCountByClassId.set(p.classId, (propCountByClassId.get(p.classId) ?? 0) + 1);
+    });
+    const existingByName = new Map(classes.map((c) => [c.name, c]));
+    const newNames = new Set(mapped.classes.map((c) => c.name));
+
+    const nodes: DetectSubgraphInput['nodes'] = mapped.classes.map((c) => ({
+      name: c.name,
+      type: c.parentName,
+      description: c.description,
+      evidence: c.evidence,
+    }));
+
+    // Adjacent existing nodes (referenced as relation endpoints or parent types).
+    const adjacent = new Set<string>();
+    mapped.relations.forEach((r) => {
+      adjacent.add(r.sourceName);
+      adjacent.add(r.targetName);
+    });
+    mapped.classes.forEach((c) => {
+      if (c.parentName) adjacent.add(c.parentName);
+    });
+    for (const name of adjacent) {
+      if (newNames.has(name)) continue;
+      const ec = existingByName.get(name);
+      if (!ec) continue;
+      nodes.push({
+        name: ec.name,
+        type: null,
+        description: ec.description,
+        evidence: 'existing',
+        propertyCount: propCountByClassId.get(ec.id) ?? 0,
+      });
+    }
+
+    const subgraph: DetectSubgraphInput = {
+      nodes,
+      relations: mapped.relations.map((r) => ({
+        source: r.sourceName,
+        target: r.targetName,
+        type: r.relationName,
+        confidence: r.confidence,
+      })),
+    };
+
+    setEnrichLoading(true);
+    try {
+      const { gaps } = await enrichApi.detect(subgraph);
+      // Islands are shown in the 섬 area; enrichment cards cover the rest.
+      const items: EnrichmentItem[] = gaps
+        .filter((g) => g.kind !== 'isolated')
+        .map((g) => ({ id: `${g.targetName}::${g.kind}`, gap: g, proposals: [] }));
+      setEnrichments(items);
+    } catch {
+      setEnrichments([]);
+    } finally {
+      setEnrichLoading(false);
+    }
+  };
+
   // --- Text input (LLM) handler ---
   const handleGenerate = async () => {
     if (!inputText.trim()) return;
+
+    // PATCH-4: single-call parse cap. Block giant docs before the round-trip so
+    // we don't fall into the retry loop or silently mock-parse garbage.
+    if (inputText.length > 8000) {
+      toast.error('문서가 너무 깁니다', {
+        description: `${inputText.length.toLocaleString()}자 — 8,000자 이하로 섹션을 나눠 입력해 주세요.`,
+      });
+      return;
+    }
 
     const isLargeInput = inputText.length >= 100;
     const controller = new AbortController();
@@ -431,10 +563,13 @@ export default function NewNodePopover() {
     }
 
     try {
-      const result = await llmApi.parse({
+      const result: LlmParseResult = await llmApi.parse({
         text: inputText,
         existingClasses: classes.map((c) => c.name),
         existingRelationTypes: relationTypes.map((r) => r.name),
+        existingSchema: classes.length
+          ? buildParseSchemaContext({ classes, instances, properties, relationTypes, edges })
+          : undefined,
       });
 
       if (controller.signal.aborted) return;
@@ -443,8 +578,14 @@ export default function NewNodePopover() {
       setLoadingProgress(100);
       setLoadingSteps((prev) => prev.map((s) => ({ ...s, status: 'done' as const })));
 
-      setParsed(result);
+      const mapped = mapParseResult(
+        result,
+        existingClassNames,
+        new Set(instances.map((i) => i.name)),
+      );
+      setParsed(mapped);
       setPhase('preview');
+      void runGapDetection(mapped);
     } catch {
       if (controller.signal.aborted) return;
 
@@ -453,6 +594,7 @@ export default function NewNodePopover() {
       const result = mockParse(inputText);
       setParsed(result);
       setPhase('preview');
+      void runGapDetection(result);
     } finally {
       setIsLoading(false);
       abortControllerRef.current = null;
@@ -461,6 +603,18 @@ export default function NewNodePopover() {
 
   const handleConfirm = () => {
     if (!parsed) return;
+
+    // A-5: adopted definition-style enrichments to apply onto the node (with provenance).
+    const adoptedDefinition = new Map<string, EnrichProposal>();
+    enrichments.forEach((item) => {
+      if (!adoptedEnrichments.has(item.id) || item.proposals.length === 0) return;
+      if (item.gap.kind !== 'no_definition' && item.gap.kind !== 'undefined_concept') return;
+      const best = [...item.proposals].sort((a, b) => b.confidence - a.confidence)[0];
+      const existing = adoptedDefinition.get(item.gap.targetName);
+      if (!existing || best.confidence > existing.confidence) {
+        adoptedDefinition.set(item.gap.targetName, best);
+      }
+    });
 
     // Pre-populate with existing store classes so incremental dumps can reference them
     const classIdMap = new Map<string, string>();
@@ -484,45 +638,86 @@ export default function NewNodePopover() {
       if (cls.parentName) {
         parentId = classIdMap.get(cls.parentName);
       }
+      const enrich = adoptedDefinition.get(cls.name);
       const id = addClass({
         name: cls.name,
-        description: cls.description,
+        description: enrich ? enrich.value : cls.description,
         color: cls.color ?? NODE_COLORS.mid,
         parentId,
         positionX: popoverState!.position.x + Math.random() * 200 - 100,
         positionY: popoverState!.position.y + Math.random() * 200 - 100,
+        // Provenance: adopted enrichment, else the extraction evidence.
+        sourceType: enrich ? enrich.sourceType : cls.evidence ? 'session_doc' : null,
+        confidence: enrich ? enrich.confidence : null,
+        evidence: enrich ? enrich.evidence : cls.evidence ?? null,
       });
       classIdMap.set(cls.name, id);
     });
 
+    // Properties (class-level definitions). Reuse existing prop ids where present.
+    const propIdMap = new Map<string, string>();
     parsed.properties.forEach((prop) => {
       const classId = classIdMap.get(prop.className) ?? classIdMap.values().next().value;
-      if (classId) {
-        addProperty({
-          name: prop.name,
-          classId,
-          dataType: prop.dataType as 'string' | 'integer' | 'float' | 'boolean' | 'date' | 'enum',
-          isRequired: prop.isRequired,
-          enumValues: prop.enumValues,
-        });
+      if (!classId) return;
+      const existingProp = properties.find((p) => p.classId === classId && p.name === prop.name);
+      if (existingProp) {
+        propIdMap.set(`${prop.className}::${prop.name}`, existingProp.id);
+        return;
       }
+      const id = addProperty({
+        name: prop.name,
+        classId,
+        dataType: prop.dataType as 'string' | 'integer' | 'float' | 'boolean' | 'date' | 'enum',
+        isRequired: prop.isRequired,
+        enumValues: prop.enumValues,
+      });
+      propIdMap.set(`${prop.className}::${prop.name}`, id);
     });
 
-    parsed.relations.forEach((rel) => {
-      const sourceId = classIdMap.get(rel.sourceName);
-      const targetId = classIdMap.get(rel.targetName);
-      if (sourceId && targetId) {
-        const relTypeId = addRelationType({ name: rel.relationName });
-        addEdge({ sourceId, targetId, relationTypeId: relTypeId });
-      }
-    });
-
+    // Instances (+ their property values). Seed map with existing instances so
+    // relations can reference them.
+    const instanceIdMap = new Map<string, string>();
+    instances.forEach((i) => instanceIdMap.set(i.name, i.id));
     parsed.instances.forEach((inst) => {
       const classId = classIdMap.get(inst.className);
-      if (classId) {
-        addInstance({
-          name: inst.name,
-          classId,
+      if (!classId) return;
+      const instId = addInstance({ name: inst.name, classId });
+      instanceIdMap.set(inst.name, instId);
+      (inst.values ?? []).forEach((v) => {
+        const propId = propIdMap.get(`${inst.className}::${v.propertyName}`);
+        if (propId) setInstanceValue(instId, propId, v.value);
+      });
+    });
+
+    // Relations — endpoints may be classes or instances. Reuse an existing
+    // relation type by name (and dedupe within this batch) so we don't hit the
+    // unique-name conflict on sync (which cascades into edge FK failures).
+    const relTypeIdByName = new Map<string, string>();
+    relationTypes.forEach((rt) => relTypeIdByName.set(rt.name, rt.id));
+
+    const resolveNode = (name: string): { id: string; kind: 'class' | 'instance' } | null => {
+      if (classIdMap.has(name)) return { id: classIdMap.get(name)!, kind: 'class' };
+      if (instanceIdMap.has(name)) return { id: instanceIdMap.get(name)!, kind: 'instance' };
+      return null;
+    };
+    parsed.relations.forEach((rel) => {
+      const src = resolveNode(rel.sourceName);
+      const tgt = resolveNode(rel.targetName);
+      if (src && tgt && src.id !== tgt.id) {
+        let relTypeId = relTypeIdByName.get(rel.relationName);
+        if (!relTypeId) {
+          relTypeId = addRelationType({ name: rel.relationName });
+          relTypeIdByName.set(rel.relationName, relTypeId);
+        }
+        addEdge({
+          sourceId: src.id,
+          targetId: tgt.id,
+          sourceKind: src.kind,
+          targetKind: tgt.kind,
+          relationTypeId: relTypeId,
+          sourceType: rel.evidence ? 'session_doc' : null,
+          confidence: rel.confidence ?? null,
+          evidence: rel.evidence ?? null,
         });
       }
     });
@@ -538,8 +733,112 @@ export default function NewNodePopover() {
     });
   };
 
+  // A-1.1: let the user correct the LLM's class/instance classification before confirm.
+  const convertToInstance = (classIndex: number) => {
+    if (!parsed) return;
+    const cls = parsed.classes[classIndex];
+    if (!cls) return;
+    setParsed({
+      ...parsed,
+      classes: parsed.classes.filter((_, i) => i !== classIndex),
+      instances: [
+        ...parsed.instances,
+        { className: cls.parentName ?? '', name: cls.name, evidence: cls.evidence, values: [] },
+      ],
+    });
+  };
+
+  const convertToClass = (instIndex: number) => {
+    if (!parsed) return;
+    const inst = parsed.instances[instIndex];
+    if (!inst) return;
+    setParsed({
+      ...parsed,
+      instances: parsed.instances.filter((_, i) => i !== instIndex),
+      classes: [
+        ...parsed.classes,
+        {
+          name: inst.name,
+          description: '',
+          color: NODE_COLORS.mid,
+          parentName: inst.className || null,
+          evidence: inst.evidence,
+        },
+      ],
+    });
+  };
+
+  const setInstanceParent = (instIndex: number, className: string) => {
+    if (!parsed) return;
+    setParsed({
+      ...parsed,
+      instances: parsed.instances.map((inst, i) =>
+        i === instIndex ? { ...inst, className } : inst,
+      ),
+    });
+  };
+
+  // A-5 island connection suggestion — wired to enrichment sourcing in A-4.
+  const handleIslandSuggest = (name: string) => {
+    toast.info('연결 제안', {
+      description: `"${name}" 연결 근거 탐색은 보강 단계에서 제공됩니다.`,
+    });
+  };
+
+  const toggleAdoptEnrichment = (id: string) => {
+    setAdoptedEnrichments((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const ignoreEnrichment = (id: string) => {
+    setEnrichments((prev) => prev.filter((e) => e.id !== id));
+    setAdoptedEnrichments((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  };
+
+  // A-4: source proposals for one gap (internal → session → opt-in web).
+  const handleSourceEnrichment = async (item: EnrichmentItem) => {
+    setSourcingIds((prev) => new Set(prev).add(item.id));
+    try {
+      const { proposals, webUsed } = await enrichApi.source({
+        gap: item.gap,
+        context: inputText,
+        useWeb,
+      });
+      setEnrichments((prev) =>
+        prev.map((e) => (e.id === item.id ? { ...e, proposals } : e)),
+      );
+      if (proposals.length === 0) {
+        toast.info('보강 결과 없음', { description: `"${item.gap.targetName}"에 대한 근거를 찾지 못했습니다.` });
+      } else if (webUsed) {
+        toast.info('웹 보강', { description: '웹 출처는 검증이 필요합니다.' });
+      }
+    } catch {
+      toast.error('보강 소싱 실패');
+    } finally {
+      setSourcingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(item.id);
+        return next;
+      });
+    }
+  };
+
+  // A-5: the preview needs room for the structure / island / enrichment columns.
+  const isPreview = phase === 'preview';
+  const popoverW = isPreview ? 720 : POPOVER_WIDTH;
   const popoverPos = popoverState
-    ? calcPopoverPosition(popoverState.position, { w: POPOVER_WIDTH, h: POPOVER_EST_HEIGHT })
+    ? calcPopoverPosition(popoverState.position, {
+        w: popoverW,
+        h: isPreview ? 540 : POPOVER_EST_HEIGHT,
+      })
     : { left: 0, top: 0 };
 
   return (
@@ -555,7 +854,9 @@ export default function NewNodePopover() {
         <motion.div
           key={phase === 'input' ? `input-${activeTab}` : phase}
           {...popoverAnimation}
-          className="absolute w-[400px] max-w-[400px] bg-white dark:bg-card border border-border rounded-xl shadow-lg p-4"
+          className={`absolute bg-white dark:bg-card border border-border rounded-xl shadow-lg p-4 ${
+            isPreview ? 'w-[720px] max-w-[92vw]' : 'w-[400px] max-w-[400px]'
+          }`}
           style={{
             left: popoverPos.left,
             top: popoverPos.top,
@@ -905,7 +1206,9 @@ export default function NewNodePopover() {
                 </button>
               </div>
 
-              <div className="max-h-[300px] overflow-y-auto">
+              <div className="flex gap-3">
+                {/* 구조 — extracted structure (left column) */}
+                <div className="flex-1 min-w-0 overflow-y-auto max-h-[440px] pr-1">
                 {/* Hierarchical tree */}
                 {treeItems.length > 0 && (
                   <div className="space-y-0.5 mb-3">
@@ -938,13 +1241,44 @@ export default function NewNodePopover() {
                             {item.isExisting && (
                               <span className="text-[9px] text-muted-foreground italic">연결됨</span>
                             )}
-                            {!item.isExisting && item.originalIndex >= 0 && (
+                            {!item.isExisting && possibleDuplicates.has(item.name) && (
                               <button
-                                className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive ml-auto"
-                                onClick={() => removeItem('classes', item.originalIndex)}
+                                type="button"
+                                title={`기존 "${possibleDuplicates.get(item.name)}"와(과) 유사 — 중복 검사로 이동`}
+                                onClick={() => {
+                                  window.dispatchEvent(new Event('ontology:duplicate-check'));
+                                  toast.info('중복 검사', {
+                                    description: `"${item.name}" ≈ "${possibleDuplicates.get(item.name)}" — ER 큐에서 확인하세요.`,
+                                  });
+                                }}
+                                className="inline-flex"
                               >
-                                <Trash2 className="w-3 h-3" />
+                                <Badge
+                                  variant="outline"
+                                  className="text-[9px] h-4 px-1 border-dashed border-amber-400 text-amber-600 gap-0.5"
+                                >
+                                  <AlertTriangle className="w-2.5 h-2.5" />
+                                  중복 가능
+                                </Badge>
                               </button>
+                            )}
+                            {!item.isExisting && item.originalIndex >= 0 && (
+                              <>
+                                <button
+                                  type="button"
+                                  title="인스턴스(개체)로 전환"
+                                  onClick={() => convertToInstance(item.originalIndex)}
+                                  className="opacity-0 group-hover:opacity-100 transition-opacity text-[9px] text-muted-foreground hover:text-foreground ml-auto px-1 border border-border rounded"
+                                >
+                                  → 인스턴스
+                                </button>
+                                <button
+                                  className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                                  onClick={() => removeItem('classes', item.originalIndex)}
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              </>
                             )}
                           </>
                         ) : (
@@ -953,9 +1287,35 @@ export default function NewNodePopover() {
                             <Badge variant="secondary" className="text-[10px] h-5">
                               + {item.name}
                             </Badge>
-                            <span className="text-[9px] text-muted-foreground">({item.className})</span>
+                            <Select
+                              value={item.className || undefined}
+                              onValueChange={(v) => setInstanceParent(item.originalIndex, v)}
+                            >
+                              <SelectTrigger
+                                className={`h-5 text-[9px] px-1.5 w-auto gap-1 ${
+                                  item.className ? '' : 'border-amber-400 text-amber-600'
+                                }`}
+                              >
+                                <SelectValue placeholder="부모 선택" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {allClassNames.map((cn) => (
+                                  <SelectItem key={cn} value={cn} className="text-xs">
+                                    {cn}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                             <button
-                              className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive ml-auto"
+                              type="button"
+                              title="클래스(범주)로 전환"
+                              onClick={() => convertToClass(item.originalIndex)}
+                              className="opacity-0 group-hover:opacity-100 transition-opacity text-[9px] text-muted-foreground hover:text-foreground ml-auto px-1 border border-border rounded"
+                            >
+                              → 클래스
+                            </button>
+                            <button
+                              className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
                               onClick={() => removeItem('instances', item.originalIndex)}
                             >
                               <Trash2 className="w-3 h-3" />
@@ -1016,6 +1376,52 @@ export default function NewNodePopover() {
                     ))}
                   </div>
                 )}
+                </div>
+
+                {/* 섬 + 보강 (right column) */}
+                <div className="w-[260px] shrink-0 flex flex-col gap-3 overflow-y-auto max-h-[440px] border-l border-border pl-3">
+                  <IslandList islands={islands} onSuggest={handleIslandSuggest} />
+
+                  <section>
+                    <span className="text-[10px] font-semibold text-muted-foreground uppercase mb-1.5 flex items-center gap-1.5">
+                      보강 {enrichments.length > 0 && `${enrichments.length}개`}
+                      {enrichLoading && <Loader2 className="w-3 h-3 animate-spin" />}
+                    </span>
+                    <label className="flex items-center gap-1.5 mb-2 cursor-pointer select-none">
+                      <Checkbox
+                        checked={useWeb}
+                        onCheckedChange={(v) => setUseWeb(v === true)}
+                        className="h-3 w-3"
+                      />
+                      <span className="text-[10px] text-muted-foreground">
+                        웹 검색 사용 (기본 꺼짐 · 검증 필요)
+                      </span>
+                    </label>
+                    {enrichLoading && enrichments.length === 0 ? (
+                      <p className="text-[10px] text-muted-foreground/70 pl-1">
+                        보강 대상 탐지 중...
+                      </p>
+                    ) : enrichments.length === 0 ? (
+                      <p className="text-[10px] text-muted-foreground/70 pl-1">
+                        보강 제안 없음
+                      </p>
+                    ) : (
+                      <div className="space-y-2">
+                        {enrichments.map((item) => (
+                          <EnrichmentCard
+                            key={item.id}
+                            item={item}
+                            adopted={adoptedEnrichments.has(item.id)}
+                            sourcing={sourcingIds.has(item.id)}
+                            onAdopt={() => toggleAdoptEnrichment(item.id)}
+                            onIgnore={() => ignoreEnrichment(item.id)}
+                            onSource={() => handleSourceEnrichment(item)}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </section>
+                </div>
               </div>
 
               <div className="flex justify-end gap-2 mt-4">

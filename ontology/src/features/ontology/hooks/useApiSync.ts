@@ -115,10 +115,14 @@ async function syncChange(
           id: targetId,
           name: cls.name,
           parentId: cls.parentId,
+          partitionId: cls.partitionId,
           description: cls.description,
           color: cls.color,
           positionX: cls.positionX,
           positionY: cls.positionY,
+          sourceType: cls.sourceType ?? null,
+          confidence: cls.confidence ?? null,
+          evidence: cls.evidence ?? null,
         });
         break;
       }
@@ -157,6 +161,10 @@ async function syncChange(
           targetId: edge.targetId,
           sourceKind: edge.sourceKind,
           targetKind: edge.targetKind,
+          isBridge: edge.isBridge ?? false,
+          sourceType: edge.sourceType ?? null,
+          confidence: edge.confidence ?? null,
+          evidence: edge.evidence ?? null,
         });
         break;
       }
@@ -265,29 +273,35 @@ async function syncChange(
   }
 
   if (operation === 'DEL') {
+    // 이미 DB에 없는 항목(404)은 삭제 성공으로 간주 — 고아 데이터 초기화 시 에러 소음 방지.
+    const ignoreNotFound = (err: unknown) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (/not found|404/i.test(msg)) return;
+      throw err;
+    };
     switch (targetTable) {
       case 'classes': {
-        await classesApi.delete(targetId);
+        await classesApi.delete(targetId).catch(ignoreNotFound);
         break;
       }
       case 'edges': {
-        await edgesApi.delete(targetId);
+        await edgesApi.delete(targetId).catch(ignoreNotFound);
         break;
       }
       case 'instances': {
-        await instancesApi.delete(targetId);
+        await instancesApi.delete(targetId).catch(ignoreNotFound);
         break;
       }
       case 'properties': {
-        await propertiesApi.delete(targetId);
+        await propertiesApi.delete(targetId).catch(ignoreNotFound);
         break;
       }
       case 'axioms': {
-        await axiomsApi.delete(targetId);
+        await axiomsApi.delete(targetId).catch(ignoreNotFound);
         break;
       }
       case 'relation_types': {
-        await relationTypesApi.delete(targetId);
+        await relationTypesApi.delete(targetId).catch(ignoreNotFound);
         break;
       }
     }

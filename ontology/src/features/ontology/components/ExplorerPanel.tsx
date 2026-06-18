@@ -205,6 +205,8 @@ export default function ExplorerPanel() {
   const [contextTarget, setContextTarget] = useState<ExplorerContextTarget | null>(null);
   const classes = useOntologyStore((s) => s.classes);
   const instances = useOntologyStore((s) => s.instances);
+  const currentPartitionId = useOntologyStore((s) => s.currentPartitionId);
+  const showAllPartitions = useOntologyStore((s) => s.showAllPartitions);
   const openPopover = useOntologyStore((s) => s.openPopover);
   const focusNode = useOntologyStore((s) => s.focusNode);
   const selectNode = useOntologyStore((s) => s.selectNode);
@@ -233,7 +235,15 @@ export default function ExplorerPanel() {
     focusNode(nodeId);
   }, [focusNode]);
 
-  const tree = useMemo(() => buildTree(classes, instances), [classes, instances]);
+  // PRD-B B-3: 구획 스코프 — 전체 보기가 아니면 현재 구획의 클래스/인스턴스만
+  const scoped = useMemo(() => {
+    if (showAllPartitions || !currentPartitionId) return { classes, instances };
+    const scopedClasses = classes.filter((c) => c.partitionId === currentPartitionId);
+    const classIds = new Set(scopedClasses.map((c) => c.id));
+    return { classes: scopedClasses, instances: instances.filter((i) => classIds.has(i.classId)) };
+  }, [classes, instances, currentPartitionId, showAllPartitions]);
+
+  const tree = useMemo(() => buildTree(scoped.classes, scoped.instances), [scoped]);
   const filteredTree = useMemo(() => filterTree(tree, searchQuery), [tree, searchQuery]);
 
   // Ctrl+F → focus search input

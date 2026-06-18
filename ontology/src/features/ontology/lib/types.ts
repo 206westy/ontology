@@ -4,9 +4,21 @@ export type ChangeOperation = 'ADD' | 'MOD' | 'DEL';
 
 export type NodeColorKey = 'root' | 'mid' | 'leaf' | 'instance' | 'person' | 'place' | 'event' | 'concept' | 'process' | 'artifact';
 
+// PRD-B B-1: 구획(Named Graph). 마이그레이션이 만든 기본 구획 고정 UUID.
+export const DEFAULT_PARTITION_ID = '00000000-0000-0000-0000-000000000001';
+
+export interface Partition {
+  id: string;
+  name: string;
+  description: string;
+  color: string;
+  createdAt: string;
+}
+
 export interface OntologyClass {
   id: string;
   parentId: string | null;
+  partitionId: string;
   name: string;
   description: string;
   color: string;
@@ -14,6 +26,10 @@ export interface OntologyClass {
   positionY: number;
   createdAt: string;
   updatedAt: string;
+  // A-4 provenance (optional).
+  sourceType?: string | null;
+  confidence?: number | null;
+  evidence?: string | null;
 }
 
 export interface OntologyProperty {
@@ -59,6 +75,12 @@ export interface OntologyEdge {
   sourceKind: 'class' | 'instance';
   targetKind: 'class' | 'instance';
   createdAt: string;
+  // PRD-B B-1: 구획 간 연결(bridge) 여부.
+  isBridge?: boolean;
+  // A-4 provenance (optional).
+  sourceType?: string | null;
+  confidence?: number | null;
+  evidence?: string | null;
 }
 
 export interface OntologyAxiom {

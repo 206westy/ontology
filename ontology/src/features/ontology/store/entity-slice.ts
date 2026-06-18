@@ -11,10 +11,24 @@ import type {
   Change,
   ChangeOperation,
 } from '../lib/types';
+import { DEFAULT_PARTITION_ID } from '../lib/types';
 import type { EntitySlice, SliceCreator } from './types';
+import { uuid } from '../lib/uuid';
+
+// 노드(class/instance)의 소속 구획 id 를 해석. instance 는 소속 class 의 구획을 상속.
+function partitionOfNode(
+  state: { classes: OntologyClass[]; instances: OntologyInstance[] },
+  nodeId: string,
+): string | undefined {
+  const cls = state.classes.find((c) => c.id === nodeId);
+  if (cls) return cls.partitionId;
+  const inst = state.instances.find((i) => i.id === nodeId);
+  if (inst) return state.classes.find((c) => c.id === inst.classId)?.partitionId;
+  return undefined;
+}
 
 function generateId(): string {
-  return crypto.randomUUID();
+  return uuid();
 }
 
 function toSnapshot(obj: Record<string, unknown> | undefined | null): Record<string, unknown> | undefined {
@@ -51,12 +65,16 @@ export const createEntitySlice: SliceCreator<EntitySlice> = (set, get) => ({
   edges: [],
   axioms: [],
   instanceValues: [],
+  partitions: [],
 
   addClass: (data) => {
     const id = data.id ?? generateId();
+    // 소속 구획: 명시값 > 현재 선택 구획 > 기본 구획
+    const partitionId = data.partitionId ?? get().currentPartitionId ?? DEFAULT_PARTITION_ID;
     const newClass: OntologyClass = {
       id,
       parentId: data.parentId ?? null,
+      partitionId,
       name: data.name,
       description: data.description ?? '',
       color: data.color ?? '#7c3aed',
@@ -64,6 +82,9 @@ export const createEntitySlice: SliceCreator<EntitySlice> = (set, get) => ({
       positionY: data.positionY ?? 0,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
+      sourceType: data.sourceType ?? null,
+      confidence: data.confidence ?? null,
+      evidence: data.evidence ?? null,
     };
     set((state) => ({
       classes: [...state.classes, newClass],
@@ -354,6 +375,11 @@ export const createEntitySlice: SliceCreator<EntitySlice> = (set, get) => ({
 
   addEdge: (data) => {
     const id = data.id ?? generateId();
+    // PRD-B B-1: source/target 구획이 다르면 bridge
+    const st = get();
+    const srcP = partitionOfNode(st, data.sourceId);
+    const tgtP = partitionOfNode(st, data.targetId);
+    const isBridge = data.isBridge ?? (!!srcP && !!tgtP && srcP !== tgtP);
     const newEdge: OntologyEdge = {
       id,
       relationTypeId: data.relationTypeId,
@@ -361,7 +387,11 @@ export const createEntitySlice: SliceCreator<EntitySlice> = (set, get) => ({
       targetId: data.targetId,
       sourceKind: data.sourceKind ?? 'class',
       targetKind: data.targetKind ?? 'class',
+      isBridge,
       createdAt: new Date().toISOString(),
+      sourceType: data.sourceType ?? null,
+      confidence: data.confidence ?? null,
+      evidence: data.evidence ?? null,
     };
     set((state) => ({
       edges: [...state.edges, newEdge],
@@ -462,7 +492,9 @@ export const createEntitySlice: SliceCreator<EntitySlice> = (set, get) => ({
           parentId = parent.id;
         }
         const newClass: OntologyClass = {
-          id: generateId(), parentId, name,
+          id: generateId(), parentId,
+          partitionId: get().currentPartitionId ?? DEFAULT_PARTITION_ID,
+          name,
           description: description ?? '', color: color ?? '#7c3aed',
           positionX: 0, positionY: 0,
           createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),

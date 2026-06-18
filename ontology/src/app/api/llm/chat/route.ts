@@ -53,9 +53,11 @@ ${contextParts.length > 0 ? `\nCurrent context:\n${contextParts.join('\n\n')}` :
     const modelMessages = await convertToModelMessages(normalized);
 
     const result = streamText({
-      model: openai('gpt-4o-mini'),
+      model: openai('gpt-5.4'),
       system: systemPrompt,
       messages: modelMessages,
+      providerOptions: { openai: { reasoningEffort: 'medium', textVerbosity: 'low' } },
+      maxOutputTokens: 30000,
     });
 
     return result.toUIMessageStreamResponse();

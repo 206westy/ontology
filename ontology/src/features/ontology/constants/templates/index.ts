@@ -1,3 +1,4 @@
+import { uuid } from '../../lib/uuid';
 import semiconductorData from './semiconductor.json';
 import itInfrastructureData from './it-infrastructure.json';
 import organizationData from './organization.json';
@@ -135,7 +136,7 @@ export function buildImportPayload(templateId: string) {
 
   // Generate class IDs and build name -> ID map
   const classesPayload = data.classes.map((cls, i) => {
-    const id = crypto.randomUUID();
+    const id = uuid();
     classIdMap.set(cls.name, id);
 
     // Grid layout: 5 columns, 250px spacing
@@ -167,7 +168,7 @@ export function buildImportPayload(templateId: string) {
 
   // Properties
   const propertiesPayload = data.properties.map((prop, i) => ({
-    id: crypto.randomUUID(),
+    id: uuid(),
     classId: classIdMap.get(prop.className) ?? '',
     name: prop.name,
     dataType: prop.dataType,
@@ -179,7 +180,7 @@ export function buildImportPayload(templateId: string) {
 
   // Relation types
   const relationTypesPayload = data.relationTypes.map((rt) => ({
-    id: crypto.randomUUID(),
+    id: uuid(),
     name: rt.name,
     description: '',
     sourceClassId: classIdMap.get(rt.sourceClassName) ?? null,
@@ -188,7 +189,7 @@ export function buildImportPayload(templateId: string) {
 
   // Edges (one edge per relation type, connecting classes)
   const edgesPayload = relationTypesPayload.map((rt) => ({
-    id: crypto.randomUUID(),
+    id: uuid(),
     relationTypeId: rt.id,
     sourceId: rt.sourceClassId ?? '',
     targetId: rt.targetClassId ?? '',
@@ -198,7 +199,7 @@ export function buildImportPayload(templateId: string) {
 
   // Instances
   const instancesPayload = data.instances.map((inst) => ({
-    id: crypto.randomUUID(),
+    id: uuid(),
     classId: classIdMap.get(inst.className) ?? '',
     name: inst.name,
   }));

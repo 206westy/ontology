@@ -14,6 +14,28 @@ import {
 } from 'drizzle-orm/pg-core';
 import { relations, sql } from 'drizzle-orm';
 
+// ─── partitions (PRD-B B-1: 구획 / Named Graph 논리 분리) ───
+export const partitions = pgTable(
+  'partitions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    name: text('name').notNull(),
+    description: text('description').notNull().default(''),
+    color: text('color').notNull().default('#2563eb'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    unique('uq_partition_name').on(t.name),
+    check('chk_partition_color_hex', sql`${t.color} ~ '^#[0-9a-fA-F]{6}$'`),
+  ],
+);
+
+export const partitionsRelations = relations(partitions, ({ many }) => ({
+  classes: many(classes),
+}));
+
 // ─── classes ───────────────────────────────────────────────
 export const classes = pgTable(
   'classes',
@@ -22,12 +44,21 @@ export const classes = pgTable(
     parentId: uuid('parent_id').references((): any => classes.id, {
       onDelete: 'set null',
     }),
+    // PRD-B B-1: 소속 구획 (NOT NULL, 기본 구획 default + 백필됨)
+    partitionId: uuid('partition_id')
+      .notNull()
+      .default('00000000-0000-0000-0000-000000000001')
+      .references(() => partitions.id, { onDelete: 'restrict' }),
     name: text('name').notNull(),
     description: text('description').default(''),
     color: text('color').notNull().default('#7c3aed'),
     namespace: text('namespace'),
     positionX: real('position_x').notNull().default(0),
     positionY: real('position_y').notNull().default(0),
+    // A-4 provenance (nullable): where this node/its enrichment came from.
+    sourceType: text('source_type'),
+    confidence: real('confidence'),
+    evidence: text('evidence'),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -38,6 +69,7 @@ export const classes = pgTable(
   (t) => [
     unique('uq_class_name_per_parent').on(t.parentId, t.name),
     index('idx_classes_parent').on(t.parentId),
+    index('idx_classes_partition').on(t.partitionId),
     check('chk_color_hex', sql`${t.color} ~ '^#[0-9a-fA-F]{6}$'`),
   ],
 );
@@ -47,6 +79,10 @@ export const classesRelations = relations(classes, ({ one, many }) => ({
     fields: [classes.parentId],
     references: [classes.id],
     relationName: 'classHierarchy',
+  }),
+  partition: one(partitions, {
+    fields: [classes.partitionId],
+    references: [partitions.id],
   }),
   children: many(classes, { relationName: 'classHierarchy' }),
   properties: many(properties),
@@ -204,12 +240,18 @@ export const edges = pgTable(
     targetId: uuid('target_id').notNull(),
     sourceKind: text('source_kind').notNull(),
     targetKind: text('target_kind').notNull(),
+    // PRD-B B-1: source/target 구획이 다르면 true (구획 간 bridge 연결)
+    isBridge: boolean('is_bridge').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
     // v3: 관계별 카디널리티 (NULL = 제약 없음)
     minCardinality: integer('min_cardinality'),
     maxCardinality: integer('max_cardinality'),
+    // A-4 provenance (nullable): where this relation came from.
+    sourceType: text('source_type'),
+    confidence: real('confidence'),
+    evidence: text('evidence'),
   },
   (t) => [
     unique('uq_edge').on(t.relationTypeId, t.sourceId, t.targetId),

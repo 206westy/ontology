@@ -11,6 +11,7 @@ import type {
   InstanceValue,
   Change,
   PopoverState,
+  Partition,
 } from '../lib/types';
 import type { OntologyAction } from '../lib/schemas';
 
@@ -34,6 +35,8 @@ export interface EntitySlice {
   edges: OntologyEdge[];
   axioms: OntologyAxiom[];
   instanceValues: InstanceValue[];
+  // PRD-B B-1/B-3: 구획 목록 (렌더러/전환기용)
+  partitions: Partition[];
 
   addClass: (data: Partial<OntologyClass> & { name: string }) => string;
   updateClass: (id: string, data: Partial<OntologyClass>) => void;
@@ -75,6 +78,7 @@ export interface EntitySlice {
     edges: OntologyEdge[];
     axioms: OntologyAxiom[];
     instanceValues: InstanceValue[];
+    partitions?: Partition[];
   }) => void;
 }
 
@@ -88,12 +92,21 @@ export interface UiSlice {
   focusNodeId: string | null;
   highlightNodeIds: string[];
   toolMode: 'select' | 'pan';
+  // 읽기(read)/편집(edit) 모드 — 렌더러 비종속 UI 상호작용 상태(엔진 재생성 없음).
+  // read: 드래그 이동·선택·줌·팬·포커스·필터 허용 / 드래그-연결·드래그-onto 계층생성 비활성.
+  // edit: 드래그-연결(edgehandles)·드래그-onto 계층생성 활성.
+  editMode: 'read' | 'edit';
+  // PRD-B B-3: 현재 구획 + 전체 보기 토글
+  currentPartitionId: string | null;
+  showAllPartitions: boolean;
   zoomAction: 'in' | 'out' | 'fit' | null;
 
   // Filter state (P1-4) — colorFilter stored as array to avoid Zustand Set serialization issues
   showClasses: boolean;
   showInstances: boolean;
   colorFilter: string[];
+  // 차수 필터 — 이 값 미만 차수의 노드를 숨김(잡음 노드 제거). 0이면 전체 표시.
+  minDegree: number;
   focusModeNodeId: string | null;
   focusDepth: number;
 
@@ -113,6 +126,9 @@ export interface UiSlice {
   clearHighlight: () => void;
 
   setToolMode: (mode: 'select' | 'pan') => void;
+  setEditMode: (mode: 'read' | 'edit') => void;
+  selectPartition: (partitionId: string | null) => void;
+  toggleShowAllPartitions: (show: boolean) => void;
   triggerZoom: (action: 'in' | 'out' | 'fit') => void;
   clearZoomAction: () => void;
 
@@ -121,6 +137,7 @@ export interface UiSlice {
   setShowInstances: (show: boolean) => void;
   toggleColorFilter: (color: string) => void;
   clearColorFilter: () => void;
+  setMinDegree: (degree: number) => void;
   enterFocusMode: (nodeId: string, depth?: number) => void;
   exitFocusMode: () => void;
   setFocusDepth: (depth: number) => void;

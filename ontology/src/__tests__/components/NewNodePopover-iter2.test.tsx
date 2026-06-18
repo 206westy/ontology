@@ -21,6 +21,9 @@ vi.mock('@/features/ontology/api', () => ({
   llmApi: {
     parse: (...args: unknown[]) => mockLlmParse(...args),
   },
+  enrichApi: {
+    detect: vi.fn().mockResolvedValue({ gaps: [] }),
+  },
 }));
 
 // Mock sonner toast
@@ -105,16 +108,14 @@ describe('NewNodePopover — Iteration 2', () => {
     mockLlmParse.mockReset();
   });
 
-  // A-3: LLM returns instances → instances are created in store
-  it('should create instances from LLM parse result (A-3)', async () => {
+  // A-1: multi-stage parse — entities become classes parented by their type
+  it('should create type-parented classes from entities (A-1)', async () => {
     mockLlmParse.mockResolvedValue({
-      classes: [{ name: 'Equipment', description: 'Semi equipment', color: '#2563eb', parentName: null }],
-      properties: [],
-      relations: [],
-      instances: [
-        { className: 'Equipment', name: 'SUPRA' },
-        { className: 'Equipment', name: 'GENEVA' },
+      entities: [
+        { name: 'SUPRA', type: 'Equipment', evidence: 'SUPRA is equipment' },
+        { name: 'GENEVA', type: 'Equipment', evidence: 'GENEVA is equipment' },
       ],
+      relations: [],
     });
 
     useOntologyStore.getState().openPopover({
@@ -133,30 +134,24 @@ describe('NewNodePopover — Iteration 2', () => {
       expect(screen.getByText('구조화 결과')).toBeInTheDocument();
     });
 
-    // Preview should show instances
-    expect(screen.getByText(/인스턴스 2개/)).toBeInTheDocument();
-
     // Click confirm
     fireEvent.click(screen.getByText('확정').closest('button')!);
 
     const state = useOntologyStore.getState();
-    expect(state.classes).toHaveLength(1);
-    expect(state.classes[0].name).toBe('Equipment');
-    expect(state.instances).toHaveLength(2);
-    expect(state.instances.map((i) => i.name)).toContain('SUPRA');
-    expect(state.instances.map((i) => i.name)).toContain('GENEVA');
-    // Each instance should be linked to the Equipment class
-    expect(state.instances[0].classId).toBe(state.classes[0].id);
-    expect(state.instances[1].classId).toBe(state.classes[0].id);
+    const byName = new Map(state.classes.map((c) => [c.name, c]));
+    expect(byName.has('Equipment')).toBe(true);
+    expect(byName.has('SUPRA')).toBe(true);
+    expect(byName.has('GENEVA')).toBe(true);
+    // Entities are parented by their type category.
+    expect(byName.get('SUPRA')!.parentId).toBe(byName.get('Equipment')!.id);
+    expect(byName.get('GENEVA')!.parentId).toBe(byName.get('Equipment')!.id);
   });
 
-  // A-3: Instance preview shows className in parentheses
-  it('should show instance className in preview (A-3)', async () => {
+  // A-1: entity name + its type both appear in the preview tree
+  it('should show entity and its type in preview (A-1)', async () => {
     mockLlmParse.mockResolvedValue({
-      classes: [{ name: 'Animal', description: '', color: null, parentName: null }],
-      properties: [],
+      entities: [{ name: 'Buddy', type: 'Animal', evidence: 'Buddy is an animal' }],
       relations: [],
-      instances: [{ className: 'Animal', name: 'Buddy' }],
     });
 
     useOntologyStore.getState().openPopover({
@@ -175,19 +170,18 @@ describe('NewNodePopover — Iteration 2', () => {
       expect(screen.getByText('구조화 결과')).toBeInTheDocument();
     });
 
-    expect(screen.getByText('(Animal)')).toBeInTheDocument();
+    expect(screen.getByText(/Buddy/)).toBeInTheDocument();
+    expect(screen.getByText(/Animal/)).toBeInTheDocument();
   });
 
-  // B-7: parentName is present in LLM result but NOT used to set parentId
-  it('should NOT set parentId from parentName (B-7 gap)', async () => {
+  // A-2 (foundation): entity type matching an existing class resolves to its parentId
+  it('should resolve entity type to an existing class as parentId (A-1/A-2)', async () => {
     // Pre-existing class in store
     useOntologyStore.getState().addClass({ id: 'existing-equip', name: 'Equipment' });
 
     mockLlmParse.mockResolvedValue({
-      classes: [{ name: 'DryAsher', description: 'Subtype of Equipment', color: '#2563eb', parentName: 'Equipment' }],
-      properties: [],
+      entities: [{ name: 'DryAsher', type: 'Equipment', evidence: 'DryAsher is a type of Equipment' }],
       relations: [],
-      instances: [],
     });
 
     useOntologyStore.getState().openPopover({
@@ -237,10 +231,8 @@ describe('NewNodePopover — Iteration 2', () => {
     useOntologyStore.getState().addClass({ id: 'c1', name: 'ExistingClass' });
 
     mockLlmParse.mockResolvedValue({
-      classes: [{ name: 'NewClass', description: '', color: null, parentName: null }],
-      properties: [],
+      entities: [{ name: 'NewClass', type: 'Thing', evidence: 'x' }],
       relations: [],
-      instances: [],
     });
 
     useOntologyStore.getState().openPopover({

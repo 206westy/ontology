@@ -49,10 +49,14 @@ export async function POST(request: NextRequest) {
         ...(parsed.data.id ? { id: parsed.data.id } : {}),
         name: parsed.data.name,
         parentId: parsed.data.parentId ?? null,
+        partitionId: parsed.data.partitionId,
         description: parsed.data.description,
         color: parsed.data.color,
         positionX: parsed.data.positionX,
         positionY: parsed.data.positionY,
+        sourceType: parsed.data.sourceType ?? null,
+        confidence: parsed.data.confidence ?? null,
+        evidence: parsed.data.evidence ?? null,
       })
       .returning();
 

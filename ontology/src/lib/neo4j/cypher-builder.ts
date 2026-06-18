@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { DEFAULT_PARTITION_ID } from '@/features/ontology/lib/types';
 
 // ─── Types ──────────────────────────────────────────────────
 
@@ -35,12 +36,14 @@ export type CommitDetail = z.infer<typeof commitDetailSchema>;
 function classAdd(detail: CommitDetail): CypherStatement {
   const snap = detail.afterSnapshot as Record<string, unknown>;
   return {
-    query: `CREATE (n:Class {id: $id, name: $name, description: $description, color: $color})`,
+    // PRD-B B-1: partition 속성 부여 (구획 격리)
+    query: `CREATE (n:Class {id: $id, name: $name, description: $description, color: $color, partition: $partition})`,
     params: {
       id: detail.targetId,
       name: snap.name ?? '',
       description: snap.description ?? '',
       color: snap.color ?? '#7c3aed',
+      partition: snap.partitionId ?? DEFAULT_PARTITION_ID,
     },
     description: `클래스 "${snap.name}" 생성`,
   };
@@ -49,12 +52,13 @@ function classAdd(detail: CommitDetail): CypherStatement {
 function classMod(detail: CommitDetail): CypherStatement {
   const snap = detail.afterSnapshot as Record<string, unknown>;
   return {
-    query: `MATCH (n:Class {id: $id}) SET n.name = $name, n.description = $description, n.color = $color`,
+    query: `MATCH (n:Class {id: $id}) SET n.name = $name, n.description = $description, n.color = $color, n.partition = $partition`,
     params: {
       id: detail.targetId,
       name: snap.name ?? '',
       description: snap.description ?? '',
       color: snap.color ?? '#7c3aed',
+      partition: snap.partitionId ?? DEFAULT_PARTITION_ID,
     },
     description: `클래스 "${snap.name}" 수정`,
   };
@@ -99,7 +103,8 @@ function instanceClassEdge(detail: CommitDetail): CypherStatement[] {
   if (!snap.classId) return [];
   return [
     {
-      query: `MATCH (i:Instance {id: $instanceId}), (c:Class {id: $classId}) MERGE (i)-[:INSTANCE_OF]->(c)`,
+      // PRD-B B-1: 인스턴스는 소속 클래스의 partition 을 상속
+      query: `MATCH (i:Instance {id: $instanceId}), (c:Class {id: $classId}) MERGE (i)-[:INSTANCE_OF]->(c) SET i.partition = c.partition`,
       params: { instanceId: detail.targetId, classId: snap.classId },
       description: `인스턴스 "${snap.name}" → 클래스 INSTANCE_OF 관계 설정`,
     },
@@ -133,14 +138,16 @@ function edgeAdd(detail: CommitDetail): CypherStatement {
   const relName = (snap.relationTypeName as string) ?? 'RELATED_TO';
   const safeRelName = relName.replace(/[^a-zA-Z0-9_]/g, '_').toUpperCase();
   return {
-    query: `MATCH (a {id: $sourceId}), (b {id: $targetId}) CREATE (a)-[:${safeRelName} {id: $id, relationTypeId: $relationTypeId}]->(b)`,
+    // PRD-B B-1: 구획 간 연결이면 bridge:true
+    query: `MATCH (a {id: $sourceId}), (b {id: $targetId}) CREATE (a)-[:${safeRelName} {id: $id, relationTypeId: $relationTypeId, bridge: $bridge}]->(b)`,
     params: {
       id: detail.targetId,
       sourceId: snap.sourceId ?? '',
       targetId: snap.targetId ?? '',
       relationTypeId: snap.relationTypeId ?? '',
+      bridge: snap.isBridge ?? false,
     },
-    description: `관계 "${relName}" 엣지 생성`,
+    description: `관계 "${relName}"${snap.isBridge ? ' (bridge)' : ''} 엣지 생성`,
   };
 }
 

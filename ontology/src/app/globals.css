@@ -7,7 +7,7 @@
 
 @layer base {
   :root {
-    --font-sans: 'Pretendard Variable', var(--font-outfit), ui-sans-serif, system-ui, sans-serif;
+    --font-sans: var(--font-pretendard), var(--font-outfit), ui-sans-serif, system-ui, sans-serif;
     --font-mono: var(--font-jetbrains), ui-monospace, monospace;
 
     /* PRD 3.2 Design Tokens */
@@ -117,31 +117,29 @@
     /* Node background fill opacity (Light: 0.12, Dark: 0.20) */
     --node-bg-opacity: 0.12;
 
-    /* Node border colors (Light) -- PRD 7.2 */
-    --node-root:     263 70% 50.4%;   /* #7c3aed */
-    --node-mid:      221 83% 53%;     /* #2563eb */
-    --node-leaf:     192 91% 36%;     /* #0891b2 */
-    --node-instance: 142 77% 73%;     /* #86efac */
-    --node-person:   38 92% 50%;      /* #d97706 */
-    --node-place:    0 72% 51%;       /* #dc2626 */
-    --node-event:    330 81% 60%;     /* #db2777 */
-
-    /* v3: Extended node palette */
-    --node-concept:  239 84% 67%;     /* #6366f1 indigo */
-    --node-process:  167 85% 40%;     /* #14b8a6 teal */
-    --node-artifact: 263 70% 50.4%;   /* #8b5cf6 violet */
+    /* 채도 낮춘 균일 명도 팔레트 (Light) — hue로만 구분, 퍼플은 선택 전용으로 제외 */
+    --node-root:     214 35% 55%;   /* #6487b4 muted slate-blue */
+    --node-mid:      202 40% 53%;   /* #5794b7 muted blue */
+    --node-leaf:     187 35% 47%;   /* #4e98a2 muted teal-cyan */
+    --node-instance: 142 30% 52%;   /* #60a97b muted green */
+    --node-person:   40 45% 55%;    /* #c09d59 muted amber */
+    --node-place:    14 45% 57%;    /* #c37760 muted terracotta */
+    --node-event:    332 38% 60%;   /* #c07296 muted rose */
+    --node-concept:  246 32% 64%;   /* #8c86c1 muted indigo */
+    --node-process:  168 36% 45%;   /* #499c8b muted teal */
+    --node-artifact: 26 34% 52%;    /* #ae7f5b muted brown */
 
     /* Node background fills (Light, opacity 0.12) */
-    --node-root-bg:     263 70% 50.4% / 0.12;
-    --node-mid-bg:      221 83% 53%   / 0.12;
-    --node-leaf-bg:     192 91% 36%   / 0.12;
-    --node-instance-bg: 142 77% 73%   / 0.12;
-    --node-person-bg:   38 92% 50%    / 0.12;
-    --node-place-bg:    0 72% 51%     / 0.12;
-    --node-event-bg:    330 81% 60%   / 0.12;
-    --node-concept-bg:  239 84% 67%   / 0.12;
-    --node-process-bg:  167 85% 40%   / 0.12;
-    --node-artifact-bg: 263 70% 50.4% / 0.12;
+    --node-root-bg:     214 35% 55% / 0.12;
+    --node-mid-bg:      202 40% 53% / 0.12;
+    --node-leaf-bg:     187 35% 47% / 0.12;
+    --node-instance-bg: 142 30% 52% / 0.12;
+    --node-person-bg:   40 45% 55%  / 0.12;
+    --node-place-bg:    14 45% 57%  / 0.12;
+    --node-event-bg:    332 38% 60% / 0.12;
+    --node-concept-bg:  246 32% 64% / 0.12;
+    --node-process-bg:  168 36% 45% / 0.12;
+    --node-artifact-bg: 26 34% 52%  / 0.12;
 
     /* === v4: Gradient Brand === */
     --gradient-brand-from: 263 70% 50.4%;
@@ -162,7 +160,7 @@
     --node-unrelated-opacity: 0.35;
 
     /* === v4: Focus mode === */
-    --focus-dim-opacity: 0.15;
+    --focus-dim-opacity: 0.12;
     --focus-highlight-ring: 2px;
 
     /* === v4: Auto-save indicator === */
@@ -248,31 +246,29 @@
     /* Node background fill opacity */
     --node-bg-opacity: 0.20;
 
-    /* Node border colors (Dark) -- PRD 7.2 */
-    --node-root:     263 67% 65%;   /* #8b5cf6 */
-    --node-mid:      217 91% 60%;   /* #3b82f6 */
-    --node-leaf:     189 94% 43%;   /* #06b6d4 */
-    --node-instance: 142 69% 58%;   /* #4ade80 */
-    --node-person:   38 93% 57%;    /* #f59e0b */
-    --node-place:    0 91% 71%;     /* #ef4444 */
-    --node-event:    330 81% 60%;   /* #ec4899 */
+    /* 채도 낮춘 균일 명도 팔레트 (Dark) — 다크 배경용 명도 상향, 퍼플 제외 */
+    --node-root:     214 38% 64%;   /* #809fc6 */
+    --node-mid:      202 44% 62%;   /* #74a9c9 */
+    --node-leaf:     187 40% 56%;   /* #62b1bc */
+    --node-instance: 142 34% 60%;   /* #76bc90 */
+    --node-person:   40 48% 64%;    /* #cfb277 */
+    --node-place:    14 50% 66%;    /* #d4917d */
+    --node-event:    332 42% 68%;   /* #d08bab */
+    --node-concept:  246 36% 72%;   /* #a39ed1 */
+    --node-process:  168 40% 56%;   /* #62bcaa */
+    --node-artifact: 26 38% 62%;    /* #c39979 */
 
-    /* v3: Extended node palette (dark) */
-    --node-concept:  239 84% 75%;   /* #818cf8 */
-    --node-process:  167 80% 55%;   /* #2dd4bf */
-    --node-artifact: 263 70% 70%;   /* #a78bfa */
-
-    /* Node background fills (Dark, opacity 0.20; instance 0.15) */
-    --node-root-bg:     263 70% 50.4% / 0.20;
-    --node-mid-bg:      221 83% 53%   / 0.20;
-    --node-leaf-bg:     192 91% 36%   / 0.20;
-    --node-instance-bg: 142 77% 73%   / 0.15;
-    --node-person-bg:   38 92% 50%    / 0.20;
-    --node-place-bg:    0 72% 51%     / 0.20;
-    --node-event-bg:    330 81% 60%   / 0.20;
-    --node-concept-bg:  239 84% 67%   / 0.20;
-    --node-process-bg:  167 85% 40%   / 0.20;
-    --node-artifact-bg: 263 70% 50.4% / 0.20;
+    /* Node background fills (Dark, opacity 0.20; instance 0.18) */
+    --node-root-bg:     214 38% 64% / 0.20;
+    --node-mid-bg:      202 44% 62% / 0.20;
+    --node-leaf-bg:     187 40% 56% / 0.20;
+    --node-instance-bg: 142 34% 60% / 0.18;
+    --node-person-bg:   40 48% 64%  / 0.20;
+    --node-place-bg:    14 50% 66%  / 0.20;
+    --node-event-bg:    332 42% 68% / 0.20;
+    --node-concept-bg:  246 36% 72% / 0.20;
+    --node-process-bg:  168 40% 56% / 0.20;
+    --node-artifact-bg: 26 38% 62%  / 0.20;
 
     /* === v4: Gradient Brand (dark) === */
     --gradient-brand-from: 263 70% 58%;
@@ -293,7 +289,7 @@
     --node-unrelated-opacity: 0.35;
 
     /* === v4: Focus mode (dark) === */
-    --focus-dim-opacity: 0.15;
+    --focus-dim-opacity: 0.12;
     --focus-highlight-ring: 2px;
 
     /* === v4: Auto-save indicator === */

@@ -166,25 +166,31 @@ export async function POST(request: Request) {
     switch (type) {
       case 'class': {
         result = await generateObject({
-          model: openai('gpt-5.4-mini'),
+          model: openai('gpt-5.4'),
           schema: classSuggestionSchema,
           prompt: buildClassPrompt(context, currentInput, extra),
+          providerOptions: { openai: { reasoningEffort: 'medium', textVerbosity: 'low' } },
+          maxOutputTokens: 30000,
         });
         break;
       }
       case 'property': {
         result = await generateObject({
-          model: openai('gpt-5.4-mini'),
+          model: openai('gpt-5.4'),
           schema: propertySuggestionSchema,
           prompt: buildPropertyPrompt(context, currentInput, extra),
+          providerOptions: { openai: { reasoningEffort: 'medium', textVerbosity: 'low' } },
+          maxOutputTokens: 30000,
         });
         break;
       }
       case 'relation': {
         result = await generateObject({
-          model: openai('gpt-5.4-mini'),
+          model: openai('gpt-5.4'),
           schema: relationSuggestionSchema,
           prompt: buildRelationPrompt(context, currentInput, extra),
+          providerOptions: { openai: { reasoningEffort: 'medium', textVerbosity: 'low' } },
+          maxOutputTokens: 30000,
         });
         break;
       }

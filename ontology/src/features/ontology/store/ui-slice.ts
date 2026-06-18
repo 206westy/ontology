@@ -1,6 +1,7 @@
 'use client';
 
 import type { UiSlice, SliceCreator } from './types';
+import { DEFAULT_PARTITION_ID } from '../lib/types';
 
 export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
   selectedNodeId: null,
@@ -10,12 +11,16 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
   focusNodeId: null,
   highlightNodeIds: [],
   toolMode: 'select' as const,
+  editMode: 'read' as const,
+  currentPartitionId: DEFAULT_PARTITION_ID,
+  showAllPartitions: false,
   zoomAction: null,
 
   // Filter defaults (P1-4)
   showClasses: true,
   showInstances: true,
   colorFilter: [],
+  minDegree: 0,
   focusModeNodeId: null,
   focusDepth: 1,
 
@@ -54,6 +59,9 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
   clearHighlight: () => set({ highlightNodeIds: [] }),
 
   setToolMode: (mode) => set({ toolMode: mode }),
+  setEditMode: (mode) => set({ editMode: mode }),
+  selectPartition: (partitionId) => set({ currentPartitionId: partitionId, showAllPartitions: false }),
+  toggleShowAllPartitions: (show) => set({ showAllPartitions: show }),
   triggerZoom: (action) => set({ zoomAction: action }),
   clearZoomAction: () => set({ zoomAction: null }),
 
@@ -70,6 +78,7 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
       };
     }),
   clearColorFilter: () => set({ colorFilter: [] }),
+  setMinDegree: (degree) => set({ minDegree: Math.max(0, Math.round(degree)) }),
   enterFocusMode: (nodeId, depth = 1) =>
     set({ focusModeNodeId: nodeId, focusDepth: depth }),
   exitFocusMode: () => set({ focusModeNodeId: null }),

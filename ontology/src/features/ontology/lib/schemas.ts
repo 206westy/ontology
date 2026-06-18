@@ -1,10 +1,37 @@
 import { z } from 'zod';
+import { DEFAULT_PARTITION_ID } from './types';
+
+// ─── Partitions (PRD-B B-1) ────────────────────────────────
+export const createPartitionSchema = z.object({
+  id: z.string().uuid().optional(),
+  name: z.string().min(1),
+  description: z.string().optional().default(''),
+  color: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/)
+    .optional()
+    .default('#2563eb'),
+});
+
+export const updatePartitionSchema = z.object({
+  name: z.string().min(1).optional(),
+  description: z.string().optional(),
+  color: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/)
+    .optional(),
+});
+
+export type CreatePartitionInput = z.infer<typeof createPartitionSchema>;
+export type UpdatePartitionInput = z.infer<typeof updatePartitionSchema>;
 
 // ─── Classes ───────────────────────────────────────────────
 export const createClassSchema = z.object({
   id: z.string().uuid().optional(),
   name: z.string().min(1),
   parentId: z.string().uuid().nullable().optional(),
+  // PRD-B B-1: 소속 구획 (미지정 시 기본 구획).
+  partitionId: z.string().uuid().optional().default(DEFAULT_PARTITION_ID),
   description: z.string().optional().default(''),
   color: z
     .string()
@@ -13,6 +40,10 @@ export const createClassSchema = z.object({
     .default('#7c3aed'),
   positionX: z.number().optional().default(0),
   positionY: z.number().optional().default(0),
+  // A-4 provenance (nullable).
+  sourceType: z.string().nullable().optional(),
+  confidence: z.number().nullable().optional(),
+  evidence: z.string().nullable().optional(),
 });
 
 export const updateClassSchema = z.object({
@@ -137,6 +168,12 @@ export const createEdgeSchema = z
     targetId: z.string().uuid(),
     sourceKind: kindEnum,
     targetKind: kindEnum,
+    // PRD-B B-1: 구획 간 연결(bridge) 여부 (클라이언트가 계산해 전달).
+    isBridge: z.boolean().optional().default(false),
+    // A-4 provenance (nullable).
+    sourceType: z.string().nullable().optional(),
+    confidence: z.number().nullable().optional(),
+    evidence: z.string().nullable().optional(),
   })
   .refine((d) => d.sourceId !== d.targetId, {
     message: 'source and target must differ',
@@ -265,6 +302,154 @@ export const validateRequestSchema = z.object({
 });
 
 export type ValidateRequestInput = z.infer<typeof validateRequestSchema>;
+
+// ─── Multi-stage Parse (A-1) ─────────────────────────────
+// Stage 1 extracts entities (points), Stage 2 extracts grounded relations
+// (lines). Both carry evidence spans; relations also carry a confidence score.
+// Document title/subject must NOT be forced as a hub — islands are allowed.
+
+// A property carried by an entity. For instances, `value` is the concrete value
+// (e.g. partNumber = KC0330655). For classes the array is empty (definitions are
+// derived from instances during mapping).
+export const parsedEntityPropertySchema = z.object({
+  name: z.string().min(1),
+  value: z.string(),
+  dataType: dataTypeEnum,
+});
+
+export const parsedEntitySchema = z.object({
+  name: z.string().min(1),
+  // Category/class of the entity. Reuses an existing class name when one fits,
+  // otherwise proposes a new type. NOT the document title.
+  type: z.string(),
+  // A-1.1: is this a category (class) or a concrete object (instance)?
+  nodeKind: z.enum(['class', 'instance']),
+  // For instances: the owning class name (matches a class entity name or an
+  // existing class). null for classes.
+  parentType: z.string().nullable(),
+  // Short verbatim span from the source text supporting this entity.
+  evidence: z.string(),
+  // Property values (instances). Empty for classes.
+  properties: z.array(parsedEntityPropertySchema),
+});
+
+export const parsedRelationSchema = z.object({
+  source: z.string().min(1),
+  target: z.string().min(1),
+  // Relation/verb name (causal, compositional, temporal, measurement, etc.).
+  type: z.string().min(1),
+  // Verbatim span grounding this relation. Empty grounding => no relation.
+  evidence: z.string(),
+  confidence: z.number().min(0).max(1),
+});
+
+export const parseStage1ResponseSchema = z.object({
+  entities: z.array(parsedEntitySchema),
+});
+
+export const parseStage2ResponseSchema = z.object({
+  relations: z.array(parsedRelationSchema),
+});
+
+export const parseResponseSchema = z.object({
+  entities: z.array(parsedEntitySchema),
+  relations: z.array(parsedRelationSchema),
+});
+
+export type ParsedEntity = z.infer<typeof parsedEntitySchema>;
+export type ParsedRelation = z.infer<typeof parsedRelationSchema>;
+export type ParseResponse = z.infer<typeof parseResponseSchema>;
+
+export const parseRequestSchema = z.object({
+  text: z.string().min(1),
+  existingClasses: z.array(z.string()).optional(),
+  existingRelationTypes: z.array(z.string()).optional(),
+  // Enriched schema context (class hierarchy + types + key relations), built by
+  // buildSchemaContext on the client. Used by A-2 for node reuse judgement.
+  existingSchema: z.string().optional(),
+});
+
+export type ParseRequestInput = z.infer<typeof parseRequestSchema>;
+
+// ─── Enrichment: Gap Detection (A-3) ─────────────────────
+const gapKindEnum = z.enum([
+  'no_definition',
+  'isolated',
+  'missing_property',
+  'missing_axiom',
+  'undefined_concept',
+  'low_confidence',
+]);
+const gapSeverityEnum = z.enum(['high', 'med', 'low']);
+
+export const gapSchema = z.object({
+  targetName: z.string().min(1),
+  kind: gapKindEnum,
+  reason: z.string(),
+  severity: gapSeverityEnum,
+});
+
+// LLM emits only the qualitative kinds; the rest come from the deterministic pass.
+export const llmGapResponseSchema = z.object({
+  gaps: z.array(
+    z.object({
+      targetName: z.string().min(1),
+      kind: z.enum(['missing_axiom', 'low_confidence', 'no_definition']),
+      reason: z.string(),
+      severity: gapSeverityEnum,
+    }),
+  ),
+});
+
+export const detectRequestSchema = z.object({
+  subgraph: z.object({
+    nodes: z.array(
+      z.object({
+        name: z.string().min(1),
+        type: z.string().nullable().optional(),
+        description: z.string().optional(),
+        evidence: z.string().optional(),
+        propertyCount: z.number().int().optional(),
+      }),
+    ),
+    relations: z.array(
+      z.object({
+        source: z.string().min(1),
+        target: z.string().min(1),
+        type: z.string(),
+        confidence: z.number().optional(),
+      }),
+    ),
+  }),
+});
+
+export type DetectRequestInput = z.infer<typeof detectRequestSchema>;
+
+// ─── Enrichment: Sourcing (A-4) ──────────────────────────
+const sourceTypeEnum = z.enum(['existing_graph', 'session_doc', 'web', 'inferred']);
+
+// What the LLM may emit (no web/existing_graph — those are attached server-side
+// with verified provenance). needsReview is decided by the route, not the model.
+export const sourceLlmResponseSchema = z.object({
+  proposals: z.array(
+    z.object({
+      value: z.string(),
+      sourceType: z.enum(['session_doc', 'inferred']),
+      evidence: z.string(),
+      confidence: z.number().min(0).max(1),
+    }),
+  ),
+});
+
+export const sourceRequestSchema = z.object({
+  gap: gapSchema,
+  // Session context (other docs in the same import bundle, etc.).
+  context: z.string().optional(),
+  useWeb: z.boolean().optional().default(false),
+});
+
+export type SourceRequestInput = z.infer<typeof sourceRequestSchema>;
+export { sourceTypeEnum };
 
 // ─── LLM Chat (v3) ───────────────────────────────────────
 export const llmChatRequestSchema = z.object({
@@ -396,3 +581,38 @@ export const assistRequestSchema = z.object({
 });
 
 export type AssistRequestInput = z.infer<typeof assistRequestSchema>;
+
+// OpenAI structured outputs (strict) reject `oneOf`, so a discriminated union
+// can't be sent on the wire. This is a FLAT schema (all fields nullable-required)
+// that the /api/llm/assist route maps back into OntologyAction.
+export const assistWireActionSchema = z.object({
+  op: z.enum([
+    'add_class',
+    'add_property',
+    'add_instance',
+    'add_relation_type',
+    'add_edge',
+    'update_class',
+  ]),
+  label: z.string(),
+  name: z.string().nullable(),
+  className: z.string().nullable(),
+  parentName: z.string().nullable(),
+  description: z.string().nullable(),
+  color: z.string().nullable(),
+  dataType: z.enum(['string', 'integer', 'float', 'boolean', 'date', 'enum']).nullable(),
+  enumValues: z.array(z.string()).nullable(),
+  isRequired: z.boolean().nullable(),
+  sourceClassName: z.string().nullable(),
+  targetClassName: z.string().nullable(),
+  relationTypeName: z.string().nullable(),
+  sourceName: z.string().nullable(),
+  targetName: z.string().nullable(),
+});
+
+export type AssistWireAction = z.infer<typeof assistWireActionSchema>;
+
+export const assistWireResponseSchema = z.object({
+  reply: z.string(),
+  actions: z.array(assistWireActionSchema),
+});

@@ -1,4 +1,5 @@
 import { NODE_COLORS } from './colors';
+import { DEFAULT_PARTITION_ID } from '../lib/types';
 import type { OntologyClass, OntologyInstance, OntologyProperty, RelationType, OntologyEdge } from '../lib/types';
 
 function id(prefix: string, n: number) {
@@ -8,12 +9,12 @@ function id(prefix: string, n: number) {
 const now = new Date().toISOString();
 
 export const SAMPLE_CLASSES: OntologyClass[] = [
-  { id: id('c', 1), parentId: null, name: 'Equipment', description: '반도체 제조 공정에서 사용되는 장비의 최상위 클래스', color: NODE_COLORS.root, positionX: 0, positionY: 0, createdAt: now, updatedAt: now },
-  { id: id('c', 2), parentId: id('c', 1), name: 'DryAsher', description: '건식 애싱 장비 (PR 제거)', color: NODE_COLORS.mid, positionX: 0, positionY: 0, createdAt: now, updatedAt: now },
-  { id: id('c', 3), parentId: id('c', 2), name: 'SUPRA', description: 'PSK 대표 DryAsher 모델', color: NODE_COLORS.leaf, positionX: 0, positionY: 0, createdAt: now, updatedAt: now },
-  { id: id('c', 4), parentId: id('c', 1), name: 'WetStation', description: '습식 세정 장비', color: NODE_COLORS.mid, positionX: 0, positionY: 0, createdAt: now, updatedAt: now },
-  { id: id('c', 5), parentId: null, name: 'Engineer', description: '장비를 관리하는 엔지니어', color: NODE_COLORS.person, positionX: 0, positionY: 0, createdAt: now, updatedAt: now },
-  { id: id('c', 6), parentId: null, name: 'Site', description: '제조 공정이 위치한 팹(FAB) 사이트', color: NODE_COLORS.place, positionX: 0, positionY: 0, createdAt: now, updatedAt: now },
+  { id: id('c', 1), parentId: null, name: 'Equipment', description: '반도체 제조 공정에서 사용되는 장비의 최상위 클래스', color: NODE_COLORS.root, partitionId: DEFAULT_PARTITION_ID, positionX: 0, positionY: 0, createdAt: now, updatedAt: now },
+  { id: id('c', 2), parentId: id('c', 1), name: 'DryAsher', description: '건식 애싱 장비 (PR 제거)', color: NODE_COLORS.mid, partitionId: DEFAULT_PARTITION_ID, positionX: 0, positionY: 0, createdAt: now, updatedAt: now },
+  { id: id('c', 3), parentId: id('c', 2), name: 'SUPRA', description: 'PSK 대표 DryAsher 모델', color: NODE_COLORS.leaf, partitionId: DEFAULT_PARTITION_ID, positionX: 0, positionY: 0, createdAt: now, updatedAt: now },
+  { id: id('c', 4), parentId: id('c', 1), name: 'WetStation', description: '습식 세정 장비', color: NODE_COLORS.mid, partitionId: DEFAULT_PARTITION_ID, positionX: 0, positionY: 0, createdAt: now, updatedAt: now },
+  { id: id('c', 5), parentId: null, name: 'Engineer', description: '장비를 관리하는 엔지니어', color: NODE_COLORS.person, partitionId: DEFAULT_PARTITION_ID, positionX: 0, positionY: 0, createdAt: now, updatedAt: now },
+  { id: id('c', 6), parentId: null, name: 'Site', description: '제조 공정이 위치한 팹(FAB) 사이트', color: NODE_COLORS.place, partitionId: DEFAULT_PARTITION_ID, positionX: 0, positionY: 0, createdAt: now, updatedAt: now },
 ];
 
 export const SAMPLE_INSTANCES: OntologyInstance[] = [

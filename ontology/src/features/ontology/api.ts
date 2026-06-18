@@ -1,6 +1,8 @@
+import type { Gap, EnrichProposal } from './lib/enrich-types';
 import type {
   CreateClassInput,
   UpdateClassInput,
+  CreatePartitionInput,
   CreatePropertyInput,
   UpdatePropertyInput,
   CreateInstanceInput,
@@ -33,6 +35,17 @@ async function handleResponse<T>(res: Response): Promise<T> {
 }
 
 const jsonHeaders = { 'Content-Type': 'application/json' };
+
+// ─── Partitions (PRD-B B-1) ────────────────────────────────
+export const partitionsApi = {
+  list: () => fetch('/api/partitions').then((r) => handleResponse(r)),
+  create: (data: CreatePartitionInput) =>
+    fetch('/api/partitions', {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify(data),
+    }).then((r) => handleResponse(r)),
+};
 
 // ─── Classes ───────────────────────────────────────────────
 export const classesApi = {
@@ -189,13 +202,38 @@ export interface LlmParseInput {
   text: string;
   existingClasses?: string[];
   existingRelationTypes?: string[];
+  // Enriched schema context (hierarchy + types + key relations) for node reuse (A-2).
+  existingSchema?: string;
+}
+
+// Multi-stage parse output (A-1): entities (points) + grounded relations (lines).
+export interface ParsedEntityProperty {
+  name: string;
+  value: string;
+  dataType: string;
+}
+
+export interface ParsedEntity {
+  name: string;
+  type: string;
+  evidence: string;
+  // A-1.1 classification (optional for back-compat with older payloads).
+  nodeKind?: 'class' | 'instance';
+  parentType?: string | null;
+  properties?: ParsedEntityProperty[];
+}
+
+export interface ParsedRelation {
+  source: string;
+  target: string;
+  type: string;
+  evidence: string;
+  confidence: number;
 }
 
 export interface LlmParseResult {
-  classes: { name: string; description: string; color: string | null; parentName: string | null }[];
-  properties: { className: string; name: string; dataType: string; isRequired: boolean; enumValues: string[] | null }[];
-  relations: { sourceName: string; targetName: string; relationName: string }[];
-  instances: { className: string; name: string }[];
+  entities: ParsedEntity[];
+  relations: ParsedRelation[];
 }
 
 export const llmApi = {
@@ -205,6 +243,37 @@ export const llmApi = {
       headers: jsonHeaders,
       body: JSON.stringify(data),
     }).then((r) => handleResponse<LlmParseResult>(r)),
+};
+
+// ─── LLM Enrichment (A-3 / A-4) ─────────────────────────────
+export interface DetectSubgraphInput {
+  nodes: {
+    name: string;
+    type?: string | null;
+    description?: string;
+    evidence?: string;
+    propertyCount?: number;
+  }[];
+  relations: { source: string; target: string; type: string; confidence?: number }[];
+}
+
+export const enrichApi = {
+  detect: (subgraph: DetectSubgraphInput): Promise<{ gaps: Gap[] }> =>
+    fetch('/api/llm/enrich/detect', {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify({ subgraph }),
+    }).then((r) => handleResponse<{ gaps: Gap[] }>(r)),
+  source: (data: {
+    gap: Gap;
+    context?: string;
+    useWeb?: boolean;
+  }): Promise<{ proposals: EnrichProposal[]; webUsed: boolean }> =>
+    fetch('/api/llm/enrich/source', {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify(data),
+    }).then((r) => handleResponse<{ proposals: EnrichProposal[]; webUsed: boolean }>(r)),
 };
 
 // ─── LLM Autocomplete (v4) ──────────────────────────────────
@@ -421,11 +490,12 @@ export const text2CypherApi = {
 
 // ─── AI Assistant structured actions (P0-1) ───────────────
 export const assistApi = {
-  send: (data: AssistRequestInput): Promise<AssistantActionResponse> =>
+  send: (data: AssistRequestInput, signal?: AbortSignal): Promise<AssistantActionResponse> =>
     fetch('/api/llm/assist', {
       method: 'POST',
       headers: jsonHeaders,
       body: JSON.stringify(data),
+      signal,
     }).then((r) => handleResponse<AssistantActionResponse>(r)),
 };
 

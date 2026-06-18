@@ -21,6 +21,9 @@ vi.mock('@/features/ontology/api', () => ({
   llmApi: {
     parse: vi.fn().mockRejectedValue(new Error('LLM unavailable')),
   },
+  enrichApi: {
+    detect: vi.fn().mockResolvedValue({ gaps: [] }),
+  },
 }));
 
 // Mock sonner toast
@@ -185,9 +188,10 @@ describe('NewNodePopover', () => {
       expect(screen.getByText('구조화 결과')).toBeInTheDocument();
     });
 
-    // Should show parsed classes
-    expect(screen.getByText(/Animal/)).toBeInTheDocument();
-    expect(screen.getByText(/Plant/)).toBeInTheDocument();
+    // Should show parsed classes (they also appear in the 섬/island column since
+    // they have no relations, so there can be more than one match).
+    expect(screen.getAllByText(/Animal/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Plant/).length).toBeGreaterThan(0);
     expect(screen.getByText(/클래스 2개/)).toBeInTheDocument();
   });
 

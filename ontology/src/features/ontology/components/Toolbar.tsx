@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import {
   MousePointer2,
   Hand,
+  Eye,
+  Pencil,
   ZoomIn,
   ZoomOut,
   Maximize2,
@@ -18,6 +20,7 @@ import {
   Activity,
 } from 'lucide-react';
 import FilterPanel from './FilterPanel';
+import PartitionSwitcher from './PartitionSwitcher';
 import ValidationResultsPanel from './ValidationResultsPanel';
 import EntityResolutionSheet from './EntityResolutionSheet';
 import HealthDashboardSheet from './HealthDashboardSheet';
@@ -37,6 +40,8 @@ export default function Toolbar() {
   const redo = useTemporalStore((s) => s.redo);
   const toolMode = useOntologyStore((s) => s.toolMode);
   const setToolMode = useOntologyStore((s) => s.setToolMode);
+  const editMode = useOntologyStore((s) => s.editMode);
+  const setEditMode = useOntologyStore((s) => s.setEditMode);
   const triggerZoom = useOntologyStore((s) => s.triggerZoom);
   const [validating, setValidating] = useState(false);
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
@@ -130,6 +135,30 @@ export default function Toolbar() {
 
       <Separator orientation="vertical" className="h-5 mx-1" />
 
+      {/* Read / Edit mode (그래프=표현 / 편집=드래그 연결·계층 생성) */}
+      <div className="flex items-center gap-0.5">
+        <Button
+          variant={editMode === 'read' ? 'secondary' : 'ghost'}
+          size="sm"
+          className="h-7 w-7 p-0"
+          onClick={() => setEditMode('read')}
+          title="읽기 모드 (탐색)"
+        >
+          <Eye className="w-3.5 h-3.5" />
+        </Button>
+        <Button
+          variant={editMode === 'edit' ? 'secondary' : 'ghost'}
+          size="sm"
+          className="h-7 w-7 p-0"
+          onClick={() => setEditMode('edit')}
+          title="편집 모드 (드래그로 관계·계층 생성)"
+        >
+          <Pencil className="w-3.5 h-3.5" />
+        </Button>
+      </div>
+
+      <Separator orientation="vertical" className="h-5 mx-1" />
+
       {/* Zoom tools */}
       <div className="flex items-center gap-0.5">
         <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="확대" onClick={() => triggerZoom('in')}>
@@ -173,6 +202,11 @@ export default function Toolbar() {
 
       {/* Filter (P1-4) */}
       <FilterPanel />
+
+      <Separator orientation="vertical" className="h-5 mx-1" />
+
+      {/* Partition switcher (PRD-B B-3) */}
+      <PartitionSwitcher />
 
       <div className="flex-1" />
 
