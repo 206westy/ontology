@@ -47,25 +47,26 @@ export async function POST(request: NextRequest) {
       })
       .returning();
 
-    if (parsed.data.details.length > 0) {
-      await db.insert(commitDetails).values(
-        parsed.data.details.map((d) => ({
-          commitId: commit.id,
-          operation: d.operation,
-          targetTable: d.targetTable,
-          targetId: d.targetId,
-          beforeSnapshot: d.beforeSnapshot,
-          afterSnapshot: d.afterSnapshot,
-        })),
-      );
-    }
+    // 왕복 절감: findFirst 재조회(시드니 +1왕복) 대신 insert 의 returning 으로 응답 구성.
+    // 응답 계약은 동일({...commit, details: 전체 행}).
+    const details =
+      parsed.data.details.length > 0
+        ? await db
+            .insert(commitDetails)
+            .values(
+              parsed.data.details.map((d) => ({
+                commitId: commit.id,
+                operation: d.operation,
+                targetTable: d.targetTable,
+                targetId: d.targetId,
+                beforeSnapshot: d.beforeSnapshot,
+                afterSnapshot: d.afterSnapshot,
+              })),
+            )
+            .returning()
+        : [];
 
-    const result = await db.query.commits.findFirst({
-      where: (c, { eq }) => eq(c.id, commit.id),
-      with: { details: true },
-    });
-
-    return NextResponse.json(result, { status: 201 });
+    return NextResponse.json({ ...commit, details }, { status: 201 });
   } catch (err) {
     return handleApiError(err);
   }

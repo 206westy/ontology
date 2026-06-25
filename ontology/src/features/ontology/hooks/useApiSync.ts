@@ -48,7 +48,10 @@ export function useApiSync() {
     const unsub = useOntologyStore.subscribe(
       (state, prevState) => {
         if (prevState.pendingChanges.length > 0 && state.pendingChanges.length === 0) {
-          qc.invalidateQueries();
+          // 커밋은 엔티티 내용을 바꾸지 않고 commits/commit_details 만 기록한다.
+          // 스토어가 이미 동일 UUID 로 권위 데이터를 들고 있으므로 엔티티 목록 전체를
+          // 다시 시드니에서 받아오는 것은 낭비 → 갱신이 실제로 필요한 커밋 히스토리만 무효화.
+          qc.invalidateQueries({ queryKey: ['commits'] });
           syncedRef.current.clear();
         }
       },
@@ -133,6 +136,7 @@ async function syncChange(
           id: targetId,
           classId: inst.classId,
           name: inst.name,
+          description: inst.description,
         });
         break;
       }
@@ -187,6 +191,8 @@ async function syncChange(
           id: targetId,
           name: rt.name,
           description: rt.description,
+          // PR1 (목표①): category 를 Supabase 까지 전파 (조용한 유실 방지).
+          category: rt.category,
         });
         break;
       }
