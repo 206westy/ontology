@@ -31,7 +31,7 @@
 - **② 무효화 폭풍 제거** — `useApiSync.ts`: 커밋 후 `invalidateQueries()`(전체) → `{queryKey:['commits']}` 한정. 커밋당 8개 목록 재조회 제거.
 - **④ 이중 왕복 제거** — `commits/route.ts`·`instances/route.ts`: `findFirst` 재조회 삭제, `insert().returning()`으로 응답(계약 동일). 커밋 3→2, 인스턴스 2→1.
 
-## 완료 (브랜치 feat/v6-critic, 미커밋)
+## 완료 (브랜치 feat/v6-critic, ③=`af22d4e`)
 
 - **③ push 재읽기 제거** — `neo4j/push/route.ts`:
   - `buildPushContext` 의 독립 5왕복(프로퍼티·instance_values·어트리뷰션·클래스/인스턴스 임베딩)을 **`UNION ALL` 단일 쿼리**로 합침. 누락 프로퍼티 보충만 `instance_values` 결과 의존이라 조건부 2왕복으로 분리(대개 0건). 임베딩은 `embedding::text::jsonb` 로 운반(서버 계산값 그대로, 재계산 금지). `PushContext` 출력 shape 동일.
@@ -40,21 +40,14 @@
   - **실측(시드니 링크, 동일 시드 6행, warm median 7회):** buildPushContext **OLD 1565ms → NEW 318ms (≈4.9×, -1247ms)**. 문서화된 full push 2365ms 기준 컨텍스트 구성분이 이만큼 빠져 **push ≈ 1.1s 수준**으로 단축 예상(다건 커밋이면 commits UPDATE N→1 만큼 추가 절감).
   - 측정용 임시 데이터는 양쪽 DB에서 삭제 완료(원래 0개 상태 복귀), 임시 스크립트 삭제.
 
-## 남은 작업 (순서대로) — 각각 독립 세션에서 빌드·측정까지 완결
+- **① 대량 적재 multi-row 배치** — `batch/route.ts` + `useApiSync.ts`:
+  - batch 라우트 create 경로를 **테이블별 multi-row 단일 insert**로 coalesce(생성 의존 순서 유지). attribution **일괄 기록 이식**(class·edge provenance), `relation_type.category`·`instance.description`·`edge.isBridge`·class `partitionId`/provenance **필드 보존**, `instance_value` **onConflict upsert**(중복 갱신). update/delete 는 per-op 유지.
+  - `useApiSync` 의 ADD 경로를 **batch 1요청**으로 교체(MOD/DEL 은 기존 per-entity 라우트 그대로). 기존 syncChange 의 ADD 분기 제거.
+  - 검증: `next build` 통과. 실 Postgres 대비 7종 create 1배치 후 **비즈니스 로직 전수 확인**(partition·provenance·attribution 2건·category·description·isBridge·upsert 멱등성 모두 정상).
+  - **실측(시드니 링크, N=10 class 생성):** 개별 N요청 순차 3819ms / 병렬 1606ms → **batch 1요청 977ms**. N 증가 시 batch 는 ~상수, 개별은 N 선형 → 대량 확정에서 격차 확대.
+  - 측정용 임시 데이터 삭제 완료, 임시 스크립트 삭제.
 
-### ③ push 재읽기 제거 (최대 단일 효과: 2365ms → 수백 ms)
-- 대상: `src/app/api/neo4j/push/route.ts` 의 `buildPushContext` (5~6회 순차 Supabase 읽기).
-- 제약: 병렬화는 무효(측정 완료). embedding은 **서버 계산값이라 클라이언트가 운반 불가** → 그 읽기는 남김.
-- 안전한 방식(택1):
-  - (a) properties/instance_values/attributions를 **단일 결합 쿼리**(CTE/UNION)로 합쳐 왕복 수 축소, 또는
-  - (b) push 요청 본문에 클라이언트(스토어)가 가진 context를 **옵션 fast-path**로 운반(기존 buildPushContext는 fallback 유지 → 후방호환). CommitBar/NeoConfirmSheet 동시 수정 필요.
-- 검증: `next build` 통과 + push 단계 prod 재측정으로 2365ms 대비 단축 확인.
-
-### ① 대량 적재 multi-row 배치 (대량 확정 8배)
-- 대상: `useApiSync.ts` 동기화 경로 + `src/app/api/batch/route.ts`.
-- 현재 `useApiSync`는 변경 1건당 fetch 1번. `/api/batch`(단일 트랜잭션)는 있으나 **per-op insert(N왕복)** 이고, **attribution 기록·relation_type category·instance_values upsert가 빠져** 있음 → 그냥 태우면 비즈니스 로직 유실.
-- 안전한 방식: batch 라우트에 (1) 같은 테이블 create를 **multi-row 단일 insert**로 coalesce, (2) attribution 기록 이식, (3) category·description·instance_value 필드 보존 추가 → 그 후 `useApiSync` ADD 경로를 batch 1요청으로 교체. update/delete 로직은 그대로.
-- 검증: `next build` + 다건 확정 시나리오로 왕복 수 측정.
+## 남은 작업
 
 ### ⑤ (인프라, 코드 위험 없음) Supabase 서울 리전 이전
 - 시드니 170ms → 서울 ~15~30ms = 모든 작업 5~10배. in-place 변경 불가 → 서울 프로젝트 신규 + `migrations/`·스키마로 이전.
