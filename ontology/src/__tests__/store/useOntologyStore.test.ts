@@ -184,6 +184,29 @@ describe('useOntologyStore', () => {
     });
   });
 
+  // ─── addRelationType (PR1: 액션 지향 category) ─────────────
+  describe('addRelationType', () => {
+    it('defaults category to descriptive and records it in the commit snapshot', () => {
+      const id = useOntologyStore.getState().addRelationType({ name: 'relates_to' });
+      const state = useOntologyStore.getState();
+      const rt = state.relationTypes.find((r) => r.id === id);
+      expect(rt?.category).toBe('descriptive');
+      // store → Supabase/Neo4j commit snapshot carries category (왕복 1단계).
+      const change = state.pendingChanges.find(
+        (c) => c.targetTable === 'relation_types' && c.targetId === id,
+      );
+      expect((change?.afterSnapshot as { category?: string })?.category).toBe('descriptive');
+    });
+
+    it('preserves an explicit action-centric category', () => {
+      const id = useOntologyStore
+        .getState()
+        .addRelationType({ name: 'increases', category: 'causal' });
+      const rt = useOntologyStore.getState().relationTypes.find((r) => r.id === id);
+      expect(rt?.category).toBe('causal');
+    });
+  });
+
   // ─── addRelationType / addEdge ────────────────────────────
   describe('addEdge', () => {
     it('should create an edge between two classes', () => {

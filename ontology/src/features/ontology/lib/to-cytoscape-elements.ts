@@ -144,6 +144,9 @@ export function buildElements({ classes, instances, edges, relationTypes }: Buil
         id: cls.id,
         kind: 'class',
         label: cls.name,
+        // 표시 라벨(별도 슬롯): 평소엔 이름만. 접힌 클래스는 useCytoscape가 `이름 (N)`으로 동적 설정.
+        // label(순수 이름)은 검색·컨텍스트 메뉴용으로 보존한다.
+        displayLabel: cls.name,
         colorKey: getColorKey(cls.color),
         count,
         degree,
@@ -165,6 +168,7 @@ export function buildElements({ classes, instances, edges, relationTypes }: Buil
       data: {
         id: inst.id,
         kind: 'instance',
+        classId: inst.classId,
         label: inst.name,
         colorKey: parent ? getColorKey(parent.color) : ('instance' as NodeColorKey),
         degree,

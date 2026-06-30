@@ -4,6 +4,7 @@ import { edges } from '@/lib/drizzle/schema';
 import { createEdgeSchema } from '@/features/ontology/lib/schemas';
 import { eq, or } from 'drizzle-orm';
 import { handleApiError } from '@/lib/api-error';
+import { recordAttribution } from '@/lib/attribution';
 
 export async function GET(request: NextRequest) {
   const nodeId = request.nextUrl.searchParams.get('nodeId');
@@ -53,6 +54,15 @@ export async function POST(request: NextRequest) {
         evidence: parsed.data.evidence ?? null,
       })
       .returning();
+
+    // PRD-E P2-6: provenance 를 attributions 테이블에 일원화 기록.
+    await recordAttribution(db, {
+      targetTable: 'edges',
+      targetId: row.id,
+      sourceType: parsed.data.sourceType,
+      evidence: parsed.data.evidence,
+      confidence: parsed.data.confidence,
+    });
 
     return NextResponse.json(row, { status: 201 });
   } catch (err) {

@@ -29,7 +29,7 @@
     { "className": "JobGrade", "name": "grade_level", "dataType": "integer", "isRequired": true },
     { "className": "Project", "name": "start_date", "dataType": "date", "isRequired": true },
     { "className": "Project", "name": "end_date", "dataType": "date", "isRequired": false },
-    { "className": "Project", "name": "status", "dataType": "enum", "isRequired": true },
+    { "className": "Project", "name": "status", "dataType": "enum", "isRequired": true, "enumValues": ["Planned", "Active", "OnHold", "Completed", "Cancelled"] },
     { "className": "Skill", "name": "category", "dataType": "string", "isRequired": true },
     { "className": "Office", "name": "address", "dataType": "string", "isRequired": true },
     { "className": "Office", "name": "floor", "dataType": "integer", "isRequired": false },

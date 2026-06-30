@@ -54,6 +54,7 @@ export default function GraphCanvas() {
     [updateClass],
   );
   const handleContextFocusMode = useCallback((nodeId: string) => useOntologyStore.getState().enterFocusMode(nodeId), []);
+  const handleContextExpandNode = useCallback((nodeId: string) => useOntologyStore.getState().requestNodeExpansion(nodeId), []);
   const handleContextDeleteNode = useCallback((nodeId: string) => {
     const store = useOntologyStore.getState();
     const isClass = store.classes.some((c) => c.id === nodeId);
@@ -99,6 +100,7 @@ export default function GraphCanvas() {
         onLayoutGraph={handleContextLayoutGraph}
         onFitView={handleContextFitView}
         onChangeColor={handleContextChangeColor}
+        onExpandNode={handleContextExpandNode}
         onFocusMode={handleContextFocusMode}
         onDeleteNode={handleContextDeleteNode}
         onDeleteEdge={handleContextDeleteEdge}

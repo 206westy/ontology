@@ -24,6 +24,8 @@ import PartitionSwitcher from './PartitionSwitcher';
 import ValidationResultsPanel from './ValidationResultsPanel';
 import EntityResolutionSheet from './EntityResolutionSheet';
 import HealthDashboardSheet from './HealthDashboardSheet';
+import HealthScoreBadge from './HealthScoreBadge';
+import { UserMenu } from '@/features/auth/components/UserMenu';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -211,6 +213,9 @@ export default function Toolbar() {
       <div className="flex-1" />
 
       {/* Right side actions */}
+      {/* S5: 상시 구조 건강도 점수 (라이브) */}
+      <HealthScoreBadge />
+
       <Button
         variant="ghost"
         size="sm"
@@ -276,6 +281,11 @@ export default function Toolbar() {
       >
         <Sparkles className="w-3.5 h-3.5" />
       </Button>
+
+      <Separator orientation="vertical" className="h-5 mx-1" />
+
+      {/* 사용자 메뉴 (로그아웃) */}
+      <UserMenu />
 
       {/* Validation Results Panel */}
       <ValidationResultsPanel

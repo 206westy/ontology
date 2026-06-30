@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mapParseResult, findPossibleDuplicates, computeIslands } from '@/features/ontology/lib/parse-mapping';
+import { mapParseResult, findPossibleDuplicates, computeIslands, partitionRelationsByCategory } from '@/features/ontology/lib/parse-mapping';
 import type { LlmParseResult } from '@/features/ontology/api';
 
 describe('mapParseResult (A-1)', () => {
@@ -23,6 +23,27 @@ describe('mapParseResult (A-1)', () => {
     expect(byName.get('MW Power')?.parentName).toBe('공정 파라미터');
   });
 
+  it('builds a multi-level class hierarchy and a mid-level class keeps its own parent', () => {
+    // 동물 → {코끼리, 사자} → 코끼리: {코카서스, 파이톤}. 코끼리는 동물의 자식이면서
+    // 코카서스/파이톤의 부모 — 중간 클래스가 부모(동물)를 잃지 않아야 한다.
+    const res: LlmParseResult = {
+      entities: [
+        { name: '코끼리', type: '동물', nodeKind: 'class', parentType: null, evidence: '동물에는 코끼리가 있다', properties: [] },
+        { name: '사자', type: '동물', nodeKind: 'class', parentType: null, evidence: 'x', properties: [] },
+        { name: '코카서스', type: '코끼리', nodeKind: 'class', parentType: null, evidence: '코끼리의 종은 코카서스', properties: [] },
+        { name: '파이톤', type: '코끼리', nodeKind: 'class', parentType: null, evidence: 'y', properties: [] },
+      ],
+      relations: [],
+    };
+    const out = mapParseResult(res, new Set());
+    const byName = new Map(out.classes.map((c) => [c.name, c]));
+    expect(byName.get('동물')?.parentName).toBeNull(); // 최상위 루트
+    expect(byName.get('코끼리')?.parentName).toBe('동물'); // 중간 클래스가 부모 유지(핵심)
+    expect(byName.get('사자')?.parentName).toBe('동물');
+    expect(byName.get('코카서스')?.parentName).toBe('코끼리'); // 잎이 중간 클래스 아래로
+    expect(byName.get('파이톤')?.parentName).toBe('코끼리');
+  });
+
   it('keeps similarly named but different-kind concepts separate', () => {
     const res: LlmParseResult = {
       entities: [
@@ -44,7 +65,7 @@ describe('mapParseResult (A-1)', () => {
         { name: 'Particle', type: '결과', evidence: 'y' },
       ],
       relations: [
-        { source: 'MW Power', target: 'Particle', type: '증가시킨다', evidence: 'MW Power가 높으면 Particle 증가', confidence: 0.9 },
+        { source: 'MW Power', target: 'Particle', type: '증가시킨다', category: 'causal', evidence: 'MW Power가 높으면 Particle 증가', confidence: 0.9 },
       ],
     };
     const out = mapParseResult(res, new Set());
@@ -56,6 +77,20 @@ describe('mapParseResult (A-1)', () => {
       confidence: 0.9,
     });
     expect(out.relations[0].evidence).toContain('Particle 증가');
+  });
+
+  it('carries the action-centric category through to the mapped relation (PR1 목표①)', () => {
+    const res: LlmParseResult = {
+      entities: [
+        { name: 'MW Power', type: '파라미터', evidence: 'x' },
+        { name: 'Particle', type: '결과', evidence: 'y' },
+      ],
+      relations: [
+        { source: 'MW Power', target: 'Particle', type: '증가시킨다', category: 'causal', evidence: 'e', confidence: 0.9 },
+      ],
+    };
+    const out = mapParseResult(res, new Set());
+    expect(out.relations[0].category).toBe('causal');
   });
 
   it('does not re-create existing classes (node reuse)', () => {
@@ -71,7 +106,7 @@ describe('mapParseResult (A-1)', () => {
     const res: LlmParseResult = {
       entities: [{ name: 'Chuck', type: '하드웨어', evidence: 'x' }],
       relations: [
-        { source: 'Chuck', target: 'RF Matcher', type: '연결', evidence: 'z', confidence: 0.6 },
+        { source: 'Chuck', target: 'RF Matcher', type: '연결', category: 'structural', evidence: 'z', confidence: 0.6 },
       ],
     };
     const out = mapParseResult(res, new Set());
@@ -111,7 +146,7 @@ describe('mapParseResult class/instance split (A-1.1)', () => {
           nodeKind: 'instance',
           parentType: '하드웨어 부품',
           evidence: 'PLATE_ELECTRODE KC0330655',
-          properties: [{ name: 'partNumber', value: 'KC0330655', dataType: 'string' }],
+          properties: [{ name: 'partNumber', value: 'KC0330655', dataType: 'string', enumValues: null }],
         },
       ],
       relations: [],
@@ -131,6 +166,28 @@ describe('mapParseResult class/instance split (A-1.1)', () => {
     const def = out.properties.find((p) => p.className === '하드웨어 부품' && p.name === 'partNumber');
     expect(def?.dataType).toBe('string');
     expect(def).not.toHaveProperty('value');
+  });
+
+  it('carries enumValues from an instance mode-property into the class property definition (PR1 목표②)', () => {
+    const res: LlmParseResult = {
+      entities: [
+        {
+          name: 'Chatbot-1',
+          type: '봇',
+          nodeKind: 'instance',
+          parentType: '봇',
+          evidence: 'Chatbot-1 runs in RAG mode',
+          properties: [
+            { name: 'mode', value: 'RAG', dataType: 'enum', enumValues: ['RAG', 'Agent'] },
+          ],
+        },
+      ],
+      relations: [],
+    };
+    const out = mapParseResult(res, new Set());
+    const def = out.properties.find((p) => p.className === '봇' && p.name === 'mode');
+    expect(def?.dataType).toBe('enum');
+    expect(def?.enumValues).toEqual(['RAG', 'Agent']);
   });
 
   it('creates the parent class if the instance references one not extracted', () => {
@@ -174,6 +231,26 @@ describe('findPossibleDuplicates (A-2)', () => {
   });
 });
 
+describe('partitionRelationsByCategory (PR1 목표①: descriptive 강등)', () => {
+  const rels = [
+    { sourceName: 'A', targetName: 'B', relationName: '증가', category: 'causal' as const },
+    { sourceName: 'C', targetName: 'D', relationName: '~의 일종', category: 'descriptive' as const },
+    { sourceName: 'E', targetName: 'F', relationName: 'relates_to' }, // no category (mockParse)
+  ];
+
+  it('demotes only descriptive relations, keeping the rest actionable', () => {
+    const { actionable, descriptive } = partitionRelationsByCategory(rels);
+    expect(descriptive.map((d) => d.rel.relationName)).toEqual(['~의 일종']);
+    expect(actionable.map((a) => a.rel.relationName)).toEqual(['증가', 'relates_to']);
+  });
+
+  it('preserves original indices for edit/remove operations', () => {
+    const { actionable, descriptive } = partitionRelationsByCategory(rels);
+    expect(descriptive[0].index).toBe(1);
+    expect(actionable.map((a) => a.index)).toEqual([0, 2]);
+  });
+});
+
 describe('computeIslands (A-5)', () => {
   it('flags nodes with no relation and no hierarchy place', () => {
     const res: LlmParseResult = {
@@ -183,7 +260,7 @@ describe('computeIslands (A-5)', () => {
         { name: 'Particle', type: 'Result', evidence: 'z' },
       ],
       relations: [
-        { source: 'MW Power', target: 'Particle', type: '증가', evidence: 'e', confidence: 0.8 },
+        { source: 'MW Power', target: 'Particle', type: '증가', category: 'causal', evidence: 'e', confidence: 0.8 },
       ],
     };
     const parsed = mapParseResult(res, new Set());

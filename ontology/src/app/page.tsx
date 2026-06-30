@@ -19,6 +19,8 @@ import SplashScreen from '@/features/ontology/components/SplashScreen';
 import { useLoadOntology } from '@/features/ontology/hooks/useLoadOntology';
 import { useKeyboardShortcuts } from '@/features/ontology/hooks/useKeyboardShortcuts';
 import { useApiSync } from '@/features/ontology/hooks/useApiSync';
+import { useUrlSelectionSync } from '@/features/ontology/hooks/useUrlSelectionSync';
+import { useOntologyStore } from '@/features/ontology/hooks/useOntologyStore';
 
 function ResizeHandle() {
   return (
@@ -65,6 +67,7 @@ export default function Home() {
   const { isLoading, isError } = useLoadOntology();
   const { showDeleteDialog, requestDelete, confirmDelete, cancelDelete } = useKeyboardShortcuts();
   useApiSync();
+  useUrlSelectionSync();
 
   const [splashDone, setSplashDone] = useState(false);
   const [savedLayout, setSavedLayout] = useState<Layout | undefined>(undefined);
@@ -86,6 +89,13 @@ export default function Home() {
   const rightPanelRef = usePanelRef();
   const [explorerCollapsed, setExplorerCollapsed] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(false);
+
+  // 노드 확장 요청이 올라오면 우측 패널이 접혀 있어도 자동으로 펼쳐, 캔버스
+  // 컨텍스트 메뉴 "AI로 확장"의 결과(AI 탭)가 항상 보이게 한다.
+  const aiExpandRequest = useOntologyStore((s) => s.aiExpandRequest);
+  useEffect(() => {
+    if (aiExpandRequest) rightPanelRef.current?.expand();
+  }, [aiExpandRequest, rightPanelRef]);
 
   if (!splashDone) {
     return <SplashScreen onComplete={() => setSplashDone(true)} />;

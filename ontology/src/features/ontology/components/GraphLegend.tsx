@@ -68,11 +68,52 @@ export default function GraphLegend() {
             })}
           </ul>
 
-          <div className="mt-2 border-t border-border/60 px-1.5 pt-1.5 text-[10px] leading-relaxed text-muted-foreground">
-            <p>
+          <div className="mt-2 space-y-1 border-t border-border/60 px-1.5 pt-1.5 text-[10px] leading-relaxed text-muted-foreground">
+            {/* 모양 = 종류 */}
+            <div className="flex items-center gap-1.5">
+              <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" className="shrink-0">
+                <circle cx="8" cy="8" r="6" className="fill-muted-foreground/20 stroke-muted-foreground" strokeWidth="1.5" />
+              </svg>
+              <span>큰 원 = <span className="text-foreground/80">클래스</span>(유형)</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" className="shrink-0">
+                <circle cx="8" cy="8" r="3" className="fill-muted-foreground stroke-muted-foreground" strokeWidth="1" />
+              </svg>
+              <span>작은 점 = <span className="text-foreground/80">인스턴스</span>(사례) · 호버로 이름</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" className="shrink-0">
+                <circle cx="8" cy="8" r="6" fill="none" className="stroke-muted-foreground/60" strokeWidth="1.5" strokeDasharray="2 2" />
+              </svg>
+              <span>점선 원 = 빈 클래스(미작성)</span>
+            </div>
+            {/* 선 = 관계 종류 */}
+            <div className="flex items-center gap-1.5 pt-0.5">
+              <svg width="20" height="10" viewBox="0 0 20 10" aria-hidden="true" className="shrink-0">
+                <line x1="1" y1="5" x2="15" y2="5" className="stroke-muted-foreground" strokeWidth="1.5" strokeDasharray="3 2" />
+                <path d="M15 2 L19 5 L15 8 Z" className="fill-muted-foreground" />
+              </svg>
+              <span>파선 = 상·하위(계층)</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <svg width="20" height="10" viewBox="0 0 20 10" aria-hidden="true" className="shrink-0">
+                <line x1="1" y1="5" x2="19" y2="5" className="stroke-muted-foreground/60" strokeWidth="1" strokeDasharray="1 2" />
+              </svg>
+              <span>점선 = 소속(인스턴스→클래스)</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <svg width="20" height="10" viewBox="0 0 20 10" aria-hidden="true" className="shrink-0">
+                <line x1="1" y1="5" x2="15" y2="5" className="stroke-foreground/70" strokeWidth="1.5" />
+                <path d="M15 2 L19 5 L15 8 Z" className="fill-foreground/70" />
+              </svg>
+              <span>실선 = 관계(이름 표시)</span>
+            </div>
+            <p className="pt-1">
               <span className="text-foreground/80">색</span> = 도메인 ·{' '}
               <span className="text-foreground/80">크기</span> = 연결 차수
             </p>
+            <p className="text-muted-foreground/70">클래스 더블클릭 = 인스턴스 펼침/접기</p>
           </div>
         </div>
       )}

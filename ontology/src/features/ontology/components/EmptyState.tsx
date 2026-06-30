@@ -11,6 +11,8 @@ import {
   Building2,
   HeartPulse,
   Truck,
+  ClipboardPaste,
+  Wand2,
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -25,11 +27,19 @@ import {
 import { importExportApi } from '../api';
 import { TEMPLATES, buildImportPayload } from '../constants/templates';
 import type { TemplateMetadata } from '../constants/templates';
+import { useOntologyStore } from '../hooks/useOntologyStore';
 import { safeTransition, nodeEnter } from '@/lib/motion-presets';
 
 interface EmptyStateProps {
   onDoubleClick: (event: React.MouseEvent) => void;
 }
+
+// 비전문가용 cold-start: "지식을 붙여넣으면 AI가 온톨로지로 만든다"를 즉시 체험시키는 예시.
+// 도메인 지식만 있으면 온톨로지를 몰라도 결과를 볼 수 있게 하는 게 목적.
+const EXAMPLE_KNOWLEDGE = `Descum 3호기에서 particle이 증가하면 Chuck을 점검한다.
+Chuck의 partNumber는 KC0330655이다.
+RF Bias가 높으면 식각률이 올라간다.
+필터는 6개월마다 교체한다.`;
 
 function EmptyStateGuide() {
   return (
@@ -45,10 +55,11 @@ function EmptyStateGuide() {
       </div>
 
       <h3 className="text-base font-semibold text-foreground mb-1.5">
-        지식을 입력하면 AI가 구조화합니다
+        아는 내용을 그대로 적으면, AI가 온톨로지로 만들어 드립니다
       </h3>
       <p className="text-sm text-muted-foreground leading-relaxed mb-4">
-        자유 형식의 텍스트, 파일, URL 등 어떤 형태로든 지식을 입력하세요.
+        온톨로지를 몰라도 됩니다. 업무 지식·메뉴얼·메모를 자유롭게 붙여넣으면
+        AI가 개념·속성·관계로 정리하고, 적용은 직접 검토 후 결정합니다.
       </p>
     </>
   );
@@ -107,7 +118,7 @@ function TemplateSection({
   return (
     <div className="w-full mb-4">
       <p className="text-[11px] font-semibold text-muted-foreground uppercase mb-2 text-left">
-        도메인 템플릿으로 시작하기
+        또는 도메인 템플릿으로 시작
       </p>
       <div className="grid grid-cols-5 gap-2">
         {TEMPLATES.map((t) => (
@@ -159,8 +170,21 @@ export default function EmptyState({ onDoubleClick }: EmptyStateProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const [confirmTemplate, setConfirmTemplate] = useState<TemplateMetadata | null>(null);
   const [loadingId, setLoadingId] = useState<string | null>(null);
+  const openPopover = useOntologyStore((s) => s.openPopover);
 
   const transition = safeTransition(nodeEnter);
+
+  // 붙여넣기(파싱) 플로우를 화면 중앙에서 연다. initialText 가 있으면 자동 파싱.
+  const openPasteFlow = useCallback(
+    (initialText: string) => {
+      openPopover({
+        type: 'newNode',
+        position: { x: window.innerWidth / 2, y: 160 },
+        initialText,
+      });
+    },
+    [openPopover],
+  );
 
   const handleSelectTemplate = useCallback((template: TemplateMetadata) => {
     setConfirmTemplate(template);
@@ -225,6 +249,24 @@ export default function EmptyState({ onDoubleClick }: EmptyStateProps) {
           className="text-center max-w-2xl px-8 pointer-events-auto"
         >
           <EmptyStateGuide />
+
+          {/* Cold-start CTA: 비전문가가 "지식 붙여넣기 → 초안"을 즉시 체험하게 하는 핵심 진입점 */}
+          <div className="mb-5 flex flex-col items-center gap-2">
+            <button
+              className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
+              onClick={() => openPasteFlow('')}
+            >
+              <ClipboardPaste className="w-4 h-4" />
+              내 지식 붙여넣기로 시작
+            </button>
+            <button
+              className="inline-flex items-center gap-1.5 text-[12px] text-muted-foreground transition-colors hover:text-foreground"
+              onClick={() => openPasteFlow(EXAMPLE_KNOWLEDGE)}
+            >
+              <Wand2 className="w-3.5 h-3.5" />
+              예시 지식으로 1분 체험하기
+            </button>
+          </div>
 
           {/* B-4: 중앙 입력창(InlineTextInput)·CTA(파일/URL)·예시 카드는 더블클릭 팝오버와 중복이라 제거.
               템플릿은 B-2 랜딩 전까지 빠른 시작용으로 유지. */}

@@ -16,6 +16,7 @@ import {
   Copy,
   Terminal,
   Shield,
+  Sparkles,
 } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
@@ -34,6 +35,16 @@ import ConstraintsPanel from './ConstraintsPanel';
 
 const DATA_TYPES: DataType[] = ['string', 'integer', 'float', 'boolean', 'date', 'enum'];
 
+// 데이터 타입 표시 라벨(비전문가용). 내부 값(DataType)은 영문 그대로 유지하고 표기만 한국어.
+const DATA_TYPE_LABEL: Record<DataType, string> = {
+  string: '문자',
+  integer: '정수',
+  float: '소수',
+  boolean: '예/아니오',
+  date: '날짜',
+  enum: '선택목록',
+};
+
 
 interface CollapsibleSectionProps {
   title: string;
@@ -41,10 +52,11 @@ interface CollapsibleSectionProps {
   defaultOpen?: boolean;
   onAdd?: () => void;
   addLabel?: string;
+  hint?: string;
   children: React.ReactNode;
 }
 
-function CollapsibleSection({ title, count, defaultOpen = true, onAdd, addLabel = '추가', children }: CollapsibleSectionProps) {
+function CollapsibleSection({ title, count, defaultOpen = true, onAdd, addLabel = '추가', hint, children }: CollapsibleSectionProps) {
   const [open, setOpen] = useState(defaultOpen);
 
   return (
@@ -58,13 +70,17 @@ function CollapsibleSection({ title, count, defaultOpen = true, onAdd, addLabel 
         ) : (
           <ChevronRight className="w-3 h-3 text-muted-foreground" />
         )}
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <span className="text-[11px] font-semibold tracking-tight text-foreground/80">
           {title}
         </span>
         <span className="text-[10px] font-mono text-muted-foreground ml-auto">
           ({count})
         </span>
       </button>
+      {/* 비전문가용 한 줄 설명 — 섹션이 무엇인지 용어 없이 안내 */}
+      {hint && open && (
+        <p className="mt-1 ml-[18px] text-[10px] leading-snug text-muted-foreground/70">{hint}</p>
+      )}
       {open && (
         <div className="mt-2 space-y-0.5">
           {children}
@@ -197,7 +213,7 @@ function PropertyRow({
     <div className="flex items-center gap-1.5 py-1.5 px-1.5 rounded hover:bg-muted/40 transition-colors group -mx-1">
       <span className="text-[11px] font-mono text-primary/80 truncate flex-1">{name}</span>
       <Badge variant="secondary" className="h-4 text-[9px] px-1.5 font-normal shrink-0">
-        {dataType}
+        {DATA_TYPE_LABEL[dataType]}
       </Badge>
       {isRequired && (
         <Badge variant="outline" className="h-4 text-[9px] px-1 font-normal text-amber-600 border-amber-300 shrink-0">
@@ -238,7 +254,7 @@ function InheritedPropertyRow({
     <div className="flex items-center gap-1.5 py-1.5 px-1.5 rounded hover:bg-muted/40 transition-colors group -mx-1">
       <span className="text-[11px] font-mono text-muted-foreground truncate flex-1">{name}</span>
       <Badge variant="secondary" className="h-4 text-[9px] px-1.5 font-normal shrink-0 opacity-60">
-        {dataType}
+        {DATA_TYPE_LABEL[dataType]}
       </Badge>
       {isRequired && (
         <Badge variant="outline" className="h-4 text-[9px] px-1 font-normal text-amber-600/60 border-amber-300/60 shrink-0">
@@ -370,7 +386,7 @@ function AddPropertyInline({
           className="h-6 text-[9px] bg-transparent border border-border rounded px-1 outline-none"
         >
           {DATA_TYPES.map((t) => (
-            <option key={t} value={t}>{t}</option>
+            <option key={t} value={t}>{DATA_TYPE_LABEL[t]}</option>
           ))}
         </select>
         <button
@@ -664,6 +680,14 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
   const selectedNodeType = useOntologyStore((s) => s.selectedNodeType);
   const updateClass = useOntologyStore((s) => s.updateClass);
   const selectNode = useOntologyStore((s) => s.selectNode);
+  const requestNodeExpansion = useOntologyStore((s) => s.requestNodeExpansion);
+  const aiExpandRequest = useOntologyStore((s) => s.aiExpandRequest);
+  const [activeTab, setActiveTab] = useState('detail');
+
+  // 확장 요청이 올라오면 AI 탭으로 전환해 AIAssistantTab을 마운트/노출한다.
+  useEffect(() => {
+    if (aiExpandRequest) setActiveTab('ai');
+  }, [aiExpandRequest]);
 
   // Individual selectors avoid useShallow + React 19 useSyncExternalStore conflict
   const storeClasses = useOntologyStore((s) => s.classes);
@@ -848,9 +872,29 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
             {nodeName}
           </span>
         )}
-        <Badge variant="outline" className="text-[9px] h-5 shrink-0 uppercase">
+        <Badge
+          variant="outline"
+          className="text-[9px] h-5 shrink-0 uppercase"
+          title={
+            selectedNodeType === 'class'
+              ? '클래스 — 유형·카테고리(비슷한 것들을 대표하는 묶음)'
+              : '인스턴스 — 실제 사례(클래스의 구체적 한 개)'
+          }
+        >
           {selectedNodeType === 'class' ? 'CLASS' : 'INSTANCE'}
         </Badge>
+        {selectedNodeId && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 px-2 gap-1 text-primary hover:text-primary hover:bg-primary/10 shrink-0"
+            onClick={() => requestNodeExpansion(selectedNodeId)}
+            title="이 노드를 기준으로 AI 확장"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span className="text-[11px]">확장</span>
+          </Button>
+        )}
         {onDeleteRequest && (
           <Button
             variant="ghost"
@@ -867,7 +911,7 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
       <Separator />
 
       {/* Tabs */}
-      <Tabs defaultValue="detail" className="flex-1 flex flex-col min-h-0">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
         <TabsList className="w-full justify-start rounded-none border-b bg-transparent h-9 px-4 shrink-0">
           <TabsTrigger value="detail" className="text-xs h-7 px-3 data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none">
             상세
@@ -904,13 +948,62 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
               </div>
             )}
 
+            {/* Provenance (출처): 추출·보강 시 영속화된 sourceType/confidence/evidence 표시(표시 전용) */}
+            {selectedClass &&
+              (selectedClass.sourceType ||
+                selectedClass.confidence != null ||
+                selectedClass.evidence) && (
+                <div className="px-4 pb-3 -mt-1 space-y-1.5">
+                  <div className="flex items-center flex-wrap gap-1">
+                    {selectedClass.sourceType && (
+                      <Badge variant="outline" className="text-[9px] h-4 px-1 text-muted-foreground">
+                        {({
+                          session_doc: '세션 문서',
+                          existing_graph: '기존 그래프',
+                          web: '웹',
+                          inferred: '추론',
+                          document: '문서',
+                          sap: 'SAP',
+                          user: '직접 입력',
+                        } as Record<string, string>)[selectedClass.sourceType] ?? selectedClass.sourceType}
+                      </Badge>
+                    )}
+                    {selectedClass.confidence != null && (
+                      <Badge
+                        variant="outline"
+                        className={`text-[9px] h-4 px-1 tabular-nums ${
+                          selectedClass.confidence >= 0.8
+                            ? 'text-emerald-600 border-emerald-500/40 dark:text-emerald-400'
+                            : selectedClass.confidence >= 0.5
+                              ? 'text-amber-600 border-amber-500/40 dark:text-amber-400'
+                              : 'text-red-600 border-red-500/40 dark:text-red-400'
+                        }`}
+                        title={`AI 확신도 ${Math.round(selectedClass.confidence * 100)}%`}
+                        aria-label={`AI 확신도 ${Math.round(selectedClass.confidence * 100)} 퍼센트`}
+                      >
+                        {Math.round(selectedClass.confidence * 100)}%
+                      </Badge>
+                    )}
+                  </div>
+                  {selectedClass.evidence && selectedClass.evidence !== 'existing' && (
+                    <p
+                      className="text-[10px] text-muted-foreground/70 italic line-clamp-2"
+                      title={selectedClass.evidence}
+                    >
+                      &ldquo;{selectedClass.evidence}&rdquo;
+                    </p>
+                  )}
+                </div>
+              )}
+
             <Separator />
 
             {/* Subclasses */}
             {selectedClass && (
               <>
                 <CollapsibleSection
-                  title="Subclasses"
+                  title="하위 클래스"
+                  hint="이 유형을 더 잘게 나눈 종류 (예: 차량 → 승용차·트럭)"
                   count={subclasses.length}
                   defaultOpen
                   onAdd={() => setShowAddSubclass(true)}
@@ -950,11 +1043,12 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
             {selectedClass && (
               <>
                 <CollapsibleSection
-                  title="Properties"
+                  title="속성"
+                  hint="이 유형이 가지는 항목 (예: 이름·나이·가격)"
                   count={nodeProperties.length}
                   defaultOpen
                   onAdd={() => setShowAddProperty(true)}
-                  addLabel="프로퍼티 추가"
+                  addLabel="속성 추가"
                 >
                   {nodeProperties.map((prop) => (
                     <PropertyRow
@@ -985,8 +1079,8 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
                     {inheritedByAncestor.map(([ancestorId, { name: ancestorName, props }]) => (
                       <div key={ancestorId} className="px-4 py-2">
                         <div className="flex items-center gap-1.5 mb-2">
-                          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-                            Inherited from {ancestorName}
+                          <span className="text-[11px] font-semibold tracking-tight text-muted-foreground/70">
+                            {ancestorName}에서 상속된 속성
                           </span>
                           <span className="text-[10px] font-mono text-muted-foreground/60 ml-auto">
                             ({props.length})
@@ -1016,7 +1110,8 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
             {selectedClass && (
               <>
                 <CollapsibleSection
-                  title="Constraints"
+                  title="제약조건"
+                  hint="이 유형이 지켜야 할 규칙 (예: 나이는 0 이상)"
                   count={nodeAxioms.length}
                   defaultOpen={false}
                   onAdd={() => setShowAddConstraint(true)}
@@ -1052,7 +1147,8 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
             {/* Instances */}
             {selectedClass && (
               <CollapsibleSection
-                title="Instances"
+                title="인스턴스 (실제 사례)"
+                hint="이 유형에 속하는 실제 개체 (예: 홍길동, 3호기)"
                 count={nodeInstances.length}
                 defaultOpen={false}
                 onAdd={() => setShowAddInstance(true)}
@@ -1111,7 +1207,8 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
               <>
                 {/* Property Values */}
                 <CollapsibleSection
-                  title="Property Values"
+                  title="속성 값"
+                  hint="이 사례의 실제 값을 입력하세요"
                   count={instanceProperties.length + allInheritedForInstance.length}
                   defaultOpen
                 >
@@ -1170,7 +1267,8 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
         <TabsContent value="relations" className="flex-1 mt-0 min-h-0">
           <ScrollArea className="h-full">
             <CollapsibleSection
-              title="Relations"
+              title="관계"
+              hint="다른 노드와 어떻게 연결되는지 (예: 회사 →고용→ 사람)"
               count={nodeEdges.length}
               defaultOpen
               onAdd={() => {
@@ -1207,9 +1305,26 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
                     >
                       {otherName}
                     </button>
+                    {edge.confidence != null && (
+                      <Badge
+                        variant="outline"
+                        className={`h-4 text-[9px] px-1 tabular-nums shrink-0 ${
+                          edge.confidence >= 0.8
+                            ? 'text-emerald-600 border-emerald-500/40 dark:text-emerald-400'
+                            : edge.confidence >= 0.5
+                              ? 'text-amber-600 border-amber-500/40 dark:text-amber-400'
+                              : 'text-red-600 border-red-500/40 dark:text-red-400'
+                        }`}
+                        title={`AI 확신도 ${Math.round(edge.confidence * 100)}%${edge.evidence ? ` · 근거: ${edge.evidence}` : ''}`}
+                        aria-label={`AI 확신도 ${Math.round(edge.confidence * 100)} 퍼센트`}
+                      >
+                        {Math.round(edge.confidence * 100)}%
+                      </Badge>
+                    )}
                     <button
                       className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive shrink-0"
                       onClick={() => removeEdge(edge.id)}
+                      aria-label={`관계 삭제: ${relType?.name ?? 'relation'} → ${otherName}`}
                     >
                       <Trash2 className="w-3 h-3" />
                     </button>

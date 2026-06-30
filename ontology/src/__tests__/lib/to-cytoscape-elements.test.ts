@@ -24,13 +24,13 @@ function cls(partial: Partial<OntologyClass> & { id: string; name: string }): On
   } as OntologyClass;
 }
 function inst(id: string, name: string, classId: string): OntologyInstance {
-  return { id, name, classId, createdAt: '', updatedAt: '' };
+  return { id, name, classId, description: '', createdAt: '', updatedAt: '' };
 }
 function edge(id: string, sourceId: string, targetId: string, relationTypeId: string): OntologyEdge {
   return { id, sourceId, targetId, relationTypeId, sourceKind: 'class', targetKind: 'class', createdAt: '' };
 }
 function rel(id: string, name: string): RelationType {
-  return { id, name, description: '', sourceClassId: '', targetClassId: '', createdAt: '' };
+  return { id, name, description: '', category: 'descriptive', sourceClassId: '', targetClassId: '', createdAt: '' };
 }
 
 describe('getColorKey', () => {
@@ -105,6 +105,14 @@ describe('buildElements', () => {
     // c의 차수 = isa(1) + instanceof(1) + e1(1) + e2(1) = 4 → computeNodeSize(4) = 56
     expect(byId.get('c')?.data.degree).toBe(4);
     expect(byId.get('c')?.data.size).toBe(56);
+  });
+
+  it('builds class displayLabel as plain name, and tags instance with classId', () => {
+    // displayLabel 은 평소 이름만(개수는 접힐 때 useCytoscape가 `이름 (N)`으로 동적 설정)
+    expect(byId.get('c')?.data.displayLabel).toBe('자식');
+    expect(byId.get('p')?.data.displayLabel).toBe('부모');
+    // 인스턴스 노드는 접힘 토글이 부모별로 찾을 수 있도록 classId 를 가진다
+    expect(byId.get('i1')?.data.classId).toBe('c');
   });
 
   it('marks empty class and isa/instanceof edges', () => {

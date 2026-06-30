@@ -15,6 +15,7 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
   currentPartitionId: DEFAULT_PARTITION_ID,
   showAllPartitions: false,
   zoomAction: null,
+  aiExpandRequest: null,
 
   // Filter defaults (P1-4)
   showClasses: true,
@@ -26,6 +27,25 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
 
   selectNode: (id, type) => set({ selectedNodeId: id, selectedNodeType: type }),
   clearSelection: () => set({ selectedNodeId: null, selectedNodeType: null }),
+
+  // 진입점에서 호출: 노드를 선택하고 AI 확장 신호를 올린다. 이름/타입은 현재
+  // 엔티티에서 해석한다. 대상 노드를 못 찾으면 무시(no-op).
+  requestNodeExpansion: (nodeId) =>
+    set((state) => {
+      const cls = state.classes.find((c) => c.id === nodeId);
+      const inst = cls ? undefined : state.instances.find((i) => i.id === nodeId);
+      if (!cls && !inst) return {};
+      const nodeType: 'class' | 'instance' = cls ? 'class' : 'instance';
+      const nodeName = cls ? cls.name : inst!.name;
+      const nonce = (state.aiExpandRequest?.nonce ?? 0) + 1;
+      return {
+        selectedNodeId: nodeId,
+        selectedNodeType: nodeType,
+        aiExpandRequest: { nodeId, nodeName, nodeType, nonce },
+      };
+    }),
+
+  consumeAiExpandRequest: () => set({ aiExpandRequest: null }),
 
   openPopover: (popoverState) => set({ popoverState }),
   closePopover: () => set({ popoverState: null }),

@@ -6,6 +6,7 @@ import { X, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useOntologyStore } from '../hooks/useOntologyStore';
 import { calcPopoverPosition } from '../lib/popover-position';
+import { useDraggable } from '../hooks/useDraggable';
 import { toast } from 'sonner';
 import type { OntologyClass } from '../lib/types';
 
@@ -53,6 +54,14 @@ export default function HierarchyPopover() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, handleClose]);
 
+  // 팝오버를 헤더로 드래그해 옮길 수 있게 한다(하단에서 가려질 때 위로 이동).
+  const drag = useDraggable();
+  const popoverOpenKey =
+    isOpen && popoverState ? `${popoverState.position.x},${popoverState.position.y}` : null;
+  useEffect(() => {
+    drag.reset();
+  }, [popoverOpenKey, drag.reset]);
+
   if (!isOpen) return null;
 
   const { sourceId, targetId } = popoverState;
@@ -91,12 +100,23 @@ export default function HierarchyPopover() {
         {...popoverAnimation}
         className="absolute w-[340px] max-w-[360px] bg-white dark:bg-card border border-border rounded-xl shadow-lg p-4"
         style={{
-          left: popoverPos.left,
-          top: popoverPos.top,
+          left: popoverPos.left + drag.offset.x,
+          top: popoverPos.top + drag.offset.y,
           boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
         }}
         onClick={(e) => e.stopPropagation()}
       >
+        {/* 드래그 핸들: 팝오버를 잡고 옮길 수 있는 상단 그립 */}
+        <div
+          {...drag.dragHandleProps}
+          style={{ ...drag.dragHandleProps.style, cursor: drag.isDragging ? 'grabbing' : 'grab' }}
+          className="group/drag absolute left-0 right-0 top-0 z-10 flex h-4 items-center justify-center rounded-t-xl pt-1"
+          title="드래그해서 창 이동"
+          aria-label="팝오버 이동 핸들"
+        >
+          <div className="h-1 w-10 rounded-full bg-border transition-colors group-hover/drag:bg-muted-foreground/50" />
+        </div>
+
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-semibold">계층 이동</h3>
           <button onClick={handleClose} className="text-muted-foreground hover:text-foreground">

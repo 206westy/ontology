@@ -11,7 +11,18 @@ import { assistApi } from '../api';
 import type { OntologyAction } from '../lib/schemas';
 import { isBulkInput } from '../lib/input-heuristics';
 import { uuid } from '../lib/uuid';
+import type { ActionPlan } from '../lib/plan-actions';
 import ActionCard, { type ActionState } from './ai/ActionCard';
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogFooter,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from '@/components/ui/alert-dialog';
 
 interface ActionItem {
   action: OntologyAction;
@@ -33,18 +44,24 @@ export default function AIAssistantTab({ nodeName }: { nodeName: string }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  // "모두 적용" 전 영향 요약 확인용. null 이면 닫힘.
+  const [applyConfirm, setApplyConfirm] = useState<{ msgId: string; indices: number[]; plan: ActionPlan } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timedOutRef = useRef(false);
+  const expandNonceRef = useRef(0);
 
   const selectedNodeId = useOntologyStore((s) => s.selectedNodeId);
+  const aiExpandRequest = useOntologyStore((s) => s.aiExpandRequest);
+  const consumeAiExpandRequest = useOntologyStore((s) => s.consumeAiExpandRequest);
   const aiClasses = useOntologyStore((s) => s.classes);
   const aiInstances = useOntologyStore((s) => s.instances);
   const aiEdges = useOntologyStore((s) => s.edges);
   const applyAssistantActions = useOntologyStore((s) => s.applyAssistantActions);
+  const previewAssistantActions = useOntologyStore((s) => s.previewAssistantActions);
   const highlightNodes = useOntologyStore((s) => s.highlightNodes);
   const openPopover = useOntologyStore((s) => s.openPopover);
 
@@ -107,8 +124,8 @@ export default function AIAssistantTab({ nodeName }: { nodeName: string }) {
     abortRef.current?.abort();
   }, []);
 
-  const handleSubmit = useCallback(async () => {
-    const trimmed = input.trim();
+  const submitMessage = useCallback(async (raw: string) => {
+    const trimmed = raw.trim();
     if (!trimmed || loading) return;
 
     const userMsg: ChatMessage = { id: uuid(), role: 'user', text: trimmed };
@@ -167,46 +184,92 @@ export default function AIAssistantTab({ nodeName }: { nodeName: string }) {
       abortRef.current = null;
       setLoading(false);
     }
-  }, [input, loading, selectedNodeId, ontologySummary, stopTimers]);
+  }, [loading, selectedNodeId, ontologySummary, stopTimers]);
 
-  // Apply a set of action items (single compound store action = one undo step)
+  const handleSubmit = useCallback(() => {
+    void submitMessage(input);
+  }, [submitMessage, input]);
+
+  // 진입점(컨텍스트 메뉴/패널 버튼)에서 올라온 노드 확장 요청을 소비해 확장
+  // 프롬프트를 자동 전송한다. 전송을 한 틱 지연시켜 StrictMode/탭 전환의
+  // mount→unmount→remount 사이클에서 언마운트 cleanup(abortRef.abort)이 방금 시작한
+  // 요청을 죽이지 않게 한다(버려지는 mount는 clearTimeout으로 취소). nonce는 실제
+  // 발화 시점에 기록하고, 소비 후 신호를 비워 재마운트 재전송을 방지한다.
+  useEffect(() => {
+    const req = aiExpandRequest;
+    if (!req || req.nonce === expandNonceRef.current) return;
+    const timer = setTimeout(() => {
+      expandNonceRef.current = req.nonce;
+      const kindKo = req.nodeType === 'class' ? '클래스' : '인스턴스';
+      const prompt =
+        `"${req.nodeName}" ${kindKo}를 기준으로 온톨로지를 확장해줘. ` +
+        `이 개념과 직접 관련된 하위 클래스, 속성, 다른 개념과의 관계를 제안해줘. ` +
+        `이미 존재하는 항목과 중복되지 않게 새로운 것만 제안해줘.`;
+      void submitMessage(prompt);
+      consumeAiExpandRequest();
+    }, 80);
+    return () => clearTimeout(timer);
+  }, [aiExpandRequest, submitMessage, consumeAiExpandRequest]);
+
+  // Apply a set of action items (single compound store action = one undo step).
+  // 스토어 변경/토스트/하이라이트는 setMessages 업데이터 밖(이벤트 핸들러 본문)에서 수행한다.
+  // 업데이터 안에서 store action 을 호출하면 렌더 도중 Home 등 구독 컴포넌트가
+  // setState 되어 "Cannot update a component while rendering" 경고가 발생한다.
   const runApply = useCallback(
     (msgId: string, indices: number[]) => {
-      setMessages((prev) => {
-        const msg = prev.find((m) => m.id === msgId);
-        if (!msg?.actions) return prev;
+      const msg = messages.find((m) => m.id === msgId);
+      if (!msg?.actions) return;
 
-        const targets = indices
-          .map((i) => ({ i, item: msg.actions![i] }))
-          .filter(({ item }) => item && item.state === 'pending');
-        if (targets.length === 0) return prev;
+      const targets = indices
+        .map((i) => ({ i, item: msg.actions![i] }))
+        .filter(({ item }) => item && item.state === 'pending');
+      if (targets.length === 0) return;
 
-        const result = applyAssistantActions(targets.map(({ item }) => item.action));
+      const result = applyAssistantActions(targets.map(({ item }) => item.action));
 
-        const skipQueue = [...result.skipped];
-        const nextActions = msg.actions.map((item, idx) => {
-          const hit = targets.find((t) => t.i === idx);
-          if (!hit) return item;
-          const skipIdx = skipQueue.findIndex((s) => s.label === item.action.label);
-          if (skipIdx !== -1) {
-            const [skip] = skipQueue.splice(skipIdx, 1);
-            return { ...item, state: 'skipped' as ActionState, skipReason: skip.reason };
-          }
-          return { ...item, state: 'applied' as ActionState };
-        });
-
-        if (result.applied.length > 0) {
-          highlightNodes(result.applied);
+      const skipQueue = [...result.skipped];
+      const nextActions = msg.actions.map((item) => {
+        const hit = targets.find((t) => t.item === item);
+        if (!hit) return item;
+        const skipIdx = skipQueue.findIndex((s) => s.label === item.action.label);
+        if (skipIdx !== -1) {
+          const [skip] = skipQueue.splice(skipIdx, 1);
+          return { ...item, state: 'skipped' as ActionState, skipReason: skip.reason };
         }
-        const appliedCount = targets.length - result.skipped.length;
-        if (appliedCount > 0) toast.success(`${appliedCount}개 액션을 적용했습니다`);
-        if (result.skipped.length > 0) toast.warning(`${result.skipped.length}개 액션을 적용하지 못했습니다`);
-
-        return prev.map((m) => (m.id === msgId ? { ...m, actions: nextActions } : m));
+        return { ...item, state: 'applied' as ActionState };
       });
+
+      if (result.applied.length > 0) {
+        highlightNodes(result.applied);
+      }
+      const appliedCount = targets.length - result.skipped.length;
+      if (appliedCount > 0) toast.success(`${appliedCount}개 액션을 적용했습니다`);
+      if (result.skipped.length > 0) toast.warning(`${result.skipped.length}개 액션을 적용하지 못했습니다`);
+
+      setMessages((prev) => prev.map((m) => (m.id === msgId ? { ...m, actions: nextActions } : m)));
     },
-    [applyAssistantActions, highlightNodes],
+    [messages, applyAssistantActions, highlightNodes],
   );
+
+  // "모두 적용" → 즉시 적용하지 않고, 적용 전 영향 요약을 먼저 보여준다.
+  const requestApplyAll = useCallback(
+    (msgId: string, indices: number[]) => {
+      const msg = messages.find((m) => m.id === msgId);
+      if (!msg?.actions) return;
+      const actions = indices
+        .map((i) => msg.actions![i]?.action)
+        .filter((a): a is OntologyAction => Boolean(a));
+      if (actions.length === 0) return;
+      setApplyConfirm({ msgId, indices, plan: previewAssistantActions(actions) });
+    },
+    [messages, previewAssistantActions],
+  );
+
+  const confirmApplyAll = useCallback(() => {
+    if (!applyConfirm) return;
+    runApply(applyConfirm.msgId, applyConfirm.indices);
+    setApplyConfirm(null);
+  }, [applyConfirm, runApply]);
 
   const ignoreOne = useCallback((msgId: string, index: number) => {
     setMessages((prev) =>
@@ -273,7 +336,7 @@ export default function AIAssistantTab({ nodeName }: { nodeName: string }) {
                               size="sm"
                               variant="outline"
                               className="h-5 text-[10px] px-2"
-                              onClick={() => runApply(msg.id, pendingIdx)}
+                              onClick={() => requestApplyAll(msg.id, pendingIdx)}
                             >
                               모두 적용 ({pendingIdx.length})
                             </Button>
@@ -302,8 +365,12 @@ export default function AIAssistantTab({ nodeName }: { nodeName: string }) {
                     <Bot className="w-3 h-3 text-primary" />
                   </div>
                 </div>
-                <span className="inline-flex items-center gap-1 text-muted-foreground text-xs">
-                  <Loader2 className="w-3 h-3 animate-spin" />
+                <span
+                  className="inline-flex items-center gap-1 text-muted-foreground text-xs"
+                  role="status"
+                  aria-live="polite"
+                >
+                  <Loader2 className="w-3 h-3 animate-spin" aria-hidden="true" />
                   분석 중… ({elapsed}s)
                 </span>
                 <Button
@@ -397,6 +464,60 @@ export default function AIAssistantTab({ nodeName }: { nodeName: string }) {
           </Button>
         </div>
       </div>
+
+      <AlertDialog open={!!applyConfirm} onOpenChange={(open) => { if (!open) setApplyConfirm(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>적용 전 확인</AlertDialogTitle>
+            <AlertDialogDescription>
+              {applyConfirm
+                ? `추가 ${applyConfirm.plan.summary.create}개` +
+                  (applyConfirm.plan.summary.update > 0 ? ` · 수정 ${applyConfirm.plan.summary.update}개` : '') +
+                  (applyConfirm.plan.summary.skip > 0 ? ` · 건너뜀 ${applyConfirm.plan.summary.skip}개` : '')
+                : ''}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          {applyConfirm && (
+            <div className="max-h-64 overflow-y-auto space-y-1 text-xs">
+              {applyConfirm.plan.outcomes.map((o, i) => {
+                const isSkip = o.status === 'skip';
+                return (
+                  <div
+                    key={i}
+                    className={`flex items-start gap-2 rounded-md border px-2 py-1.5 ${
+                      isSkip
+                        ? 'border-amber-500/30 bg-amber-500/10'
+                        : 'border-border bg-muted/30'
+                    }`}
+                  >
+                    <span
+                      className={`shrink-0 mt-px rounded px-1 text-[10px] font-medium ${
+                        isSkip
+                          ? 'bg-amber-500/20 text-amber-700 dark:text-amber-400'
+                          : 'bg-primary/10 text-primary'
+                      }`}
+                    >
+                      {o.status === 'create' ? '추가' : o.status === 'update' ? '수정' : '건너뜀'}
+                    </span>
+                    <span className="min-w-0 break-words leading-relaxed text-foreground">{o.detail}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmApplyAll}
+              disabled={!applyConfirm || applyConfirm.plan.summary.create + applyConfirm.plan.summary.update === 0}
+            >
+              적용{applyConfirm ? ` (${applyConfirm.plan.summary.create + applyConfirm.plan.summary.update})` : ''}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
