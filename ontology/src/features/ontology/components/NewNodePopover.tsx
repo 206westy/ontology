@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, Fragment } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Paperclip, ClipboardPaste, ArrowRight, ArrowLeft, Check, Trash2, Loader2, ChevronRight, Link2, Circle, Plus, Table, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -18,14 +18,18 @@ import {
 } from '@/components/ui/select';
 import { useOntologyStore } from '../hooks/useOntologyStore';
 import { NODE_COLORS } from '../constants/colors';
-import { llmApi, enrichApi, type LlmParseResult, type DetectSubgraphInput } from '../api';
-import { mapParseResult, findPossibleDuplicates, computeIslands } from '../lib/parse-mapping';
+import { llmApi, enrichApi, dedupApi, constraintsApi, type LlmParseResult, type DetectSubgraphInput } from '../api';
+import { mapParseResult, findPossibleDuplicates, computeIslands, partitionRelationsByCategory } from '../lib/parse-mapping';
+import { reviewProposal, type CriticIssue, type CriticSeverity } from '../lib/critic/review';
 import { buildParseSchemaContext } from '../lib/schema-context';
 import type { EnrichmentItem, EnrichProposal } from '../lib/enrich-types';
+import type { GovernanceProposal, DedupResolveResponse } from '../lib/schemas';
 import IslandList from './preview/IslandList';
 import EnrichmentCard from './preview/EnrichmentCard';
+import GovernanceProposalCard from './preview/GovernanceProposalCard';
 import { toast } from 'sonner';
 import { calcPopoverPosition } from '../lib/popover-position';
+import { useDraggable } from '../hooks/useDraggable';
 import { useClassAutocomplete, fuzzyMatch } from '../hooks/useAutocomplete';
 import AutocompleteSuggestions from './AutocompleteSuggestions';
 
@@ -163,33 +167,6 @@ function buildTreeItems(
   return items;
 }
 
-interface CsvRow {
-  name: string;
-  type: 'class' | 'instance';
-  description: string;
-  parentClass: string;
-}
-
-function parseCsv(input: string): CsvRow[] {
-  const lines = input.split('\n').map((l) => l.trim()).filter(Boolean);
-  if (lines.length === 0) return [];
-
-  // Detect if first line is a header
-  const firstLine = lines[0].toLowerCase();
-  const hasHeader = firstLine.includes('name') || firstLine.includes('이름') || firstLine.includes('type') || firstLine.includes('타입');
-  const dataLines = hasHeader ? lines.slice(1) : lines;
-
-  return dataLines.map((line) => {
-    const cols = line.split(',').map((c) => c.trim());
-    return {
-      name: cols[0] ?? '',
-      type: (cols[1]?.toLowerCase() === 'instance' ? 'instance' : 'class') as 'class' | 'instance',
-      description: cols[2] ?? '',
-      parentClass: cols[3] ?? '',
-    };
-  }).filter((row) => row.name.length > 0);
-}
-
 const popoverAnimation = {
   initial: { opacity: 0, scale: 0.95, y: -8 },
   animate: { opacity: 1, scale: 1, y: 0, transition: { type: 'spring' as const, damping: 25, stiffness: 350 } },
@@ -198,6 +175,45 @@ const popoverAnimation = {
 
 const POPOVER_WIDTH = 400;
 const POPOVER_EST_HEIGHT = 400;
+
+// PRD-E P2-5: 중복대조 결정 배지
+const DEDUP_LABEL: Record<string, string> = {
+  reuse: '재사용',
+  relate: '관계',
+  possible_duplicate: '중복 가능',
+  new: '신규',
+};
+const DEDUP_BADGE: Record<string, string> = {
+  reuse: 'border-emerald-400 text-emerald-600',
+  relate: 'border-blue-400 text-blue-600',
+  possible_duplicate: 'border-amber-400 text-amber-600',
+  new: 'border-muted-foreground/40 text-muted-foreground',
+};
+
+// PR1 (목표①): 관계 category 배지 — 액션 지향 분류를 색으로 구분.
+const CATEGORY_LABEL: Record<string, string> = {
+  structural: '구조',
+  causal: '인과',
+  diagnostic: '진단',
+  procedural: '절차',
+  descriptive: '서술',
+};
+const CATEGORY_BADGE: Record<string, string> = {
+  structural: 'border-violet-400 text-violet-600',
+  causal: 'border-rose-400 text-rose-600',
+  diagnostic: 'border-amber-400 text-amber-600',
+  procedural: 'border-sky-400 text-sky-600',
+  descriptive: 'border-muted-foreground/40 text-muted-foreground',
+};
+
+// S4: Critic 검수 — 심각도 배지/라벨, 이슈 식별 키.
+const CRITIC_SEVERITY_LABEL: Record<CriticSeverity, string> = { high: '높음', med: '중간', low: '낮음' };
+const CRITIC_SEVERITY_BADGE: Record<CriticSeverity, string> = {
+  high: 'border-red-400 text-red-600',
+  med: 'border-amber-400 text-amber-600',
+  low: 'border-muted-foreground/40 text-muted-foreground',
+};
+const criticKey = (i: CriticIssue) => `${i.ruleId}::${i.targetName}::${i.relatedName ?? ''}`;
 
 export default function NewNodePopover() {
   const popoverState = useOntologyStore((s) => s.popoverState);
@@ -208,6 +224,7 @@ export default function NewNodePopover() {
   const addEdge = useOntologyStore((s) => s.addEdge);
   const addInstance = useOntologyStore((s) => s.addInstance);
   const setInstanceValue = useOntologyStore((s) => s.setInstanceValue);
+  const addAxiom = useOntologyStore((s) => s.addAxiom);
 
   const classes = useOntologyStore((s) => s.classes);
   const relationTypes = useOntologyStore((s) => s.relationTypes);
@@ -226,10 +243,31 @@ export default function NewNodePopover() {
   // A-4: web search is opt-in, OFF by default. Tracks which gaps are mid-sourcing.
   const [useWeb, setUseWeb] = useState(false);
   const [sourcingIds, setSourcingIds] = useState<Set<string>>(new Set());
+  // PRD-E P2-7: 거버넌스 제안 (HITL — 승인 전 미반영)
+  const [governance, setGovernance] = useState<GovernanceProposal[]>([]);
+  const [governanceLoading, setGovernanceLoading] = useState(false);
+  const [appliedGov, setAppliedGov] = useState<Set<number>>(new Set());
+  const [applyingGov, setApplyingGov] = useState<Set<number>>(new Set());
+  const [ignoredGov, setIgnoredGov] = useState<Set<number>>(new Set());
+  // PRD-E P2-5: 중복대조 판정 (노드 이름 → reuse/relate/possible_duplicate/new)
+  const [dedup, setDedup] = useState<Map<string, DedupResolveResponse>>(new Map());
+  const [dedupLoading, setDedupLoading] = useState(false);
+  // PR1 (목표①): descriptive(서술) 관계는 기본 접힘 — 사용자가 펼쳐서 선택적 채택.
+  const [showDescriptive, setShowDescriptive] = useState(false);
+  // S4: Critic 검수에서 사용자가 무시한 이슈 키 집합(읽기전용 자문 — 확정 차단 안 함).
+  const [ignoredCritic, setIgnoredCritic] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [loadingSteps, setLoadingSteps] = useState<{ label: string; status: 'pending' | 'running' | 'done' }[]>([]);
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  // 팝오버를 헤더로 드래그해 옮길 수 있게 한다(하단에서 가려질 때 위로 이동).
+  const drag = useDraggable();
+  // 팝오버가 새로 열리면(트리거 위치 변경) 누적 이동량을 초기화한다.
+  const popoverOpenKey = popoverState ? `${popoverState.position.x},${popoverState.position.y}` : null;
+  useEffect(() => {
+    drag.reset();
+  }, [popoverOpenKey, drag.reset]);
 
   // Quick input state
   const [quickName, setQuickName] = useState('');
@@ -237,10 +275,8 @@ export default function NewNodePopover() {
   const [quickType, setQuickType] = useState<'class' | 'instance'>('class');
   const [quickParentId, setQuickParentId] = useState<string>('');
 
-  // CSV state
+  // CSV state (M5: raw table text; analysis reuses the LLM parse/preview path)
   const [csvText, setCsvText] = useState('');
-  const [csvRows, setCsvRows] = useState<CsvRow[]>([]);
-  const [csvPreviewed, setCsvPreviewed] = useState(false);
 
   // Autocomplete state
   const classAC = useClassAutocomplete();
@@ -256,11 +292,13 @@ export default function NewNodePopover() {
 
   // Pre-fill text from EmptyState inline input
   useEffect(() => {
-    if (isOpen && popoverState?.initialText && popoverState.initialText !== initialTextRef.current) {
+    // initialText 가 비어 있어도(빈 문자열) 텍스트(붙여넣기) 탭으로 진입시킨다.
+    // 단, 자동 파싱은 실제 내용이 있을 때만 트리거(빈 입력 파싱 방지).
+    if (isOpen && popoverState?.initialText !== undefined && popoverState.initialText !== initialTextRef.current) {
       initialTextRef.current = popoverState.initialText;
       setInputText(popoverState.initialText);
       setActiveTab('text');
-      autoTriggerRef.current = true;
+      autoTriggerRef.current = popoverState.initialText.trim().length > 0;
     }
     if (!isOpen) {
       initialTextRef.current = null;
@@ -300,6 +338,42 @@ export default function NewNodePopover() {
     [parsed],
   );
 
+  // PR1 (목표①): 액션 지향 관계와 서술 관계 분리 (서술은 강등 표시).
+  const relationGroups = useMemo(
+    () =>
+      parsed
+        ? partitionRelationsByCategory(parsed.relations)
+        : { actionable: [], descriptive: [] },
+    [parsed],
+  );
+
+  // S4: Critic 검수 리포트 — 결정론 검수기를 클라이언트에서 직접 돌린다(네트워크 0,
+  // 실패 모드 0). 기존과 이름이 동일한(=재사용될) 노드는 proposed에서 제외해 노이즈를
+  // 줄인다. 기존 이름은 existing으로 넘겨 미정의/중복 판정의 기준이 되게 한다.
+  const criticReport = useMemo(() => {
+    if (!parsed) return null;
+    const existingInst = new Set(instances.map((i) => i.name));
+    return reviewProposal({
+      proposed: {
+        classes: parsed.classes
+          .filter((c) => !existingClassNames.has(c.name))
+          .map((c) => ({ name: c.name, type: c.parentName, description: c.description, evidence: c.evidence })),
+        instances: parsed.instances
+          .filter((i) => !existingInst.has(i.name))
+          .map((i) => ({ name: i.name, className: i.className })),
+        relations: parsed.relations.map((r) => ({
+          source: r.sourceName,
+          target: r.targetName,
+          type: r.relationName,
+        })),
+      },
+      existing: {
+        classNames: classes.map((c) => c.name),
+        instanceNames: instances.map((i) => i.name),
+      },
+    });
+  }, [parsed, classes, instances, existingClassNames]);
+
   // A-1.1: class names available as instance parents (extracted + existing).
   const allClassNames = useMemo(() => {
     const names = new Set<string>();
@@ -322,6 +396,13 @@ export default function NewNodePopover() {
     setEnrichLoading(false);
     setSourcingIds(new Set());
     setUseWeb(false);
+    setGovernance([]);
+    setGovernanceLoading(false);
+    setAppliedGov(new Set());
+    setApplyingGov(new Set());
+    setIgnoredGov(new Set());
+    setDedup(new Map());
+    setDedupLoading(false);
     setIsLoading(false);
     setLoadingProgress(0);
     setLoadingSteps([]);
@@ -330,8 +411,8 @@ export default function NewNodePopover() {
     setQuickType('class');
     setQuickParentId('');
     setCsvText('');
-    setCsvRows([]);
-    setCsvPreviewed(false);
+    setShowDescriptive(false);
+    setIgnoredCritic(new Set());
     classAC.clear();
     setShowClassAC(false);
     closePopover();
@@ -392,56 +473,6 @@ export default function NewNodePopover() {
     setQuickDesc('');
     setQuickType('class');
     setQuickParentId('');
-  };
-
-  // --- CSV handlers ---
-  const handleCsvPreview = () => {
-    const rows = parseCsv(csvText);
-    if (rows.length === 0) {
-      toast.error('CSV 데이터를 파싱할 수 없습니다');
-      return;
-    }
-    setCsvRows(rows);
-    setCsvPreviewed(true);
-  };
-
-  const handleCsvConfirm = () => {
-    if (csvRows.length === 0) return;
-
-    const classIdMap = new Map<string, string>();
-    classes.forEach((c) => classIdMap.set(c.name, c.id));
-
-    // First pass: add classes
-    csvRows
-      .filter((r) => r.type === 'class')
-      .forEach((row) => {
-        if (existingClassNames.has(row.name)) return;
-        const parentId = row.parentClass ? classIdMap.get(row.parentClass) : undefined;
-        const id = addClass({
-          name: row.name,
-          description: row.description,
-          color: NODE_COLORS.mid,
-          parentId,
-          positionX: popoverState!.position.x + Math.random() * 200 - 100,
-          positionY: popoverState!.position.y + Math.random() * 200 - 100,
-        });
-        classIdMap.set(row.name, id);
-      });
-
-    // Second pass: add instances
-    csvRows
-      .filter((r) => r.type === 'instance')
-      .forEach((row) => {
-        const classId = classIdMap.get(row.parentClass);
-        if (!classId) {
-          toast.error(`인스턴스 "${row.name}"의 부모 클래스 "${row.parentClass}"를 찾을 수 없습니다`);
-          return;
-        }
-        addInstance({ name: row.name, classId });
-      });
-
-    toast.success(`CSV에서 ${csvRows.length}개 항목 추가됨`);
-    resetAndClose();
   };
 
   // A-3: detect enrichment gaps for the freshly-extracted subgraph (+ adjacent
@@ -508,27 +539,38 @@ export default function NewNodePopover() {
     }
   };
 
-  // --- Text input (LLM) handler ---
-  const handleGenerate = async () => {
-    if (!inputText.trim()) return;
+  // --- Text / CSV input (LLM) handler ---
+  // M5: same two-stage parse + preview pipeline for both. kind="csv" routes to
+  // the CSV-specialized prompts and a 15,000-char cap (capped by total text, not
+  // row count). The source is unified into inputText so the preview's
+  // governance / 보강 / 중복검사 (which read inputText) work for CSV too.
+  const TEXT_CHAR_LIMIT = 8000;
+  const CSV_CHAR_LIMIT = 15000;
+  const handleGenerate = async (opts?: { source?: string; kind?: 'text' | 'csv' }) => {
+    const kind = opts?.kind ?? 'text';
+    const source = opts?.source ?? inputText;
+    if (!source.trim()) return;
 
-    // PATCH-4: single-call parse cap. Block giant docs before the round-trip so
+    // PATCH-4: single-call parse cap. Block giant inputs before the round-trip so
     // we don't fall into the retry loop or silently mock-parse garbage.
-    if (inputText.length > 8000) {
-      toast.error('문서가 너무 깁니다', {
-        description: `${inputText.length.toLocaleString()}자 — 8,000자 이하로 섹션을 나눠 입력해 주세요.`,
+    const charLimit = kind === 'csv' ? CSV_CHAR_LIMIT : TEXT_CHAR_LIMIT;
+    if (source.length > charLimit) {
+      toast.error(kind === 'csv' ? 'CSV 데이터가 너무 깁니다' : '문서가 너무 깁니다', {
+        description: `${source.length.toLocaleString()}자 — ${charLimit.toLocaleString()}자 이하로 나눠 입력해 주세요.`,
       });
       return;
     }
 
-    const isLargeInput = inputText.length >= 100;
+    if (kind === 'csv') setInputText(source);
+
+    const isLargeInput = source.length >= 100;
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
     if (isLargeInput) {
       const steps = [
-        { label: '텍스트 파싱', status: 'pending' as const },
-        { label: '엔티티 추출', status: 'pending' as const },
+        { label: kind === 'csv' ? 'CSV 파싱' : '텍스트 파싱', status: 'pending' as const },
+        { label: kind === 'csv' ? '컬럼·행 구조 분석' : '엔티티 추출', status: 'pending' as const },
         { label: '관계 추론', status: 'pending' as const },
         { label: '기존 온톨로지와 매칭', status: 'pending' as const },
         { label: '계층 구조 최적화', status: 'pending' as const },
@@ -564,7 +606,8 @@ export default function NewNodePopover() {
 
     try {
       const result: LlmParseResult = await llmApi.parse({
-        text: inputText,
+        text: source,
+        inputKind: kind,
         existingClasses: classes.map((c) => c.name),
         existingRelationTypes: relationTypes.map((r) => r.name),
         existingSchema: classes.length
@@ -590,8 +633,21 @@ export default function NewNodePopover() {
       if (controller.signal.aborted) return;
 
       if (stepInterval) clearInterval(stepInterval);
-      toast.error('LLM 구조화 실패', { description: '로컬 파서로 대체합니다.' });
-      const result = mockParse(inputText);
+
+      // CSV has no sensible row-by-row fallback (mockParse would make one class
+      // per row). Surface the failure and return to input instead.
+      if (kind === 'csv') {
+        toast.error('CSV 분석 실패', {
+          description: '다시 시도하거나, 데이터 양을 줄여 입력해 주세요.',
+        });
+        setPhase('input');
+        return;
+      }
+
+      toast.error('AI 구조화 실패 — 기본 파서로 대체', {
+        description: '기본 파서는 클래스만 추출하며 속성·관계는 빠질 수 있습니다. 결과를 확인하거나 다시 시도해 주세요.',
+      });
+      const result = mockParse(source);
       setParsed(result);
       setPhase('preview');
       void runGapDetection(result);
@@ -601,8 +657,135 @@ export default function NewNodePopover() {
     }
   };
 
+  // PRD-E P2-7: 거버넌스 제안 받기 (텍스트 근거 기반, HITL).
+  const runGovernance = async () => {
+    if (!inputText.trim()) return;
+    setGovernanceLoading(true);
+    try {
+      const schemaContext = buildParseSchemaContext({
+        classes, instances, properties, relationTypes, edges,
+      });
+      const res = await enrichApi.suggestGovernance({ text: inputText, schemaContext });
+      setGovernance(res.proposals);
+      setAppliedGov(new Set());
+      setIgnoredGov(new Set());
+    } catch {
+      toast.error('거버넌스 제안에 실패했습니다.');
+    } finally {
+      setGovernanceLoading(false);
+    }
+  };
+
+  // 거버넌스 제안 승인 → constraints/axioms 테이블 기록 + 출처.
+  const applyGovernance = async (p: GovernanceProposal, idx: number) => {
+    setApplyingGov((prev) => new Set(prev).add(idx));
+    try {
+      const classId = (n?: string | null) =>
+        n ? classes.find((c) => c.name === n)?.id ?? null : null;
+      const relId = (n?: string | null) =>
+        n ? relationTypes.find((r) => r.name === n)?.id ?? null : null;
+      const propId = (cn?: string | null, pn?: string | null) => {
+        const cid = classId(cn);
+        if (!cid || !pn) return null;
+        return properties.find((p2) => p2.classId === cid && p2.name === pn)?.id ?? null;
+      };
+
+      if (p.kind === 'axiom') {
+        const cid = classId(p.targetClass);
+        addAxiom({
+          description: p.title,
+          ruleLogic: p.axiomLogic ? { expr: p.axiomLogic } : {},
+          classIds: cid ? [cid] : [],
+          severity: 'warning',
+        });
+      } else {
+        const typeMap: Record<string, 'cardinality' | 'disjoint' | 'domain_range' | 'property_value'> = {
+          constraint_cardinality: 'cardinality',
+          edge_cardinality: 'cardinality',
+          constraint_disjoint: 'disjoint',
+          constraint_domain_range: 'domain_range',
+          constraint_property_value: 'property_value',
+          property_enum: 'property_value',
+          property_required: 'property_value',
+        };
+        const config: Record<string, unknown> = {};
+        if (p.minCardinality != null) config.min = p.minCardinality;
+        if (p.maxCardinality != null) config.max = p.maxCardinality;
+        if (p.enumValues?.length) config.enumValues = p.enumValues;
+        if (p.kind === 'property_required') config.required = true;
+        if (p.disjointWith) config.disjointWith = p.disjointWith;
+        await constraintsApi.create({
+          constraintType: typeMap[p.kind],
+          description: p.title,
+          sourceClassId: classId(p.targetClass),
+          targetClassId: classId(p.disjointWith),
+          relationTypeId: relId(p.relationType),
+          propertyId: propId(p.targetClass, p.property),
+          config,
+          severity: 'warning',
+          isActive: true,
+          sourceType: 'inferred',
+          confidence: p.confidence,
+          evidence: p.evidence,
+        });
+      }
+      setAppliedGov((prev) => new Set(prev).add(idx));
+      toast.success('거버넌스 제안이 반영되었습니다.');
+    } catch {
+      toast.error('반영에 실패했습니다.');
+    } finally {
+      setApplyingGov((prev) => {
+        const n = new Set(prev);
+        n.delete(idx);
+        return n;
+      });
+    }
+  };
+
+  // PRD-E P2-5: 추가하려는 신규 노드를 기존과 중복대조 (의미+오타→LLM 판정).
+  const runDedup = async () => {
+    if (!parsed) return;
+    setDedupLoading(true);
+    try {
+      const schemaContext = buildParseSchemaContext({
+        classes, instances, properties, relationTypes, edges,
+      });
+      const items: { name: string; type: string; description?: string; kind: 'class' | 'instance' }[] = [
+        ...parsed.classes
+          .filter((c) => !existingClassNames.has(c.name))
+          .map((c) => ({ name: c.name, type: c.parentName ?? 'class', description: c.description, kind: 'class' as const })),
+        ...parsed.instances
+          .filter((i) => !instances.some((ex) => ex.name === i.name))
+          .map((i) => ({ name: i.name, type: i.className, description: i.description, kind: 'instance' as const })),
+      ];
+      const results = new Map<string, DedupResolveResponse>();
+      for (const it of items) {
+        const { candidates } = await dedupApi.candidates({
+          text: `${it.name} ${it.description ?? ''}`.trim(),
+          kind: it.kind,
+          k: 8,
+        });
+        const decision = await dedupApi.resolve({
+          input: { name: it.name, type: it.type, description: it.description },
+          candidates,
+          schemaContext,
+        });
+        results.set(it.name, decision);
+      }
+      setDedup(results);
+      toast.success('중복 검사 완료');
+    } catch {
+      toast.error('중복 검사에 실패했습니다.');
+    } finally {
+      setDedupLoading(false);
+    }
+  };
+
   const handleConfirm = () => {
     if (!parsed) return;
+
+    // PRD-E P2-5: reuse 는 생성 스킵하고 기존 id 로 별칭. relate 는 생성 후 엣지 추가.
+    const relateLinks: { fromName: string; targetId: string; relationType: string }[] = [];
 
     // A-5: adopted definition-style enrichments to apply onto the node (with provenance).
     const adoptedDefinition = new Map<string, EnrichProposal>();
@@ -633,6 +816,16 @@ export default function NewNodePopover() {
     sorted.forEach((cls) => {
       // Skip existing classes — already in store
       if (existingClassNames.has(cls.name)) return;
+
+      // PRD-E P2-5: 중복대조 판정 반영
+      const dd = dedup.get(cls.name);
+      if (dd?.decision === 'reuse' && dd.targetId) {
+        classIdMap.set(cls.name, dd.targetId); // 기존 노드 재사용 (생성 0)
+        return;
+      }
+      if (dd?.decision === 'relate' && dd.targetId && dd.relationType) {
+        relateLinks.push({ fromName: cls.name, targetId: dd.targetId, relationType: dd.relationType });
+      }
 
       let parentId: string | undefined;
       if (cls.parentName) {
@@ -681,7 +874,20 @@ export default function NewNodePopover() {
     parsed.instances.forEach((inst) => {
       const classId = classIdMap.get(inst.className);
       if (!classId) return;
-      const instId = addInstance({ name: inst.name, classId });
+      // PRD-E P2-5: reuse 면 기존 인스턴스 재사용, relate 면 엣지 링크 기록
+      const dd = dedup.get(inst.name);
+      if (dd?.decision === 'reuse' && dd.targetId) {
+        instanceIdMap.set(inst.name, dd.targetId);
+        return;
+      }
+      if (dd?.decision === 'relate' && dd.targetId && dd.relationType) {
+        relateLinks.push({ fromName: inst.name, targetId: dd.targetId, relationType: dd.relationType });
+      }
+      const instId = addInstance({
+        name: inst.name,
+        classId,
+        description: inst.description ?? '',
+      });
       instanceIdMap.set(inst.name, instId);
       (inst.values ?? []).forEach((v) => {
         const propId = propIdMap.get(`${inst.className}::${v.propertyName}`);
@@ -706,7 +912,8 @@ export default function NewNodePopover() {
       if (src && tgt && src.id !== tgt.id) {
         let relTypeId = relTypeIdByName.get(rel.relationName);
         if (!relTypeId) {
-          relTypeId = addRelationType({ name: rel.relationName });
+          // PR1 (목표①): 추출된 액션 지향 분류를 relation type 에 부여.
+          relTypeId = addRelationType({ name: rel.relationName, category: rel.category });
           relTypeIdByName.set(rel.relationName, relTypeId);
         }
         addEdge({
@@ -720,6 +927,30 @@ export default function NewNodePopover() {
           evidence: rel.evidence ?? null,
         });
       }
+    });
+
+    // PRD-E P2-5: relate 판정 — 생성한 노드를 기존 노드에 엣지로 연결
+    relateLinks.forEach((link) => {
+      const from = resolveNode(link.fromName);
+      if (!from || from.id === link.targetId) return;
+      const targetKind: 'class' | 'instance' = classes.some((c) => c.id === link.targetId)
+        ? 'class'
+        : 'instance';
+      let relTypeId = relTypeIdByName.get(link.relationType);
+      if (!relTypeId) {
+        relTypeId = addRelationType({ name: link.relationType });
+        relTypeIdByName.set(link.relationType, relTypeId);
+      }
+      addEdge({
+        sourceId: from.id,
+        targetId: link.targetId,
+        sourceKind: from.kind,
+        targetKind,
+        relationTypeId: relTypeId,
+        sourceType: 'user',
+        confidence: null,
+        evidence: null,
+      });
     });
 
     resetAndClose();
@@ -831,8 +1062,77 @@ export default function NewNodePopover() {
     }
   };
 
+  // PR1 (목표①): 관계 한 줄 렌더 (액션/서술 공용). index 는 parsed.relations 원본 인덱스.
+  const renderRelationRow = (
+    rel: ParsedResult['relations'][number],
+    index: number,
+  ) => {
+    // 표시 전용: 추출 시 함께 들어온 확신도(0~1)와 근거 문장을 노출해 검토를 돕는다.
+    const conf = typeof rel.confidence === 'number' ? rel.confidence : null;
+    const confPct = conf !== null ? Math.round(conf * 100) : null;
+    const confClass =
+      conf === null
+        ? ''
+        : conf >= 0.8
+          ? 'text-emerald-600 border-emerald-500/40 dark:text-emerald-400'
+          : conf >= 0.5
+            ? 'text-amber-600 border-amber-500/40 dark:text-amber-400'
+            : 'text-red-600 border-red-500/40 dark:text-red-400';
+    return (
+      <div key={index} className="py-0.5 group pl-1">
+        <div className="flex items-center gap-1.5">
+          <Link2 className="w-3 h-3 text-muted-foreground/60 shrink-0" />
+          {rel.category && (
+            <Badge
+              variant="outline"
+              className={`text-[9px] h-4 px-1 shrink-0 ${CATEGORY_BADGE[rel.category] ?? ''}`}
+            >
+              {CATEGORY_LABEL[rel.category] ?? rel.category}
+            </Badge>
+          )}
+          <span className="text-[11px]">
+            <span className={existingClassNames.has(rel.sourceName) ? 'text-muted-foreground' : ''}>{rel.sourceName}</span>
+            <span className="text-muted-foreground mx-1">&rarr;</span>
+            <span className="font-medium">{rel.relationName}</span>
+            <span className="text-muted-foreground mx-1">&rarr;</span>
+            <span className={existingClassNames.has(rel.targetName) ? 'text-muted-foreground' : ''}>{rel.targetName}</span>
+          </span>
+          {confPct !== null && (
+            <Badge
+              variant="outline"
+              className={`text-[9px] h-4 px-1 shrink-0 tabular-nums ${confClass}`}
+              title={`AI 확신도 ${confPct}%`}
+              aria-label={`AI 확신도 ${confPct} 퍼센트`}
+            >
+              {confPct}%
+            </Badge>
+          )}
+          <button
+            className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive ml-auto"
+            onClick={() => removeItem('relations', index)}
+            aria-label={`관계 삭제: ${rel.sourceName} → ${rel.targetName}`}
+          >
+            <Trash2 className="w-3 h-3" />
+          </button>
+        </div>
+        {rel.evidence && (
+          <p
+            className="text-[10px] text-muted-foreground/70 italic line-clamp-1 pl-[18px]"
+            title={rel.evidence}
+          >
+            &ldquo;{rel.evidence}&rdquo;
+          </p>
+        )}
+      </div>
+    );
+  };
+
   // A-5: the preview needs room for the structure / island / enrichment columns.
   const isPreview = phase === 'preview';
+  // S4: Critic 이슈 중 사용자가 무시하지 않은 것만 표시.
+  const visibleCriticIssues = criticReport
+    ? criticReport.issues.filter((i) => !ignoredCritic.has(criticKey(i)))
+    : [];
   const popoverW = isPreview ? 720 : POPOVER_WIDTH;
   const popoverPos = popoverState
     ? calcPopoverPosition(popoverState.position, {
@@ -858,12 +1158,23 @@ export default function NewNodePopover() {
             isPreview ? 'w-[720px] max-w-[92vw]' : 'w-[400px] max-w-[400px]'
           }`}
           style={{
-            left: popoverPos.left,
-            top: popoverPos.top,
+            left: popoverPos.left + drag.offset.x,
+            top: popoverPos.top + drag.offset.y,
             boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
           }}
           onClick={(e) => e.stopPropagation()}
         >
+          {/* 드래그 핸들: 팝오버를 잡고 옮길 수 있는 상단 그립 (하단에서 가려질 때 위로 이동) */}
+          <div
+            {...drag.dragHandleProps}
+            style={{ ...drag.dragHandleProps.style, cursor: drag.isDragging ? 'grabbing' : 'grab' }}
+            className="group/drag absolute left-0 right-0 top-0 z-10 flex h-4 items-center justify-center rounded-t-xl pt-1"
+            title="드래그해서 창 이동"
+            aria-label="팝오버 이동 핸들"
+          >
+            <div className="h-1 w-10 rounded-full bg-border transition-colors group-hover/drag:bg-muted-foreground/50" />
+          </div>
+
           {phase === 'input' && (
             <>
               <div className="flex items-center justify-between mb-3">
@@ -962,6 +1273,12 @@ export default function NewNodePopover() {
                           <SelectItem value="instance">인스턴스</SelectItem>
                         </SelectContent>
                       </Select>
+                      {/* 비전문가용: 클래스 vs 인스턴스를 쉬운 말로 안내(결정 시점) */}
+                      <p className="text-[9px] text-muted-foreground/70 mt-1 leading-snug">
+                        {quickType === 'class'
+                          ? '유형·카테고리 — 비슷한 것들을 대표하는 묶음 (예: 환자, 장비)'
+                          : '실제 사례 — 클래스의 구체적 한 개 (예: 홍길동, 3호기)'}
+                      </p>
                     </div>
                     <div className="flex-1">
                       <label className="text-[10px] text-muted-foreground mb-1 block">
@@ -1026,7 +1343,7 @@ export default function NewNodePopover() {
                     <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={resetAndClose}>
                       취소
                     </Button>
-                    <Button size="sm" className="h-7 text-xs gap-1" onClick={handleGenerate} disabled={!inputText.trim() || isLoading}>
+                    <Button size="sm" className="h-7 text-xs gap-1" onClick={() => handleGenerate()} disabled={!inputText.trim() || isLoading}>
                       {isLoading ? (
                         <>
                           <Loader2 className="w-3 h-3 animate-spin" />
@@ -1042,82 +1359,49 @@ export default function NewNodePopover() {
                   </div>
                 </TabsContent>
 
-                {/* CSV Tab */}
+                {/* CSV Tab — M5: AI가 표를 분석해 데이터 설명 + 인사이트 온톨로지 생성 */}
                 <TabsContent value="csv" className="mt-0">
-                  {!csvPreviewed ? (
-                    <>
-                      <Textarea
-                        value={csvText}
-                        onChange={(e) => setCsvText(e.target.value)}
-                        placeholder={"이름,타입,설명,부모클래스\n동물,class,동물 클래스,\n강아지,instance,,동물"}
-                        className="min-h-[120px] text-xs resize-none font-mono mb-2"
-                        autoFocus
-                      />
-                      <p className="text-[10px] text-muted-foreground mb-3">
-                        CSV 형식: 이름, 타입(class/instance), 설명, 부모클래스
-                      </p>
-                      <div className="flex justify-end gap-2">
-                        <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={resetAndClose}>
-                          취소
-                        </Button>
-                        <Button size="sm" className="h-7 text-xs gap-1" onClick={handleCsvPreview} disabled={!csvText.trim()}>
-                          미리보기
+                  <Textarea
+                    value={csvText}
+                    onChange={(e) => setCsvText(e.target.value)}
+                    placeholder={"설비ID,설비명,공급사,상태,정격출력(kW)\nEQ-001,식각기 1호,삼성,가동,5.5\nEQ-002,증착기 2호,램리서치,정지,12.0"}
+                    className="min-h-[140px] text-xs resize-none font-mono mb-2"
+                    autoFocus
+                  />
+                  <p className="text-[10px] text-muted-foreground mb-1">
+                    표를 붙여넣으면 AI가 컬럼·값·구조를 분석해 온톨로지로 만듭니다 — 첫 줄은 헤더(컬럼명).
+                  </p>
+                  <p
+                    className={`text-[10px] mb-3 tabular-nums ${
+                      csvText.length > CSV_CHAR_LIMIT ? 'text-destructive' : 'text-muted-foreground/70'
+                    }`}
+                  >
+                    {csvText.length.toLocaleString()} / {CSV_CHAR_LIMIT.toLocaleString()}자
+                    {csvText.length > CSV_CHAR_LIMIT && ' — 한도를 초과했습니다'}
+                  </p>
+                  <div className="flex justify-end gap-2">
+                    <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={resetAndClose}>
+                      취소
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="h-7 text-xs gap-1"
+                      onClick={() => handleGenerate({ source: csvText, kind: 'csv' })}
+                      disabled={!csvText.trim() || csvText.length > CSV_CHAR_LIMIT || isLoading}
+                    >
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                          분석 중...
+                        </>
+                      ) : (
+                        <>
+                          분석
                           <ArrowRight className="w-3 h-3" />
-                        </Button>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="max-h-[240px] overflow-y-auto mb-3">
-                        <table className="w-full text-[11px]">
-                          <thead>
-                            <tr className="border-b border-border">
-                              <th className="text-left py-1 px-1.5 text-muted-foreground font-medium">이름</th>
-                              <th className="text-left py-1 px-1.5 text-muted-foreground font-medium">타입</th>
-                              <th className="text-left py-1 px-1.5 text-muted-foreground font-medium">설명</th>
-                              <th className="text-left py-1 px-1.5 text-muted-foreground font-medium">부모</th>
-                              <th className="w-6" />
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {csvRows.map((row, i) => (
-                              <tr key={i} className="border-b border-border/50 group">
-                                <td className="py-1 px-1.5 font-medium">{row.name}</td>
-                                <td className="py-1 px-1.5">
-                                  <Badge variant="secondary" className="text-[9px] h-4 px-1">
-                                    {row.type === 'class' ? '클래스' : '인스턴스'}
-                                  </Badge>
-                                </td>
-                                <td className="py-1 px-1.5 text-muted-foreground truncate max-w-[80px]">{row.description}</td>
-                                <td className="py-1 px-1.5 text-muted-foreground">{row.parentClass}</td>
-                                <td className="py-1">
-                                  <button
-                                    className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
-                                    onClick={() => setCsvRows((prev) => prev.filter((_, idx) => idx !== i))}
-                                  >
-                                    <Trash2 className="w-3 h-3" />
-                                  </button>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                      <p className="text-[10px] text-muted-foreground mb-3">
-                        {csvRows.length}개 항목이 추가됩니다
-                      </p>
-                      <div className="flex justify-end gap-2">
-                        <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={() => setCsvPreviewed(false)}>
-                          <ArrowLeft className="w-3 h-3" />
-                          수정
-                        </Button>
-                        <Button size="sm" className="h-7 text-xs gap-1" onClick={handleCsvConfirm} disabled={csvRows.length === 0}>
-                          확정
-                          <Check className="w-3 h-3" />
-                        </Button>
-                      </div>
-                    </>
-                  )}
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 </TabsContent>
               </Tabs>
             </>
@@ -1215,9 +1499,15 @@ export default function NewNodePopover() {
                     <span className="text-[10px] font-semibold text-muted-foreground uppercase mb-1 block">
                       계층 구조
                     </span>
-                    {treeItems.map((item, i) => (
+                    {treeItems.map((item, i) => {
+                      // PR1 (목표④): 인스턴스에 추출된 속성 값을 프리뷰에 노출(비가시 저장 방지).
+                      const instValues =
+                        item.type === 'instance' && item.originalIndex >= 0
+                          ? parsed?.instances[item.originalIndex]?.values ?? []
+                          : [];
+                      return (
+                      <Fragment key={`${item.type}-${item.name}-${i}`}>
                       <div
-                        key={`${item.type}-${item.name}-${i}`}
                         className={`flex items-center gap-1.5 py-0.5 group ${
                           item.isExisting ? 'opacity-50' : ''
                         }`}
@@ -1323,7 +1613,24 @@ export default function NewNodePopover() {
                           </>
                         )}
                       </div>
-                    ))}
+                      {instValues.length > 0 && (
+                        <div
+                          className="flex flex-wrap gap-1 py-0.5"
+                          style={{ paddingLeft: `${(item.depth + 1) * 16 + 8}px` }}
+                        >
+                          {instValues.map((v, vi) => (
+                            <span
+                              key={vi}
+                              className="text-[9px] font-mono text-muted-foreground bg-muted/50 rounded px-1"
+                            >
+                              {v.propertyName}: {v.value}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      </Fragment>
+                      );
+                    })}
                   </div>
                 )}
 
@@ -1350,36 +1657,84 @@ export default function NewNodePopover() {
                   </div>
                 )}
 
-                {/* Relations */}
-                {parsed && parsed.relations.length > 0 && (
+                {/* Relations — 액션 지향 관계 (PR1 목표①) */}
+                {parsed && relationGroups.actionable.length > 0 && (
                   <div>
                     <span className="text-[10px] font-semibold text-muted-foreground uppercase mb-1 block">
-                      관계 {parsed.relations.length}개
+                      관계 {relationGroups.actionable.length}개
                     </span>
-                    {parsed.relations.map((rel, i) => (
-                      <div key={i} className="flex items-center gap-1.5 py-0.5 group pl-1">
-                        <Link2 className="w-3 h-3 text-muted-foreground/60 shrink-0" />
-                        <span className="text-[11px]">
-                          <span className={existingClassNames.has(rel.sourceName) ? 'text-muted-foreground' : ''}>{rel.sourceName}</span>
-                          <span className="text-muted-foreground mx-1">&rarr;</span>
-                          <span className="font-medium">{rel.relationName}</span>
-                          <span className="text-muted-foreground mx-1">&rarr;</span>
-                          <span className={existingClassNames.has(rel.targetName) ? 'text-muted-foreground' : ''}>{rel.targetName}</span>
-                        </span>
-                        <button
-                          className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive ml-auto"
-                          onClick={() => removeItem('relations', i)}
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </button>
-                      </div>
-                    ))}
+                    {relationGroups.actionable.map(({ rel, index }) => renderRelationRow(rel, index))}
+                  </div>
+                )}
+
+                {/* 서술 관계 — 기본 접힘으로 강등 (PR1 목표①) */}
+                {parsed && relationGroups.descriptive.length > 0 && (
+                  <div className="mt-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowDescriptive((v) => !v)}
+                      className="flex items-center gap-1 text-[10px] font-semibold text-muted-foreground/70 uppercase mb-1 hover:text-foreground"
+                    >
+                      <ChevronRight className={`w-2.5 h-2.5 transition-transform ${showDescriptive ? 'rotate-90' : ''}`} />
+                      서술 관계 {relationGroups.descriptive.length}개 (액션 아님)
+                    </button>
+                    {showDescriptive &&
+                      relationGroups.descriptive.map(({ rel, index }) => renderRelationRow(rel, index))}
                   </div>
                 )}
                 </div>
 
                 {/* 섬 + 보강 (right column) */}
                 <div className="w-[260px] shrink-0 flex flex-col gap-3 overflow-y-auto max-h-[440px] border-l border-border pl-3">
+                  {/* S4: Critic 검수 — 모델 수호자 자문(읽기전용, 확정 차단 안 함) */}
+                  {criticReport && (
+                    <section>
+                      <span className="text-[10px] font-semibold text-muted-foreground uppercase mb-1.5 flex items-center gap-1.5">
+                        검수
+                        {visibleCriticIssues.length > 0 && (
+                          <Badge variant="outline" className="text-[9px] h-4 px-1 border-amber-400 text-amber-600">
+                            {visibleCriticIssues.length}건
+                          </Badge>
+                        )}
+                      </span>
+                      {visibleCriticIssues.length === 0 ? (
+                        <p className="text-[10px] text-muted-foreground/70 pl-1">검수 통과 — 문제 없음</p>
+                      ) : (
+                        <div className="space-y-1">
+                          {visibleCriticIssues.map((issue) => {
+                            const key = criticKey(issue);
+                            return (
+                              <div key={key} className="rounded-md border border-border px-1.5 py-1 group">
+                                <div className="flex items-center gap-1.5">
+                                  <Badge
+                                    variant="outline"
+                                    className={`text-[9px] h-4 px-1 shrink-0 ${CRITIC_SEVERITY_BADGE[issue.severity]}`}
+                                  >
+                                    {CRITIC_SEVERITY_LABEL[issue.severity]}
+                                  </Badge>
+                                  <span className="text-[11px] truncate" title={issue.targetName}>
+                                    {issue.targetName}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setIgnoredCritic((prev) => new Set(prev).add(key))}
+                                    className="opacity-0 group-hover:opacity-100 transition-opacity text-[9px] text-muted-foreground hover:text-foreground ml-auto px-1 border border-border rounded shrink-0"
+                                  >
+                                    무시
+                                  </button>
+                                </div>
+                                <p className="text-[9px] text-muted-foreground/70 mt-0.5">{issue.reason}</p>
+                                {issue.suggestion && (
+                                  <p className="text-[9px] text-muted-foreground/50 mt-0.5 italic">{issue.suggestion}</p>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </section>
+                  )}
+
                   <IslandList islands={islands} onSuggest={handleIslandSuggest} />
 
                   <section>
@@ -1418,6 +1773,71 @@ export default function NewNodePopover() {
                             onSource={() => handleSourceEnrichment(item)}
                           />
                         ))}
+                      </div>
+                    )}
+                  </section>
+
+                  {/* PRD-E P2-5: 중복 검사 */}
+                  <section>
+                    <span className="text-[10px] font-semibold text-muted-foreground uppercase mb-1.5 flex items-center gap-1.5">
+                      중복 검사 {dedup.size > 0 && `${dedup.size}건`}
+                      {dedupLoading && <Loader2 className="w-3 h-3 animate-spin" />}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-6 px-2 text-[10px] gap-1 w-full"
+                      onClick={runDedup}
+                      disabled={dedupLoading || !parsed}
+                    >
+                      {dedupLoading ? '검사 중...' : '의미·오타 중복 검사'}
+                    </Button>
+                    {dedup.size > 0 && (
+                      <div className="space-y-1 mt-1.5">
+                        {[...dedup.entries()].map(([name, d]) => (
+                          <div key={name} className="rounded-md border border-border px-1.5 py-1">
+                            <div className="flex items-center gap-1.5">
+                              <Badge variant="outline" className={`text-[9px] h-4 px-1 ${DEDUP_BADGE[d.decision]}`}>
+                                {DEDUP_LABEL[d.decision]}
+                              </Badge>
+                              <span className="text-[11px] truncate">{name}</span>
+                            </div>
+                            <p className="text-[9px] text-muted-foreground/70 mt-0.5">{d.reason}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </section>
+
+                  {/* PRD-E P2-7: 거버넌스 제안 (HITL) */}
+                  <section>
+                    <span className="text-[10px] font-semibold text-muted-foreground uppercase mb-1.5 flex items-center gap-1.5">
+                      거버넌스 제안 {governance.length > 0 && `${governance.length}개`}
+                      {governanceLoading && <Loader2 className="w-3 h-3 animate-spin" />}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-6 px-2 text-[10px] gap-1 w-full mb-1.5"
+                      onClick={runGovernance}
+                      disabled={governanceLoading || !inputText.trim()}
+                    >
+                      {governanceLoading ? '분석 중...' : '제약·공리 제안 받기'}
+                    </Button>
+                    {governance.length > 0 && (
+                      <div className="space-y-2">
+                        {governance.map((p, i) =>
+                          ignoredGov.has(i) ? null : (
+                            <GovernanceProposalCard
+                              key={i}
+                              proposal={p}
+                              applied={appliedGov.has(i)}
+                              applying={applyingGov.has(i)}
+                              onApprove={() => applyGovernance(p, i)}
+                              onIgnore={() => setIgnoredGov((prev) => new Set(prev).add(i))}
+                            />
+                          ),
+                        )}
                       </div>
                     )}
                   </section>

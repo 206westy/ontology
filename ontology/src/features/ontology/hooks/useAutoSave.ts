@@ -3,7 +3,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { debounce } from 'es-toolkit';
 import { useOntologyStore } from './useOntologyStore';
-import { commitsApi } from '../api';
+import { commitsApi, embeddingsApi } from '../api';
 import { toast } from 'sonner';
 import { useLocalStorage } from 'react-use';
 
@@ -72,6 +72,8 @@ export function useAutoSave() {
         })),
       });
       state.clearChanges();
+      // PRD-E P2-2: 커밋 후 임베딩 생성 트리거 (논블로킹).
+      void embeddingsApi.process().catch(() => {});
       toast.success('자동 저장 완료', {
         description: message,
         duration: 2000,

@@ -174,6 +174,38 @@ describe('NewNodePopover — Iteration 2', () => {
     expect(screen.getByText(/Animal/)).toBeInTheDocument();
   });
 
+  // S4: Critic 검수 패널 — 기존 노드와 근접한(오타) 새 노드를 자문으로 표시하고,
+  // [무시]로 숨길 수 있다(읽기전용, 확정 차단 안 함).
+  it('shows a Critic review issue for a near-duplicate and lets the user ignore it (S4)', async () => {
+    useOntologyStore.getState().addClass({ id: 'eq', name: 'Equipment' });
+    mockLlmParse.mockResolvedValue({
+      entities: [{ name: 'Equipmnt', type: '장비', evidence: 'typo of Equipment' }],
+      relations: [],
+    });
+
+    useOntologyStore.getState().openPopover({ type: 'newNode', position: { x: 0, y: 0 } });
+    render(<NewNodePopover />);
+    switchToTextTab();
+    fireEvent.change(screen.getByPlaceholderText(/자유 형식으로 입력하세요/), {
+      target: { value: 'test' },
+    });
+    fireEvent.click(screen.getByText('생성').closest('button')!);
+
+    await waitFor(() => {
+      expect(screen.getByText('구조화 결과')).toBeInTheDocument();
+    });
+
+    // The 검수 section and the near-duplicate issue are surfaced.
+    expect(screen.getByText('검수')).toBeInTheDocument();
+    expect(screen.getByText(/매우 유사/)).toBeInTheDocument();
+
+    // Ignoring the issue removes it from the panel.
+    fireEvent.click(screen.getByText('무시'));
+    expect(screen.queryByText(/매우 유사/)).not.toBeInTheDocument();
+    // Confirm is NOT blocked — the 확정 button remains available.
+    expect(screen.getByText('확정')).toBeInTheDocument();
+  });
+
   // A-2 (foundation): entity type matching an existing class resolves to its parentId
   it('should resolve entity type to an existing class as parentId (A-1/A-2)', async () => {
     // Pre-existing class in store

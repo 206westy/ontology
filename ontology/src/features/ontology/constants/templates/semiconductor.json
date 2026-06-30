@@ -18,13 +18,13 @@
   ],
   "properties": [
     { "className": "Fab", "name": "location", "dataType": "string", "isRequired": true },
-    { "className": "Fab", "name": "cleanroom_class", "dataType": "enum", "isRequired": true },
+    { "className": "Fab", "name": "cleanroom_class", "dataType": "enum", "isRequired": true, "enumValues": ["Class 1", "Class 10", "Class 100", "Class 1000", "Class 10000"] },
     { "className": "CleanRoom", "name": "iso_class", "dataType": "integer", "isRequired": true },
     { "className": "CleanRoom", "name": "area_sqm", "dataType": "float", "isRequired": false },
     { "className": "Equipment", "name": "model_name", "dataType": "string", "isRequired": true },
     { "className": "Equipment", "name": "serial_number", "dataType": "string", "isRequired": true },
     { "className": "Equipment", "name": "install_date", "dataType": "date", "isRequired": false },
-    { "className": "Equipment", "name": "status", "dataType": "enum", "isRequired": true },
+    { "className": "Equipment", "name": "status", "dataType": "enum", "isRequired": true, "enumValues": ["Running", "Idle", "Down", "Maintenance", "Qualification"] },
     { "className": "Wafer", "name": "diameter_mm", "dataType": "integer", "isRequired": true },
     { "className": "Wafer", "name": "material_type", "dataType": "string", "isRequired": true },
     { "className": "Lot", "name": "lot_id", "dataType": "string", "isRequired": true },
@@ -37,10 +37,10 @@
     { "className": "Engineer", "name": "employee_id", "dataType": "string", "isRequired": true },
     { "className": "Engineer", "name": "specialization", "dataType": "string", "isRequired": false },
     { "className": "Defect", "name": "defect_code", "dataType": "string", "isRequired": true },
-    { "className": "Defect", "name": "severity", "dataType": "enum", "isRequired": true },
+    { "className": "Defect", "name": "severity", "dataType": "enum", "isRequired": true, "enumValues": ["Critical", "Major", "Minor", "Cosmetic"] },
     { "className": "Material", "name": "cas_number", "dataType": "string", "isRequired": false },
     { "className": "Material", "name": "purity_percent", "dataType": "float", "isRequired": false },
-    { "className": "Maintenance", "name": "maintenance_type", "dataType": "enum", "isRequired": true },
+    { "className": "Maintenance", "name": "maintenance_type", "dataType": "enum", "isRequired": true, "enumValues": ["Preventive", "Corrective", "Predictive", "Emergency"] },
     { "className": "Maintenance", "name": "scheduled_date", "dataType": "date", "isRequired": true }
   ],
   "relationTypes": [

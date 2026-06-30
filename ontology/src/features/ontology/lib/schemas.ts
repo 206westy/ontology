@@ -1,9 +1,20 @@
 import { z } from 'zod';
 import { DEFAULT_PARTITION_ID } from './types';
 
+// zod v4 의 .uuid() 는 RFC 9562 버전/변형 비트를 강제해 nil-style UUID
+// (기본 구획 00000000-0000-0000-0000-000000000001 = version 0)를 거부한다.
+// 8-4-4-4-12 hex 면 모두 허용하는 완화 검증.
+const looseUuid = () =>
+  z
+    .string()
+    .regex(
+      /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/,
+      'Invalid UUID',
+    );
+
 // ─── Partitions (PRD-B B-1) ────────────────────────────────
 export const createPartitionSchema = z.object({
-  id: z.string().uuid().optional(),
+  id: looseUuid().optional(),
   name: z.string().min(1),
   description: z.string().optional().default(''),
   color: z
@@ -30,8 +41,8 @@ export const createClassSchema = z.object({
   id: z.string().uuid().optional(),
   name: z.string().min(1),
   parentId: z.string().uuid().nullable().optional(),
-  // PRD-B B-1: 소속 구획 (미지정 시 기본 구획).
-  partitionId: z.string().uuid().optional().default(DEFAULT_PARTITION_ID),
+  // PRD-B B-1: 소속 구획 (미지정 시 기본 구획). nil-style UUID 허용(looseUuid).
+  partitionId: looseUuid().optional().default(DEFAULT_PARTITION_ID),
   description: z.string().optional().default(''),
   color: z
     .string()
@@ -105,6 +116,8 @@ export const createInstanceSchema = z.object({
   id: z.string().uuid().optional(),
   classId: z.string().uuid(),
   name: z.string().min(1),
+  // PRD-E P1-1: RAG 문맥용 설명.
+  description: z.string().optional().default(''),
   values: z
     .array(
       z.object({
@@ -120,6 +133,7 @@ export type CreateInstanceInput = z.infer<typeof createInstanceSchema>;
 export const updateInstanceSchema = z.object({
   name: z.string().min(1).optional(),
   classId: z.string().uuid().optional(),
+  description: z.string().optional(),
 });
 
 export type UpdateInstanceInput = z.infer<typeof updateInstanceSchema>;
@@ -135,11 +149,52 @@ export type CreateInstanceValueInput = z.infer<
   typeof createInstanceValueSchema
 >;
 
+// ─── Attributions (PRD-E P1-1: 다형성 출처) ────────────────
+const attributionSourceTypeEnum = z.enum([
+  'document',
+  'sap',
+  'user',
+  'web',
+  'inferred',
+]);
+
+const attributionTargetTableEnum = z.enum([
+  'classes',
+  'instances',
+  'properties',
+  'edges',
+  'relation_types',
+  'axioms',
+  'constraints',
+]);
+
+export const createAttributionSchema = z.object({
+  targetTable: attributionTargetTableEnum,
+  targetId: z.string().uuid(),
+  sourceType: attributionSourceTypeEnum,
+  sourceRef: z.string().nullable().optional(),
+  evidence: z.string().nullable().optional(),
+  confidence: z.number().min(0).max(1).nullable().optional(),
+});
+
+export type CreateAttributionInput = z.infer<typeof createAttributionSchema>;
+export { attributionSourceTypeEnum, attributionTargetTableEnum };
+
 // ─── Relation Types ────────────────────────────────────────
+// PR1 (목표①): relation_types.category 와 정합. enum 값은 parsedRelationSchema 와 공유.
+const relationTypeCategoryEnum = z.enum([
+  'structural',
+  'causal',
+  'diagnostic',
+  'procedural',
+  'descriptive',
+]);
+
 export const createRelationTypeSchema = z.object({
   id: z.string().uuid().optional(),
   name: z.string().min(1),
   description: z.string().optional().default(''),
+  category: relationTypeCategoryEnum.optional().default('descriptive'),
   sourceClassId: z.string().uuid().nullable().optional(),
   targetClassId: z.string().uuid().nullable().optional(),
 });
@@ -151,6 +206,7 @@ export type CreateRelationTypeInput = z.infer<
 export const updateRelationTypeSchema = z.object({
   name: z.string().min(1).optional(),
   description: z.string().optional(),
+  category: relationTypeCategoryEnum.optional(),
   sourceClassId: z.string().uuid().nullable().optional(),
   targetClassId: z.string().uuid().nullable().optional(),
 });
@@ -241,6 +297,10 @@ export const createConstraintSchema = z.object({
   config: z.record(z.string(), z.unknown()).optional().default({}),
   severity: severityEnum.optional().default('error'),
   isActive: z.boolean().optional().default(true),
+  // PRD-E P2-7: 거버넌스 제안 승인 시 출처 기록(HITL).
+  sourceType: z.string().nullable().optional(),
+  confidence: z.number().nullable().optional(),
+  evidence: z.string().nullable().optional(),
 });
 
 export type CreateConstraintInput = z.infer<typeof createConstraintSchema>;
@@ -303,6 +363,97 @@ export const validateRequestSchema = z.object({
 
 export type ValidateRequestInput = z.infer<typeof validateRequestSchema>;
 
+// ─── Dedup (PRD-E P2-4) ───────────────────────────────────
+export const dedupCandidatesRequestSchema = z.object({
+  text: z.string().min(1),
+  kind: z.enum(['class', 'instance', 'both']).optional().default('both'),
+  k: z.number().int().min(1).max(50).optional().default(10),
+});
+
+export type DedupCandidatesRequestInput = z.infer<
+  typeof dedupCandidatesRequestSchema
+>;
+
+export const dedupCandidateSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  kind: z.enum(['class', 'instance']),
+  vectorScore: z.number().nullable(),
+  trigramScore: z.number().nullable(),
+});
+
+export type DedupCandidate = z.infer<typeof dedupCandidateSchema>;
+
+// LLM 판정: 자동 병합 금지 — 사용자 확정 전 제안만.
+export const dedupResolveRequestSchema = z.object({
+  input: z.object({
+    name: z.string().min(1),
+    type: z.string().optional(),
+    description: z.string().optional(),
+  }),
+  candidates: z.array(dedupCandidateSchema).max(20),
+  schemaContext: z.string().optional(),
+});
+
+export type DedupResolveRequestInput = z.infer<
+  typeof dedupResolveRequestSchema
+>;
+
+export const dedupResolveResponseSchema = z.object({
+  decision: z.enum(['reuse', 'relate', 'possible_duplicate', 'new']),
+  targetId: z.string().nullable(),
+  relationType: z.string().nullable(),
+  confidence: z.number().min(0).max(1),
+  reason: z.string(),
+});
+
+export type DedupResolveResponse = z.infer<typeof dedupResolveResponseSchema>;
+
+// ─── Governance suggestions (PRD-E P2-7, HITL) ────────────
+export const governanceKindEnum = z.enum([
+  'constraint_cardinality',
+  'constraint_disjoint',
+  'constraint_domain_range',
+  'constraint_property_value',
+  'property_required',
+  'property_enum',
+  'edge_cardinality',
+  'axiom',
+]);
+
+export type GovernanceKind = z.infer<typeof governanceKindEnum>;
+
+// 평탄 스키마(OpenAI strict structured output 호환 — 모든 필드 required+nullable).
+export const governanceProposalSchema = z.object({
+  kind: governanceKindEnum,
+  title: z.string(),
+  targetClass: z.string().nullable(),
+  relationType: z.string().nullable(),
+  property: z.string().nullable(),
+  minCardinality: z.number().nullable(),
+  maxCardinality: z.number().nullable(),
+  enumValues: z.array(z.string()).nullable(),
+  disjointWith: z.string().nullable(),
+  axiomLogic: z.string().nullable(),
+  evidence: z.string(),
+  confidence: z.number().min(0).max(1),
+});
+
+export type GovernanceProposal = z.infer<typeof governanceProposalSchema>;
+
+export const suggestGovernanceRequestSchema = z.object({
+  text: z.string().min(1),
+  schemaContext: z.string().optional(),
+});
+
+export type SuggestGovernanceRequestInput = z.infer<
+  typeof suggestGovernanceRequestSchema
+>;
+
+export const suggestGovernanceResponseSchema = z.object({
+  proposals: z.array(governanceProposalSchema),
+});
+
 // ─── Multi-stage Parse (A-1) ─────────────────────────────
 // Stage 1 extracts entities (points), Stage 2 extracts grounded relations
 // (lines). Both carry evidence spans; relations also carry a confidence score.
@@ -315,6 +466,9 @@ export const parsedEntityPropertySchema = z.object({
   name: z.string().min(1),
   value: z.string(),
   dataType: dataTypeEnum,
+  // PR1 (목표②): 동작 모드·상태·옵션은 별도 노드가 아니라 enum 속성 값으로 추출된다.
+  // strict structured output 호환 — required + nullable (비-enum 속성은 null).
+  enumValues: z.array(z.string()).nullable(),
 });
 
 export const parsedEntitySchema = z.object({
@@ -329,15 +483,34 @@ export const parsedEntitySchema = z.object({
   parentType: z.string().nullable(),
   // Short verbatim span from the source text supporting this entity.
   evidence: z.string(),
+  // PRD-E P2-6: description — ONLY when the source text defines/describes the
+  // entity. null when the text gives no definition (no hallucination).
+  // NOTE: nullable (not optional) — OpenAI strict structured output requires
+  // every field to be required; optional fields make the schema invalid → 500.
+  description: z.string().nullable(),
   // Property values (instances). Empty for classes.
   properties: z.array(parsedEntityPropertySchema),
 });
+
+// PR1 (목표①): 관계의 액션 지향 분류. descriptive(정의문·위계·레이아웃 등 서술
+// 관계)는 액션 그래프에서 강등 대상. strict 모드라 required(optional 불가).
+export const relationCategoryEnum = z.enum([
+  'structural',
+  'causal',
+  'diagnostic',
+  'procedural',
+  'descriptive',
+]);
+
+export type RelationCategory = z.infer<typeof relationCategoryEnum>;
 
 export const parsedRelationSchema = z.object({
   source: z.string().min(1),
   target: z.string().min(1),
   // Relation/verb name (causal, compositional, temporal, measurement, etc.).
   type: z.string().min(1),
+  // PR1 (목표①): 추출 시점에 부여되는 액션 지향 분류.
+  category: relationCategoryEnum,
   // Verbatim span grounding this relation. Empty grounding => no relation.
   evidence: z.string(),
   confidence: z.number().min(0).max(1),
@@ -362,6 +535,10 @@ export type ParseResponse = z.infer<typeof parseResponseSchema>;
 
 export const parseRequestSchema = z.object({
   text: z.string().min(1),
+  // M5: how to read the input. "text" = free-form prose (default, back-compat).
+  // "csv" = tabular data — header row is the schema, rows are records. Switches
+  // the route to CSV-specialized prompts and a larger char/output budget.
+  inputKind: z.enum(['text', 'csv']).optional().default('text'),
   existingClasses: z.array(z.string()).optional(),
   existingRelationTypes: z.array(z.string()).optional(),
   // Enriched schema context (class hierarchy + types + key relations), built by

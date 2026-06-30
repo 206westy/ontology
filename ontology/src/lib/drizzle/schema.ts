@@ -11,6 +11,7 @@ import {
   unique,
   index,
   check,
+  vector,
 } from 'drizzle-orm/pg-core';
 import { relations, sql } from 'drizzle-orm';
 
@@ -59,6 +60,8 @@ export const classes = pgTable(
     sourceType: text('source_type'),
     confidence: real('confidence'),
     evidence: text('evidence'),
+    // PRD-E P1-1: dedup·RAG 임베딩 (text-embedding-3-small, 1536). 생성은 P2.
+    embedding: vector('embedding', { dimensions: 1536 }),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -139,6 +142,10 @@ export const instances = pgTable(
       .notNull()
       .references(() => classes.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
+    // PRD-E P1-1: RAG 문맥용 설명.
+    description: text('description').notNull().default(''),
+    // PRD-E P1-1: dedup·RAG 임베딩 (text-embedding-3-small, 1536). 생성은 P2.
+    embedding: vector('embedding', { dimensions: 1536 }),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -195,20 +202,31 @@ export const instanceValuesRelations = relations(
 );
 
 // ─── relation_types ────────────────────────────────────────
-export const relationTypes = pgTable('relation_types', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  name: text('name').notNull().unique(),
-  description: text('description').default(''),
-  sourceClassId: uuid('source_class_id').references(() => classes.id, {
-    onDelete: 'set null',
-  }),
-  targetClassId: uuid('target_class_id').references(() => classes.id, {
-    onDelete: 'set null',
-  }),
-  createdAt: timestamp('created_at', { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-});
+export const relationTypes = pgTable(
+  'relation_types',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    name: text('name').notNull().unique(),
+    description: text('description').default(''),
+    // PR1 (목표①): 액션 지향 분류. 기존 row 는 'descriptive' 백필.
+    category: text('category').notNull().default('descriptive'),
+    sourceClassId: uuid('source_class_id').references(() => classes.id, {
+      onDelete: 'set null',
+    }),
+    targetClassId: uuid('target_class_id').references(() => classes.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    check(
+      'chk_relation_category',
+      sql`${t.category} IN ('structural', 'causal', 'diagnostic', 'procedural', 'descriptive')`,
+    ),
+  ],
+);
 
 export const relationTypesRelations = relations(
   relationTypes,
@@ -500,4 +518,38 @@ export const validationResultsRelations = relations(
       references: [constraints.id],
     }),
   }),
+);
+
+// ─── attributions (PRD-E P1-1: 다형성 출처 / 6요소 횡단 1급 요소) ──
+// target_table + target_id 다형성 참조로 어떤 행이든 출처를 추적한다.
+// Neo4j 푸시 시 _src/_conf/_srcRef 로 운반된다.
+export const attributions = pgTable(
+  'attributions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    targetTable: text('target_table').notNull(),
+    targetId: uuid('target_id').notNull(),
+    sourceType: text('source_type').notNull(),
+    sourceRef: text('source_ref'),
+    evidence: text('evidence'),
+    confidence: real('confidence'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index('idx_attr_target').on(t.targetTable, t.targetId),
+    check(
+      'chk_attr_source_type',
+      sql`${t.sourceType} IN ('document', 'sap', 'user', 'web', 'inferred')`,
+    ),
+    check(
+      'chk_attr_target_table',
+      sql`${t.targetTable} IN ('classes', 'instances', 'properties', 'edges', 'relation_types', 'axioms', 'constraints')`,
+    ),
+    check(
+      'chk_attr_confidence',
+      sql`${t.confidence} IS NULL OR (${t.confidence} >= 0 AND ${t.confidence} <= 1)`,
+    ),
+  ],
 );

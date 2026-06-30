@@ -24,6 +24,11 @@ import type {
   ImportRequestInput,
   AssistRequestInput,
   AssistantActionResponse,
+  DedupCandidatesRequestInput,
+  DedupCandidate,
+  DedupResolveRequestInput,
+  DedupResolveResponse,
+  GovernanceProposal,
 } from './lib/schemas';
 
 async function handleResponse<T>(res: Response): Promise<T> {
@@ -200,6 +205,8 @@ export const instanceValuesApi = {
 // ─── LLM ──────────────────────────────────────────────────
 export interface LlmParseInput {
   text: string;
+  // M5: "csv" switches the route to CSV-specialized prompts. Omit/"text" = prose.
+  inputKind?: 'text' | 'csv';
   existingClasses?: string[];
   existingRelationTypes?: string[];
   // Enriched schema context (hierarchy + types + key relations) for node reuse (A-2).
@@ -211,12 +218,16 @@ export interface ParsedEntityProperty {
   name: string;
   value: string;
   dataType: string;
+  // PR1 (목표②): 동작 모드·상태·옵션의 enum 값 목록 (비-enum 속성은 null).
+  enumValues: string[] | null;
 }
 
 export interface ParsedEntity {
   name: string;
   type: string;
   evidence: string;
+  // PRD-E P2-6: grounded description (null when text gives no definition).
+  description?: string | null;
   // A-1.1 classification (optional for back-compat with older payloads).
   nodeKind?: 'class' | 'instance';
   parentType?: string | null;
@@ -227,6 +238,8 @@ export interface ParsedRelation {
   source: string;
   target: string;
   type: string;
+  // PR1 (목표①): 액션 지향 분류 (structural/causal/diagnostic/procedural/descriptive).
+  category: 'structural' | 'causal' | 'diagnostic' | 'procedural' | 'descriptive';
   evidence: string;
   confidence: number;
 }
@@ -274,6 +287,16 @@ export const enrichApi = {
       headers: jsonHeaders,
       body: JSON.stringify(data),
     }).then((r) => handleResponse<{ proposals: EnrichProposal[]; webUsed: boolean }>(r)),
+  // PRD-E P2-7: 거버넌스 HITL 제안.
+  suggestGovernance: (data: {
+    text: string;
+    schemaContext?: string;
+  }): Promise<{ proposals: GovernanceProposal[] }> =>
+    fetch('/api/llm/enrich/suggest-governance', {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify(data),
+    }).then((r) => handleResponse<{ proposals: GovernanceProposal[] }>(r)),
 };
 
 // ─── LLM Autocomplete (v4) ──────────────────────────────────
@@ -531,6 +554,35 @@ export const entityResolutionApi = {
     fetch('/api/entity-resolution/candidates').then((r) =>
       handleResponse<{ candidates: MergeCandidate[] }>(r),
     ),
+};
+
+// ─── Dedup (PRD-E P2-4) ────────────────────────────────────
+export const dedupApi = {
+  candidates: (
+    data: DedupCandidatesRequestInput,
+  ): Promise<{ candidates: DedupCandidate[] }> =>
+    fetch('/api/dedup/candidates', {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify(data),
+    }).then((r) => handleResponse<{ candidates: DedupCandidate[] }>(r)),
+  resolve: (data: DedupResolveRequestInput): Promise<DedupResolveResponse> =>
+    fetch('/api/llm/resolve', {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify(data),
+    }).then((r) => handleResponse<DedupResolveResponse>(r)),
+};
+
+// ─── Embeddings (PRD-E P2-2) ───────────────────────────────
+export const embeddingsApi = {
+  // 임베딩 IS NULL 노드를 배치 처리. 커밋 후 fire-and-forget 또는 백필 반복.
+  process: (limit = 100): Promise<{ updated: number; remaining: number }> =>
+    fetch('/api/embeddings/process', {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify({ limit }),
+    }).then((r) => handleResponse<{ updated: number; remaining: number }>(r)),
 };
 
 // ─── Import / Export (v3 + v4 JSON-LD / Turtle) ──────────

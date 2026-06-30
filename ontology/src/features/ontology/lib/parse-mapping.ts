@@ -1,6 +1,7 @@
 import { NODE_COLORS } from '../constants/colors';
 import { levenshtein, normalizeName } from './similarity';
 import type { LlmParseResult } from '../api';
+import type { RelationCategory } from './types';
 
 // Shape the preview/confirm pipeline understands. Carries optional evidence and
 // confidence so later stages (A-3/A-5) can display and persist provenance.
@@ -23,12 +24,15 @@ export interface ParsedExtraction {
     sourceName: string;
     targetName: string;
     relationName: string;
+    // PR1 (목표①): 액션 지향 분류. 구버전 payload 호환 위해 optional.
+    category?: RelationCategory;
     evidence?: string;
     confidence?: number;
   }[];
   instances: {
     className: string;
     name: string;
+    description?: string;
     evidence?: string;
     values?: { propertyName: string; value: string; dataType: string }[];
   }[];
@@ -60,10 +64,11 @@ export function mapParseResult(
     parentName: string | null,
     color: string,
     evidence?: string,
+    description = '',
   ) => {
     const trimmed = name.trim();
     if (!trimmed || seenClass.has(trimmed) || existingClassNames.has(trimmed)) return;
-    classes.push({ name: trimmed, description: '', color, parentName, evidence });
+    classes.push({ name: trimmed, description, color, parentName, evidence });
     seenClass.add(trimmed);
   };
 
@@ -71,7 +76,25 @@ export function mapParseResult(
   const classNameFor = (e: LlmParseResult['entities'][number]) =>
     (e.parentType?.trim() || e.type?.trim() || '').trim();
 
-  // 1) Category classes first, so entities/instances can parent onto them.
+  // 1) Class-kind entities first — each with its stated superclass (type) as parent.
+  //    Creating named classes BEFORE bare category refs is what enables multi-level
+  //    taxonomy (예: 동물 → 코끼리 → 코카서스): a mid-hierarchy class (코끼리) keeps its
+  //    own parent (동물) instead of being pinned top-level when a child (코카서스) later
+  //    references it as a type. seenClass dedupe makes first-writer-wins.
+  for (const e of entities) {
+    if (kindOf(e) !== 'class') continue;
+    addClass(
+      e.name,
+      e.type?.trim() ? e.type.trim() : null,
+      NODE_COLORS.mid,
+      e.evidence,
+      e.description?.trim() ?? '',
+    );
+  }
+
+  // 2) Referenced parent/category names not yet created → top-level roots.
+  //    A name already created as a child in step 1 is skipped (keeps its parent);
+  //    only genuinely-new roots (a type with no entity of its own) are added here.
   for (const e of entities) {
     if (kindOf(e) === 'class') {
       if (e.type?.trim()) addClass(e.type, null, NODE_COLORS.root);
@@ -79,12 +102,6 @@ export function mapParseResult(
       const cn = classNameFor(e);
       if (cn) addClass(cn, null, NODE_COLORS.root);
     }
-  }
-
-  // 2) Class-kind entities.
-  for (const e of entities) {
-    if (kindOf(e) !== 'class') continue;
-    addClass(e.name, e.type?.trim() ? e.type.trim() : null, NODE_COLORS.mid, e.evidence);
   }
 
   // 3) Instance-kind entities.
@@ -107,10 +124,17 @@ export function mapParseResult(
       value: p.value,
       dataType: p.dataType,
     }));
-    instances.push({ className, name, evidence: e.evidence, values });
+    instances.push({
+      className,
+      name,
+      description: e.description?.trim() ?? '',
+      evidence: e.evidence,
+      values,
+    });
     seenInstance.add(name);
 
     // Derive class property definitions from instance property names.
+    // PR1 (목표②): 동작 모드 등 enum 속성의 허용값(enumValues)을 정의에 보존.
     for (const p of e.properties ?? []) {
       const key = `${className}::${p.name}`;
       if (propDefSeen.has(key)) continue;
@@ -119,7 +143,7 @@ export function mapParseResult(
         name: p.name,
         dataType: p.dataType,
         isRequired: false,
-        enumValues: null,
+        enumValues: p.enumValues ?? null,
       });
       propDefSeen.add(key);
     }
@@ -129,6 +153,7 @@ export function mapParseResult(
     sourceName: r.source,
     targetName: r.target,
     relationName: r.type,
+    category: r.category,
     evidence: r.evidence,
     confidence: r.confidence,
   }));
@@ -145,6 +170,20 @@ export function mapParseResult(
   }
 
   return { classes, properties, relations, instances };
+}
+
+// PR1 (목표①): 액션 지향 관계와 서술(descriptive) 관계를 분리. descriptive 는 프리뷰에서
+// 강등(접힘) 표시한다. 원본 인덱스를 보존해 편집/삭제가 parsed.relations 를 그대로 가리킨다.
+export function partitionRelationsByCategory<T extends { category?: RelationCategory }>(
+  relations: T[],
+): { actionable: { rel: T; index: number }[]; descriptive: { rel: T; index: number }[] } {
+  const actionable: { rel: T; index: number }[] = [];
+  const descriptive: { rel: T; index: number }[] = [];
+  relations.forEach((rel, index) => {
+    if (rel.category === 'descriptive') descriptive.push({ rel, index });
+    else actionable.push({ rel, index });
+  });
+  return { actionable, descriptive };
 }
 
 // Islands (A-5): newly-extracted nodes with no grounded relation AND no place in

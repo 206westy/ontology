@@ -47,9 +47,16 @@ export async function PATCH(request: NextRequest, ctx: RouteContext) {
     }
 
     const db = await getDb();
+    // PRD-E P2-2: name/description 변경 시 임베딩 무효화 → 워커가 재생성.
+    const invalidateEmbedding =
+      parsed.data.name !== undefined || parsed.data.description !== undefined;
     const [row] = await db
       .update(classes)
-      .set({ ...parsed.data, updatedAt: sql`now()` })
+      .set({
+        ...parsed.data,
+        ...(invalidateEmbedding ? { embedding: null } : {}),
+        updatedAt: sql`now()`,
+      })
       .where(eq(classes.id, id))
       .returning();
 

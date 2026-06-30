@@ -14,6 +14,7 @@ import type {
   Partition,
 } from '../lib/types';
 import type { OntologyAction } from '../lib/schemas';
+import type { ActionPlan } from '../lib/plan-actions';
 
 export interface ApplyActionsResult {
   applied: string[]; // ids of created/updated nodes (for canvas highlight)
@@ -64,6 +65,9 @@ export interface EntitySlice {
 
   // Compound, single-undo actions (P0-1 / P0-2)
   applyAssistantActions: (actions: OntologyAction[]) => ApplyActionsResult;
+  // 읽기 전용: 적용 전 미리보기(생성/수정/skip + 사유). applyAssistantActions 와
+  // 동일 규칙을 공유한다(plan-actions). store 를 변형하지 않는다.
+  previewAssistantActions: (actions: OntologyAction[]) => ActionPlan;
   mergeEntities: (
     survivorId: string,
     mergedId: string,
@@ -101,6 +105,10 @@ export interface UiSlice {
   showAllPartitions: boolean;
   zoomAction: 'in' | 'out' | 'fit' | null;
 
+  // 노드 기준 AI 확장 요청 — 진입점(컨텍스트 메뉴/패널 버튼)이 설정하고
+  // AIAssistantTab이 소비해 확장 프롬프트를 자동 투입한다. nonce로 재요청 구분.
+  aiExpandRequest: { nodeId: string; nodeName: string; nodeType: 'class' | 'instance'; nonce: number } | null;
+
   // Filter state (P1-4) — colorFilter stored as array to avoid Zustand Set serialization issues
   showClasses: boolean;
   showInstances: boolean;
@@ -112,6 +120,8 @@ export interface UiSlice {
 
   selectNode: (id: string, type: 'class' | 'instance') => void;
   clearSelection: () => void;
+  requestNodeExpansion: (nodeId: string) => void;
+  consumeAiExpandRequest: () => void;
 
   openPopover: (state: PopoverState) => void;
   closePopover: () => void;

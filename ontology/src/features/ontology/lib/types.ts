@@ -47,8 +47,38 @@ export interface OntologyInstance {
   id: string;
   classId: string;
   name: string;
+  // PRD-E P1-1: RAG 문맥용 설명.
+  description: string;
   createdAt: string;
   updatedAt: string;
+}
+
+// PRD-E P1-1: 다형성 출처(어트리뷰션). 6요소 횡단 1급 요소.
+export type AttributionSourceType =
+  | 'document'
+  | 'sap'
+  | 'user'
+  | 'web'
+  | 'inferred';
+
+export type AttributionTargetTable =
+  | 'classes'
+  | 'instances'
+  | 'properties'
+  | 'edges'
+  | 'relation_types'
+  | 'axioms'
+  | 'constraints';
+
+export interface Attribution {
+  id: string;
+  targetTable: AttributionTargetTable;
+  targetId: string;
+  sourceType: AttributionSourceType;
+  sourceRef: string | null;
+  evidence: string | null;
+  confidence: number | null;
+  createdAt: string;
 }
 
 export interface InstanceValue {
@@ -58,10 +88,20 @@ export interface InstanceValue {
   value: string;
 }
 
+// PR1 (목표①): 관계의 액션 지향 분류. parsedRelationSchema 의 enum 과 동일.
+export type RelationCategory =
+  | 'structural'
+  | 'causal'
+  | 'diagnostic'
+  | 'procedural'
+  | 'descriptive';
+
 export interface RelationType {
   id: string;
   name: string;
   description: string;
+  // PR1 (목표①): 추출 시점에 부여되는 액션 지향 분류. 기존 데이터는 'descriptive' 백필.
+  category: RelationCategory;
   sourceClassId: string;
   targetClassId: string;
   createdAt: string;

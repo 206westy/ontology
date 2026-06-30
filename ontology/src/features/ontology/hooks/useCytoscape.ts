@@ -18,6 +18,9 @@ import type { ContextMenuTarget } from '../components/GraphContextMenu';
 
 const DRAG_HIERARCHY_PROXIMITY = 60;
 const ZOOM_DOT_THRESHOLD = 0.45;
+// 한 클래스의 인스턴스가 이 수를 넘으면 기본 접힘(개수 배지만). 더블클릭으로 펼침.
+// display:none 이므로 접힌 인스턴스는 렌더·물리(cola)에서 함께 제외돼 대량에서도 끊기지 않는다.
+const INSTANCE_COLLAPSE_THRESHOLD = 20;
 
 export interface UseCytoscapeResult {
   setContainer: (el: HTMLDivElement | null) => void;
@@ -44,6 +47,9 @@ export function useCytoscape(): UseCytoscapeResult {
 
   const [zoomLevel, setZoomLevel] = useState(100);
   const [contextMenuTarget, setContextMenuTarget] = useState<ContextMenuTarget | null>(null);
+  // 인스턴스 접힘 제어: 사용자가 명시적으로 펼친/접은 클래스 id. 나머지는 임계치로 자동 결정.
+  const [userExpanded, setUserExpanded] = useState<Set<string>>(() => new Set());
+  const [userCollapsed, setUserCollapsed] = useState<Set<string>>(() => new Set());
 
   // ── store 구독 (렌더러가 읽는 상태) ─────────────────────────────
   const classes = useOntologyStore((s) => s.classes);
@@ -182,6 +188,31 @@ export function useCytoscape(): UseCytoscapeResult {
       useOntologyStore.getState().openPopover({ type: 'newNode', position: { x: oe.clientX, y: oe.clientY } });
     });
 
+    // 클래스 더블클릭 → 해당 클래스의 인스턴스 펼침/접기 토글.
+    cy.on('dbltap', 'node', (e: EventObject) => {
+      const node = e.target as NodeSingular;
+      if (node.data('kind') !== 'class') return;
+      const id = node.id();
+      const insts = cy.nodes('node[kind = "instance"]').filter((n) => n.data('classId') === id);
+      if (insts.empty()) return;
+      const anyCollapsed = insts.some((n) => (n as NodeSingular).hasClass('collapsed'));
+      if (anyCollapsed) {
+        setUserExpanded((prev) => new Set(prev).add(id));
+        setUserCollapsed((prev) => {
+          const s = new Set(prev);
+          s.delete(id);
+          return s;
+        });
+      } else {
+        setUserCollapsed((prev) => new Set(prev).add(id));
+        setUserExpanded((prev) => {
+          const s = new Set(prev);
+          s.delete(id);
+          return s;
+        });
+      }
+    });
+
     cy.on('cxttap', 'node', (e: EventObject) => {
       const node = e.target as NodeSingular;
       const kind = node.data('kind') === 'instance' ? 'instance' : 'class';
@@ -313,6 +344,35 @@ export function useCytoscape(): UseCytoscapeResult {
       sleepCola(2800);
     }
   }, [classes, instances, edges, relationTypes, wakeCola, sleepCola]);
+
+  // 인스턴스 접힘 동기화: 클래스별 인스턴스 수가 임계치를 넘으면(또는 사용자가 접으면) 접고,
+  // 사용자가 펼친 클래스는 펼친다. 접힌 인스턴스는 display:none → 렌더·cola에서 제외.
+  useEffect(() => {
+    const cy = cyRef.current;
+    if (!cy) return;
+    const countByClass = new Map<string, number>();
+    instances.forEach((i) => countByClass.set(i.classId, (countByClass.get(i.classId) ?? 0) + 1));
+    const isClassCollapsed = (classId: string): boolean => {
+      if (userCollapsed.has(classId)) return true;
+      if (userExpanded.has(classId)) return false;
+      return (countByClass.get(classId) ?? 0) > INSTANCE_COLLAPSE_THRESHOLD;
+    };
+    cy.batch(() => {
+      // 인스턴스: 부모 클래스가 접힘이면 숨김(display:none → 렌더·물리 제외)
+      instances.forEach((inst) => {
+        const node = cy.getElementById(inst.id);
+        if (node.nonempty()) node.toggleClass('collapsed', isClassCollapsed(inst.classId));
+      });
+      // 클래스 표시 라벨: 접혔고 인스턴스가 있을 때만 `이름 (N)`, 그 외엔 이름만.
+      classes.forEach((cls) => {
+        const node = cy.getElementById(cls.id);
+        if (node.empty()) return;
+        const count = countByClass.get(cls.id) ?? 0;
+        const showCount = count > 0 && isClassCollapsed(cls.id);
+        node.data('displayLabel', showCount ? `${cls.name} (${count})` : cls.name);
+      });
+    });
+  }, [classes, instances, userExpanded, userCollapsed]);
 
   // 선택 동기화 + 연결 엣지 강조
   useEffect(() => {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Activity,
   Loader2,
@@ -13,6 +13,8 @@ import {
   ShieldAlert,
   PieChart,
   UploadCloud,
+  GitFork,
+  Trash2,
 } from 'lucide-react';
 import {
   Sheet,
@@ -26,6 +28,7 @@ import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { useOntologyStore } from '../hooks/useOntologyStore';
 import { healthApi, validateApi, type HealthMetrics, type ValidationResult } from '../api';
+import { findStructureIssues } from '../lib/graph-health';
 import MetricCard from './health/MetricCard';
 import ViolationList from './health/ViolationList';
 
@@ -42,6 +45,21 @@ export default function HealthDashboardSheet({
 
   const selectNode = useOntologyStore((s) => s.selectNode);
   const focusNode = useOntologyStore((s) => s.focusNode);
+  const edges = useOntologyStore((s) => s.edges);
+  const storeClasses = useOntologyStore((s) => s.classes);
+  const storeInstances = useOntologyStore((s) => s.instances);
+  const relationTypes = useOntologyStore((s) => s.relationTypes);
+  const removeEdge = useOntologyStore((s) => s.removeEdge);
+
+  // 클라이언트 구조 점검(자기 루프·중복 엣지). 서버 지표와 별개로 즉시 계산.
+  const structureIssues = useMemo(() => {
+    const nodeName = (id: string) =>
+      storeClasses.find((c) => c.id === id)?.name ??
+      storeInstances.find((i) => i.id === id)?.name ??
+      '?';
+    const relName = (rtId: string) => relationTypes.find((r) => r.id === rtId)?.name ?? 'relation';
+    return findStructureIssues(edges, nodeName, relName);
+  }, [edges, storeClasses, storeInstances, relationTypes]);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -139,12 +157,53 @@ export default function HealthDashboardSheet({
                   tone={metrics.unpushedChanges > 0 ? 'warning' : 'success'}
                   hint="Neo4j에 push되지 않은 커밋"
                 />
+                <MetricCard
+                  icon={GitFork}
+                  label="구조 결함"
+                  value={structureIssues.length}
+                  tone={structureIssues.length > 0 ? 'warning' : 'success'}
+                  hint="자기 루프·중복 엣지"
+                />
               </div>
 
               <div>
                 <h3 className="text-[11px] font-semibold text-muted-foreground mb-1.5">검증 위반</h3>
                 <ViolationList result={validation} onJump={handleJump} />
               </div>
+
+              {structureIssues.length > 0 && (
+                <div>
+                  <h3 className="text-[11px] font-semibold text-muted-foreground mb-1.5">
+                    구조 점검 ({structureIssues.length})
+                  </h3>
+                  <div className="space-y-1">
+                    {structureIssues.map((it) => (
+                      <div
+                        key={it.edgeId}
+                        className="flex items-center gap-2 py-1.5 px-2 rounded border border-amber-500/30 bg-amber-500/10 group"
+                      >
+                        <span className="shrink-0 rounded px-1 text-[9px] font-medium bg-amber-500/20 text-amber-700 dark:text-amber-400">
+                          {it.kind === 'self_loop' ? '자기 루프' : '중복'}
+                        </span>
+                        <button
+                          className="text-[11px] text-foreground truncate flex-1 text-left hover:text-primary transition-colors"
+                          onClick={() => handleJump(it.sourceId, it.sourceKind === 'class' ? 'classes' : 'instances')}
+                        >
+                          {it.label}
+                        </button>
+                        <button
+                          className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive shrink-0"
+                          onClick={() => removeEdge(it.edgeId)}
+                          aria-label="이 관계 삭제"
+                          title="이 관계 삭제"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="py-10 text-center text-xs text-muted-foreground">데이터가 없습니다</div>

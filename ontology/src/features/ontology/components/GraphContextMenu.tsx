@@ -14,6 +14,7 @@ import {
   Search,
   Trash2,
   Repeat2,
+  Sparkles,
 } from 'lucide-react';
 import { NODE_COLORS, NODE_COLOR_LABELS } from '../constants/colors';
 import type { NodeColorKey } from '../lib/types';
@@ -43,6 +44,7 @@ interface GraphContextMenuProps {
   onAddRelation?: (nodeId: string) => void;
   onAddSubclass?: (parentId: string) => void;
   onAddInstance?: (classId: string) => void;
+  onExpandNode?: (nodeId: string) => void;
   onFocusMode?: (nodeId: string) => void;
   onFindInExplorer?: (nodeId: string) => void;
   onDeleteNode?: (nodeId: string) => void;
@@ -118,6 +120,7 @@ export default function GraphContextMenu({
   onAddRelation,
   onAddSubclass,
   onAddInstance,
+  onExpandNode,
   onFocusMode,
   onFindInExplorer,
   onDeleteNode,
@@ -209,6 +212,12 @@ export default function GraphContextMenu({
             <ColorSubmenu nodeId={target.nodeId} onChangeColor={(id, c) => handleAction(() => onChangeColor?.(id, c))} />
           </div>
           <MenuSeparator />
+          {onExpandNode && (
+            <MenuItem onClick={() => handleAction(() => onExpandNode?.(target.nodeId))}>
+              <Sparkles className="w-3.5 h-3.5 text-primary" />
+              AI로 확장
+            </MenuItem>
+          )}
           <MenuItem onClick={() => handleAction(() => onAddRelation?.(target.nodeId))}>
             <Link2 className="w-3.5 h-3.5" />
             관계 추가
@@ -254,6 +263,12 @@ export default function GraphContextMenu({
             <Link2 className="w-3.5 h-3.5" />
             관계 추가
           </MenuItem>
+          {onExpandNode && (
+            <MenuItem onClick={() => handleAction(() => onExpandNode?.(target.nodeId))}>
+              <Sparkles className="w-3.5 h-3.5 text-primary" />
+              AI로 확장
+            </MenuItem>
+          )}
           <MenuSeparator />
           <MenuItem onClick={() => handleAction(() => onFocusMode?.(target.nodeId))}>
             <Focus className="w-3.5 h-3.5" />

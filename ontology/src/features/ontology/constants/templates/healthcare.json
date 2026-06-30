@@ -27,12 +27,12 @@
     { "className": "Ward", "name": "capacity", "dataType": "integer", "isRequired": true },
     { "className": "Patient", "name": "patient_id", "dataType": "string", "isRequired": true },
     { "className": "Patient", "name": "birth_date", "dataType": "date", "isRequired": true },
-    { "className": "Patient", "name": "blood_type", "dataType": "enum", "isRequired": false },
+    { "className": "Patient", "name": "blood_type", "dataType": "enum", "isRequired": false, "enumValues": ["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"] },
     { "className": "Doctor", "name": "license_number", "dataType": "string", "isRequired": true },
     { "className": "Doctor", "name": "specialty", "dataType": "string", "isRequired": true },
     { "className": "Nurse", "name": "license_number", "dataType": "string", "isRequired": true },
     { "className": "Diagnosis", "name": "icd_code", "dataType": "string", "isRequired": true },
-    { "className": "Diagnosis", "name": "severity", "dataType": "enum", "isRequired": true },
+    { "className": "Diagnosis", "name": "severity", "dataType": "enum", "isRequired": true, "enumValues": ["Mild", "Moderate", "Severe", "Critical"] },
     { "className": "Treatment", "name": "treatment_type", "dataType": "string", "isRequired": true },
     { "className": "Treatment", "name": "start_date", "dataType": "date", "isRequired": true },
     { "className": "Surgery", "name": "surgery_code", "dataType": "string", "isRequired": true },
@@ -42,11 +42,11 @@
     { "className": "LabTest", "name": "test_code", "dataType": "string", "isRequired": true },
     { "className": "LabTest", "name": "normal_range", "dataType": "string", "isRequired": false },
     { "className": "MedicalDevice", "name": "device_name", "dataType": "string", "isRequired": true },
-    { "className": "MedicalDevice", "name": "fda_class", "dataType": "enum", "isRequired": false },
+    { "className": "MedicalDevice", "name": "fda_class", "dataType": "enum", "isRequired": false, "enumValues": ["Class I", "Class II", "Class III"] },
     { "className": "Insurance", "name": "provider_name", "dataType": "string", "isRequired": true },
     { "className": "Insurance", "name": "coverage_type", "dataType": "string", "isRequired": true },
     { "className": "Allergy", "name": "allergen", "dataType": "string", "isRequired": true },
-    { "className": "Allergy", "name": "reaction_severity", "dataType": "enum", "isRequired": true }
+    { "className": "Allergy", "name": "reaction_severity", "dataType": "enum", "isRequired": true, "enumValues": ["Mild", "Moderate", "Severe", "Anaphylaxis"] }
   ],
   "relationTypes": [
     { "name": "has_department", "sourceClassName": "Hospital", "targetClassName": "Department" },

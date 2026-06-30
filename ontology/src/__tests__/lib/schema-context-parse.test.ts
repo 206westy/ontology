@@ -3,13 +3,13 @@ import { buildParseSchemaContext } from '@/features/ontology/lib/schema-context'
 
 const baseStore = {
   classes: [
-    { id: 'c1', parentId: null, name: '하드웨어', description: '장비 부품', color: '#7c3aed', positionX: 0, positionY: 0, createdAt: '', updatedAt: '' },
-    { id: 'c2', parentId: 'c1', name: 'Chuck', description: '', color: '#2563eb', positionX: 0, positionY: 0, createdAt: '', updatedAt: '' },
+    { id: 'c1', parentId: null, partitionId: '00000000-0000-0000-0000-000000000001', name: '하드웨어', description: '장비 부품', color: '#7c3aed', positionX: 0, positionY: 0, createdAt: '', updatedAt: '' },
+    { id: 'c2', parentId: 'c1', partitionId: '00000000-0000-0000-0000-000000000001', name: 'Chuck', description: '', color: '#2563eb', positionX: 0, positionY: 0, createdAt: '', updatedAt: '' },
   ],
   instances: [],
   properties: [],
   relationTypes: [
-    { id: 'r1', name: '관련_하드웨어', description: '', sourceClassId: '', targetClassId: '', createdAt: '' },
+    { id: 'r1', name: '관련_하드웨어', description: '', category: 'descriptive' as const, sourceClassId: '', targetClassId: '', createdAt: '' },
   ],
   edges: [],
 };

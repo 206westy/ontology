@@ -37,6 +37,30 @@ const RULE_LABELS: Record<string, string> = {
   similar_names: '유사 이름 감지',
 };
 
+// 비전문가용: 각 규칙이 "무엇이 문제인지" + "어떻게 고치는지"를 평이한 말로 설명.
+const RULE_HELP: Record<string, { what: string; fix: string }> = {
+  cyclic_isa: {
+    what: '두 클래스가 서로 상위이면서 하위가 되어 계층이 빙빙 돕니다.',
+    fix: '관련 클래스의 부모(상위 클래스)를 다른 것으로 바꾸거나 비우세요.',
+  },
+  required_properties: {
+    what: '필수로 지정된 속성에 값이 비어 있는 인스턴스가 있습니다.',
+    fix: '해당 인스턴스를 열어 빠진 필수 속성 값을 채우세요.',
+  },
+  cardinality: {
+    what: '허용된 관계 개수(최소/최대 범위)를 벗어났습니다.',
+    fix: '관계를 더 연결하거나 줄여서 허용 범위에 맞추세요.',
+  },
+  orphan_nodes: {
+    what: '아무 관계도 없는 외톨이 노드입니다.',
+    fix: '다른 노드와 관계로 연결하거나, 불필요하면 삭제하세요.',
+  },
+  similar_names: {
+    what: '이름이 비슷한 항목이 있어 중복일 수 있습니다.',
+    fix: '중복이면 ‘중복 검사/병합’에서 하나로 합치세요.',
+  },
+};
+
 const SEVERITY_CONFIG = {
   error: {
     icon: ShieldAlert,
@@ -114,6 +138,7 @@ function IssueRow({ issue, onNavigate }: { issue: ValidationIssue; onNavigate: (
         className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
         onClick={() => onNavigate(issue.targetId, issue.targetTable)}
         title="해당 노드로 이동"
+        aria-label="해당 노드로 이동"
       >
         <ExternalLink className="w-3 h-3" />
       </Button>
@@ -232,6 +257,17 @@ export default function ValidationResultsPanel({
                           </div>
                         </AccordionTrigger>
                         <AccordionContent className="pb-2">
+                          {RULE_HELP[group.ruleCode] && (
+                            <div className="mb-1.5 rounded-md bg-muted/40 px-2 py-1.5 space-y-0.5">
+                              <p className="text-[11px] text-foreground/80 leading-relaxed">
+                                {RULE_HELP[group.ruleCode].what}
+                              </p>
+                              <p className="text-[11px] text-primary/90 leading-relaxed">
+                                <span className="font-medium">고치는 법: </span>
+                                {RULE_HELP[group.ruleCode].fix}
+                              </p>
+                            </div>
+                          )}
                           <div className="space-y-0.5">
                             {group.issues.map((issue, idx) => (
                               <IssueRow

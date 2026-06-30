@@ -36,13 +36,29 @@ export function buildStylesheet(c: ResolvedThemeColors): StylesheetJson {
         'transition-duration': 120,
       },
     },
-    { selector: 'node[kind = "class"]', style: { shape: 'ellipse', width: 'data(size)', height: 'data(size)' } },
+    // 클래스: 큰 원 + 이름(있으면 둘째 줄에 인스턴스 개수). 형태만으로 "유형"을 읽게.
+    { selector: 'node[kind = "class"]', style: { shape: 'ellipse', width: 'data(size)', height: 'data(size)', label: 'data(displayLabel)' } },
     {
-      // 인스턴스: 알약 형태 유지, 폭은 차수(size)로 완만히, 높이는 고정
+      // 인스턴스: 작은 채운 점(dot). 라벨은 평상시 숨김(대량에서 라벨 폭발 방지) — 호버/선택 시 노출.
       selector: 'node[kind = "instance"]',
-      style: { shape: 'round-rectangle', width: 'data(size)', height: 40, 'border-width': 2, 'background-opacity': 0.22 },
+      style: {
+        shape: 'ellipse',
+        width: 14,
+        height: 14,
+        label: '',
+        'border-width': 1.5,
+        'background-opacity': 0.95,
+        'transition-property': 'opacity, width, height, background-opacity, border-width',
+        'transition-duration': 120,
+      },
     },
     ...colorSelectors,
+    // 인스턴스 라벨: 호버하면 이름이 뜬다("이게 뭔지" 즉시 확인). 살짝 커지며 위로.
+    { selector: 'node[kind = "instance"].hover-focus', style: { label: 'data(label)', 'font-size': 10, width: 20, height: 20, 'background-opacity': 0.95, 'z-index': 99 } },
+    // 인스턴스 선택(클릭→속성 패널) 시에도 이름 유지.
+    { selector: 'node[kind = "instance"]:selected', style: { label: 'data(label)', 'font-size': 10, 'z-index': 99 } },
+    // 접힌 인스턴스(대량 클래스 기본 접힘) — display:none 이라 렌더·물리(cola)에서 함께 제외된다.
+    { selector: 'node.collapsed', style: { display: 'none' } },
     // 빈 클래스 (인스턴스·자식 없음) — 점선 + 흐리게
     { selector: 'node.empty', style: { 'border-style': 'dashed', opacity: 0.55 } },
 

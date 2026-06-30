@@ -4,6 +4,7 @@ import { constraints } from '@/lib/drizzle/schema';
 import { createConstraintSchema } from '@/features/ontology/lib/schemas';
 import { eq } from 'drizzle-orm';
 import { handleApiError } from '@/lib/api-error';
+import { recordAttribution } from '@/lib/attribution';
 
 export async function GET(request: NextRequest) {
   const constraintType = request.nextUrl.searchParams.get('constraintType');
@@ -64,6 +65,15 @@ export async function POST(request: NextRequest) {
         isActive: parsed.data.isActive,
       })
       .returning();
+
+    // PRD-E P2-7: 거버넌스 제안 출처를 attributions 에 기록.
+    await recordAttribution(db, {
+      targetTable: 'constraints',
+      targetId: row.id,
+      sourceType: parsed.data.sourceType,
+      evidence: parsed.data.evidence,
+      confidence: parsed.data.confidence,
+    });
 
     const result = await db.query.constraints.findFirst({
       where: eq(constraints.id, row.id),

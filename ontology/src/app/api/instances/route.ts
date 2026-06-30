@@ -46,25 +46,26 @@ export async function POST(request: NextRequest) {
         ...(parsed.data.id ? { id: parsed.data.id } : {}),
         classId: parsed.data.classId,
         name: parsed.data.name,
+        description: parsed.data.description,
       })
       .returning();
 
-    if (parsed.data.values && parsed.data.values.length > 0) {
-      await db.insert(instanceValues).values(
-        parsed.data.values.map((v) => ({
-          instanceId: instance.id,
-          propertyId: v.propertyId,
-          value: v.value ?? null,
-        })),
-      );
-    }
+    // 왕복 절감: findFirst 재조회 대신 insert 의 returning 으로 응답 구성(계약 동일).
+    const values =
+      parsed.data.values && parsed.data.values.length > 0
+        ? await db
+            .insert(instanceValues)
+            .values(
+              parsed.data.values.map((v) => ({
+                instanceId: instance.id,
+                propertyId: v.propertyId,
+                value: v.value ?? null,
+              })),
+            )
+            .returning()
+        : [];
 
-    const result = await db.query.instances.findFirst({
-      where: eq(instances.id, instance.id),
-      with: { values: true },
-    });
-
-    return NextResponse.json(result, { status: 201 });
+    return NextResponse.json({ ...instance, values }, { status: 201 });
   } catch (err) {
     return handleApiError(err);
   }

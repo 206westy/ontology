@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useOntologyStore, useTemporalStore } from '../hooks/useOntologyStore';
-import { commitsApi } from '../api';
+import { commitsApi, embeddingsApi } from '../api';
 import { toast } from 'sonner';
 import NeoConfirmSheet from './neo4j/NeoConfirmSheet';
 import CommitHistoryPanel from './CommitHistoryPanel';
@@ -67,6 +67,8 @@ export default function CommitBar() {
         })),
       });
       clearChanges();
+      // PRD-E P2-2: 커밋 후 임베딩 생성 트리거 (논블로킹).
+      void embeddingsApi.process().catch(() => {});
       toast.success('저장 완료', { description: '변경사항이 Supabase에 저장되었습니다.' });
     } catch {
       toast.error('저장 실패', { description: '다시 시도해주세요.' });
@@ -83,6 +85,13 @@ export default function CommitBar() {
           autoEnabled={autoSaveEnabled}
           onToggleAuto={toggleAutoSave}
         />
+        <Badge
+          variant="outline"
+          className="h-5 text-[9px] px-1.5 shrink-0 text-muted-foreground"
+          title="지금 편집 내용은 스테이징(초안)에 있습니다. ‘저장’은 스테이징 보관, ‘반영’은 운영(Neo4j)으로 발행입니다."
+        >
+          스테이징(초안)
+        </Badge>
         <span className="text-[11px] text-foreground">
           변경사항 {pendingChanges.length}건
         </span>
@@ -108,6 +117,7 @@ export default function CommitBar() {
           className="h-6 text-[11px] px-2 gap-1"
           disabled={!hasChanges}
           onClick={() => undo()}
+          title="마지막 변경 되돌리기 (Ctrl+Z)"
         >
           <Undo2 className="w-3 h-3" />
           되돌리기
@@ -140,6 +150,7 @@ export default function CommitBar() {
             disabled={!hasChanges || isCommitting}
             onClick={handleCommit}
             data-testid="commit-btn"
+            title="스테이징에 저장 — Supabase에 변경 이력으로 보관합니다(아직 운영 반영은 아님)."
           >
             {isCommitting ? (
               <Loader2 className="w-3 h-3 animate-spin" />
@@ -155,6 +166,7 @@ export default function CommitBar() {
           disabled={!hasChanges}
           onClick={() => setShowNeoPush(true)}
           data-testid="neo4j-push-btn"
+          title="운영(반영본)에 발행 — Neo4j 그래프로 내보냅니다."
         >
           <ArrowUpCircle className="w-3 h-3" />
           반영

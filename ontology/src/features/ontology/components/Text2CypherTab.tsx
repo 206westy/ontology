@@ -21,6 +21,16 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogFooter,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from '@/components/ui/alert-dialog';
 import { text2CypherApi, neo4jApi, type Text2CypherResult, type Neo4jStatusResponse } from '../api';
 import { useOntologyStore } from '../store';
 import { uuid } from '../lib/uuid';
@@ -482,6 +492,9 @@ export default function Text2CypherTab() {
     }
   }, [input, loading]);
 
+  // 운영(반영본) Neo4j 에 직접 실행되므로, 실행 전 확인 다이얼로그를 거친다.
+  const [execConfirmOpen, setExecConfirmOpen] = useState(false);
+
   const handleExecute = useCallback(async () => {
     const cypher = mode === 'nl' ? generatedCypher : cypherDraft.trim();
     if (!cypher || executing) return;
@@ -717,7 +730,7 @@ export default function Text2CypherTab() {
                 isProcessing ||
                 (mode === 'nl' ? !input.trim() : !cypherDraft.trim())
               }
-              onClick={mode === 'nl' ? handleGenerate : handleExecute}
+              onClick={mode === 'nl' ? handleGenerate : () => setExecConfirmOpen(true)}
             >
               {isProcessing ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -761,7 +774,7 @@ export default function Text2CypherTab() {
                   <Button
                     size="sm"
                     className="h-6 text-[10px] px-2.5 gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
-                    onClick={handleExecute}
+                    onClick={() => setExecConfirmOpen(true)}
                     disabled={!activeCypher || executing}
                   >
                     {executing ? (
@@ -878,6 +891,31 @@ export default function Text2CypherTab() {
           )}
         </div>
       </ScrollArea>
+
+      <AlertDialog open={execConfirmOpen} onOpenChange={setExecConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>운영 Neo4j에 실행</AlertDialogTitle>
+            <AlertDialogDescription>
+              이 쿼리는 스테이징이 아닌 <strong>운영(반영본)</strong> Neo4j 그래프에 직접 실행됩니다. 내용을 확인한 뒤 진행하세요.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <pre className="max-h-48 overflow-auto rounded-md bg-muted/50 p-2 text-[11px] font-mono whitespace-pre-wrap break-words">
+            {mode === 'nl' ? generatedCypher : cypherDraft.trim()}
+          </pre>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setExecConfirmOpen(false);
+                void handleExecute();
+              }}
+            >
+              실행
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

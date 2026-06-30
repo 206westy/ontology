@@ -30,7 +30,7 @@
     { "className": "RawMaterial", "name": "material_code", "dataType": "string", "isRequired": true },
     { "className": "Order", "name": "order_date", "dataType": "date", "isRequired": true },
     { "className": "Order", "name": "total_amount_krw", "dataType": "float", "isRequired": true },
-    { "className": "Order", "name": "status", "dataType": "enum", "isRequired": true },
+    { "className": "Order", "name": "status", "dataType": "enum", "isRequired": true, "enumValues": ["Pending", "Confirmed", "Processing", "Shipped", "Delivered", "Cancelled"] },
     { "className": "Shipment", "name": "tracking_number", "dataType": "string", "isRequired": true },
     { "className": "Shipment", "name": "ship_date", "dataType": "date", "isRequired": true },
     { "className": "Shipment", "name": "carrier", "dataType": "string", "isRequired": true },

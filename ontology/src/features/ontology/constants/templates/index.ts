@@ -30,6 +30,8 @@ export interface TemplateProperty {
   name: string;
   dataType: string;
   isRequired: boolean;
+  // enum 타입 property 는 DB 제약(properties_check)상 비어있지 않은 enumValues 가 필수.
+  enumValues?: string[];
 }
 
 export interface TemplateRelationType {
@@ -173,7 +175,7 @@ export function buildImportPayload(templateId: string) {
     name: prop.name,
     dataType: prop.dataType,
     isRequired: prop.isRequired,
-    enumValues: null,
+    enumValues: prop.enumValues ?? null,
     constraintRule: null,
     sortOrder: i,
   }));

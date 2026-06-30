@@ -8,6 +8,8 @@ import {
   createRelationTypeSchema,
   createAxiomSchema,
   createCommitSchema,
+  parsedRelationSchema,
+  parsedEntityPropertySchema,
 } from '@/features/ontology/lib/schemas';
 
 describe('createClassSchema', () => {
@@ -143,6 +145,53 @@ describe('createRelationTypeSchema', () => {
   it('should reject empty name', () => {
     const result = createRelationTypeSchema.safeParse({ name: '' });
     expect(result.success).toBe(false);
+  });
+});
+
+describe('parsedRelationSchema (PR1: 액션 지향 category)', () => {
+  const base = {
+    source: 'MW Power',
+    target: 'Particle',
+    type: '증가시킨다',
+    evidence: 'MW Power가 높으면 Particle 증가',
+    confidence: 0.9,
+  };
+
+  it('requires a category (strict 모드 — optional 불가)', () => {
+    const result = parsedRelationSchema.safeParse(base);
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts a valid action-centric category', () => {
+    const result = parsedRelationSchema.safeParse({ ...base, category: 'causal' });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects an unknown category', () => {
+    const result = parsedRelationSchema.safeParse({ ...base, category: 'temporal' });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe('parsedEntityPropertySchema (PR1: 동작 모드 enum 속성)', () => {
+  it('carries enumValues for a mode-style property', () => {
+    const result = parsedEntityPropertySchema.safeParse({
+      name: 'mode',
+      value: 'RAG',
+      dataType: 'enum',
+      enumValues: ['RAG', 'Agent'],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts null enumValues for non-enum properties (strict required+nullable)', () => {
+    const result = parsedEntityPropertySchema.safeParse({
+      name: 'partNumber',
+      value: 'KC0330655',
+      dataType: 'string',
+      enumValues: null,
+    });
+    expect(result.success).toBe(true);
   });
 });
 

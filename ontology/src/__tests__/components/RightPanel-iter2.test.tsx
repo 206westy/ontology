@@ -164,7 +164,7 @@ describe('RightPanel — Iteration 2', () => {
     const countElements = screen.getAllByText('(1)');
     expect(countElements.length).toBeGreaterThanOrEqual(1);
     // Instances section exists
-    expect(screen.getByText('Instances')).toBeInTheDocument();
+    expect(screen.getByText('인스턴스 (실제 사례)')).toBeInTheDocument();
     // Note: even with instanceValues, the RightPanel renders "—" (em dash) for values (B-6 gap)
   });
 
@@ -188,7 +188,7 @@ describe('RightPanel — Iteration 2', () => {
 
     render(<RightPanel />);
     // Constraints section exists (collapsed by default)
-    expect(screen.getByText('Constraints')).toBeInTheDocument();
+    expect(screen.getByText('제약조건')).toBeInTheDocument();
   });
 
   // C-2: focusNode called when Explorer tree item is clicked (verified via store)
@@ -201,11 +201,11 @@ describe('RightPanel — Iteration 2', () => {
 
     render(<RightPanel />);
     expect(screen.getByText('Vehicle')).toBeInTheDocument();
-    expect(screen.getByText('Subclasses')).toBeInTheDocument();
+    expect(screen.getByText('하위 클래스')).toBeInTheDocument();
     expect(screen.getByText('Car')).toBeInTheDocument();
-    expect(screen.getByText('Properties')).toBeInTheDocument();
+    expect(screen.getByText('속성')).toBeInTheDocument();
     expect(screen.getByText('speed')).toBeInTheDocument();
-    expect(screen.getByText('Constraints')).toBeInTheDocument();
-    expect(screen.getByText('Instances')).toBeInTheDocument();
+    expect(screen.getByText('제약조건')).toBeInTheDocument();
+    expect(screen.getByText('인스턴스 (실제 사례)')).toBeInTheDocument();
   });
 });

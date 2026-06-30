@@ -14,6 +14,7 @@ import type {
 import { DEFAULT_PARTITION_ID } from '../lib/types';
 import type { EntitySlice, SliceCreator } from './types';
 import { uuid } from '../lib/uuid';
+import { planAssistantActions } from '../lib/plan-actions';
 
 // 노드(class/instance)의 소속 구획 id 를 해석. instance 는 소속 class 의 구획을 상속.
 function partitionOfNode(
@@ -132,6 +133,7 @@ export const createEntitySlice: SliceCreator<EntitySlice> = (set, get) => ({
       id,
       classId: data.classId,
       name: data.name,
+      description: data.description ?? '',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -359,6 +361,8 @@ export const createEntitySlice: SliceCreator<EntitySlice> = (set, get) => ({
       id,
       name: data.name,
       description: data.description ?? '',
+      // PR1 (목표①): 분류 미지정 시 'descriptive'(서술) 기본값 — 액션 그래프에서 강등.
+      category: data.category ?? 'descriptive',
       sourceClassId: data.sourceClassId ?? '',
       targetClassId: data.targetClassId ?? '',
       createdAt: new Date().toISOString(),
@@ -454,6 +458,24 @@ export const createEntitySlice: SliceCreator<EntitySlice> = (set, get) => ({
   // Each runs as ONE set() so zundo records a single checkpoint and
   // pendingChanges is appended as one group (Ctrl+Z reverts the whole batch).
 
+  previewAssistantActions: (actions) => {
+    const state = get();
+    return planAssistantActions(
+      {
+        classes: state.classes.map((c) => ({ id: c.id, name: c.name })),
+        instances: state.instances.map((i) => ({ id: i.id, name: i.name, classId: i.classId })),
+        properties: state.properties.map((p) => ({ name: p.name, classId: p.classId })),
+        relationTypes: state.relationTypes.map((r) => ({ id: r.id, name: r.name })),
+        edges: state.edges.map((e) => ({
+          relationTypeId: e.relationTypeId,
+          sourceId: e.sourceId,
+          targetId: e.targetId,
+        })),
+      },
+      actions,
+    );
+  },
+
   applyAssistantActions: (actions) => {
     const state = get();
     // Working copies — later actions can reference entities created by earlier ones.
@@ -534,7 +556,7 @@ export const createEntitySlice: SliceCreator<EntitySlice> = (set, get) => ({
           skip(`이미 존재하는 인스턴스입니다: ${name}`); continue;
         }
         const newInstance: OntologyInstance = {
-          id: generateId(), classId: cls.id, name,
+          id: generateId(), classId: cls.id, name, description: '',
           createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
         };
         instances.push(newInstance);
@@ -559,7 +581,8 @@ export const createEntitySlice: SliceCreator<EntitySlice> = (set, get) => ({
           targetClassId = c.id;
         }
         const newType: RelationType = {
-          id: generateId(), name, description: '', sourceClassId, targetClassId,
+          id: generateId(), name, description: '', category: 'descriptive',
+          sourceClassId, targetClassId,
           createdAt: new Date().toISOString(),
         };
         relationTypes.push(newType);

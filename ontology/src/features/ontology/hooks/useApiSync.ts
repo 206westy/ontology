@@ -3,7 +3,8 @@
 import { useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useOntologyStore } from './useOntologyStore';
-import { classesApi, propertiesApi, instancesApi, edgesApi, relationTypesApi, axiomsApi, instanceValuesApi } from '../api';
+import { classesApi, propertiesApi, instancesApi, edgesApi, relationTypesApi, axiomsApi, instanceValuesApi, batchApi } from '../api';
+import type { BatchOperation } from '../lib/schemas';
 import { toast } from 'sonner';
 
 /**
@@ -48,7 +49,10 @@ export function useApiSync() {
     const unsub = useOntologyStore.subscribe(
       (state, prevState) => {
         if (prevState.pendingChanges.length > 0 && state.pendingChanges.length === 0) {
-          qc.invalidateQueries();
+          // 커밋은 엔티티 내용을 바꾸지 않고 commits/commit_details 만 기록한다.
+          // 스토어가 이미 동일 UUID 로 권위 데이터를 들고 있으므로 엔티티 목록 전체를
+          // 다시 시드니에서 받아오는 것은 낭비 → 갱신이 실제로 필요한 커밋 히스토리만 무효화.
+          qc.invalidateQueries({ queryKey: ['commits'] });
           syncedRef.current.clear();
         }
       },
@@ -74,9 +78,33 @@ async function syncChangesInOrder(
   changes: PendingChange[],
   state: ReturnType<typeof useOntologyStore.getState>,
 ) {
-  // Group by priority
+  // ADD 는 단일 batch 요청으로 합쳐 시드니 왕복을 N→1 로 줄인다.
+  // (batch 라우트가 테이블별 multi-row insert·생성 순서·어트리뷰션을 처리)
+  // MOD/DEL 은 기존 per-entity 라우트 그대로(우선순위 웨이브).
+  const adds = changes.filter((c) => c.operation === 'ADD');
+  const mutations = changes.filter((c) => c.operation !== 'ADD');
+
+  if (adds.length > 0) {
+    const operations = adds
+      .map((c) => buildAddOperation(c, state))
+      .filter((op): op is BatchOperation => op !== null);
+    if (operations.length > 0) {
+      try {
+        await batchApi.execute({ operations });
+      } catch (err) {
+        console.error('[API Sync] Batch ADD failed:', err);
+        toast.error('동기화 실패', {
+          description: `${adds.length}건 생성 저장에 실패했습니다.`,
+        });
+      }
+    }
+  }
+
+  if (mutations.length === 0) return;
+
+  // Group mutations by priority
   const groups = new Map<number, PendingChange[]>();
-  for (const change of changes) {
+  for (const change of mutations) {
     const p = SYNC_PRIORITY[change.targetTable] ?? 2;
     const group = groups.get(p) ?? [];
     group.push(change);
@@ -100,18 +128,21 @@ async function syncChangesInOrder(
   }
 }
 
-async function syncChange(
-  change: { operation: string; targetTable: string; targetId: string; targetName: string },
+// 스토어 엔티티 → batch create operation. 개별 ADD 라우트가 받던 필드와 동일.
+function buildAddOperation(
+  change: PendingChange,
   state: ReturnType<typeof useOntologyStore.getState>,
-) {
-  const { operation, targetTable, targetId } = change;
-
-  if (operation === 'ADD') {
-    switch (targetTable) {
-      case 'classes': {
-        const cls = state.classes.find((c) => c.id === targetId);
-        if (!cls) return;
-        await classesApi.create({
+): BatchOperation | null {
+  const { targetTable, targetId } = change;
+  switch (targetTable) {
+    case 'classes': {
+      const cls = state.classes.find((c) => c.id === targetId);
+      if (!cls) return null;
+      return {
+        type: 'class',
+        action: 'create',
+        id: targetId,
+        data: {
           id: targetId,
           name: cls.name,
           parentId: cls.parentId,
@@ -123,23 +154,27 @@ async function syncChange(
           sourceType: cls.sourceType ?? null,
           confidence: cls.confidence ?? null,
           evidence: cls.evidence ?? null,
-        });
-        break;
-      }
-      case 'instances': {
-        const inst = state.instances.find((i) => i.id === targetId);
-        if (!inst) return;
-        await instancesApi.create({
-          id: targetId,
-          classId: inst.classId,
-          name: inst.name,
-        });
-        break;
-      }
-      case 'properties': {
-        const prop = state.properties.find((p) => p.id === targetId);
-        if (!prop) return;
-        await propertiesApi.create({
+        },
+      };
+    }
+    case 'instances': {
+      const inst = state.instances.find((i) => i.id === targetId);
+      if (!inst) return null;
+      return {
+        type: 'instance',
+        action: 'create',
+        id: targetId,
+        data: { id: targetId, classId: inst.classId, name: inst.name, description: inst.description },
+      };
+    }
+    case 'properties': {
+      const prop = state.properties.find((p) => p.id === targetId);
+      if (!prop) return null;
+      return {
+        type: 'property',
+        action: 'create',
+        id: targetId,
+        data: {
           id: targetId,
           classId: prop.classId,
           name: prop.name,
@@ -148,13 +183,17 @@ async function syncChange(
           enumValues: prop.enumValues,
           constraintRule: prop.constraintRule,
           sortOrder: prop.sortOrder,
-        });
-        break;
-      }
-      case 'edges': {
-        const edge = state.edges.find((e) => e.id === targetId);
-        if (!edge) return;
-        await edgesApi.create({
+        },
+      };
+    }
+    case 'edges': {
+      const edge = state.edges.find((e) => e.id === targetId);
+      if (!edge) return null;
+      return {
+        type: 'edge',
+        action: 'create',
+        id: targetId,
+        data: {
           id: targetId,
           relationTypeId: edge.relationTypeId,
           sourceId: edge.sourceId,
@@ -165,43 +204,57 @@ async function syncChange(
           sourceType: edge.sourceType ?? null,
           confidence: edge.confidence ?? null,
           evidence: edge.evidence ?? null,
-        });
-        break;
-      }
-      case 'axioms': {
-        const axiom = state.axioms.find((a) => a.id === targetId);
-        if (!axiom) return;
-        await axiomsApi.create({
+        },
+      };
+    }
+    case 'axioms': {
+      const axiom = state.axioms.find((a) => a.id === targetId);
+      if (!axiom) return null;
+      return {
+        type: 'axiom',
+        action: 'create',
+        id: targetId,
+        data: {
           id: targetId,
           description: axiom.description,
           ruleLogic: axiom.ruleLogic ?? {},
-          severity: axiom.severity as 'info' | 'warning' | 'error',
+          severity: axiom.severity,
           classIds: axiom.classIds,
-        });
-        break;
-      }
-      case 'relation_types': {
-        const rt = state.relationTypes.find((r) => r.id === targetId);
-        if (!rt) return;
-        await relationTypesApi.create({
-          id: targetId,
-          name: rt.name,
-          description: rt.description,
-        });
-        break;
-      }
-      case 'instance_values': {
-        const iv = state.instanceValues.find((v) => v.id === targetId);
-        if (!iv) return;
-        await instanceValuesApi.upsert({
-          instanceId: iv.instanceId,
-          propertyId: iv.propertyId,
-          value: iv.value,
-        });
-        break;
-      }
+        },
+      };
     }
+    case 'relation_types': {
+      const rt = state.relationTypes.find((r) => r.id === targetId);
+      if (!rt) return null;
+      return {
+        type: 'relation_type',
+        action: 'create',
+        id: targetId,
+        // PR1 (목표①): category 를 Supabase 까지 전파(조용한 유실 방지).
+        data: { id: targetId, name: rt.name, description: rt.description, category: rt.category },
+      };
+    }
+    case 'instance_values': {
+      const iv = state.instanceValues.find((v) => v.id === targetId);
+      if (!iv) return null;
+      return {
+        type: 'instance_value',
+        action: 'create',
+        id: targetId,
+        data: { instanceId: iv.instanceId, propertyId: iv.propertyId, value: iv.value },
+      };
+    }
+    default:
+      return null;
   }
+}
+
+async function syncChange(
+  change: { operation: string; targetTable: string; targetId: string; targetName: string },
+  state: ReturnType<typeof useOntologyStore.getState>,
+) {
+  const { operation, targetTable, targetId } = change;
+  // ADD 는 syncChangesInOrder 에서 batch 1요청으로 처리(여기 도달하지 않음). MOD/DEL 만 처리.
 
   if (operation === 'MOD') {
     switch (targetTable) {
