@@ -11,7 +11,19 @@ Architecture follows an "Ontology Git" pattern:
 - **Layer 2 (Staging)**: Supabase — commit log, change history, rollback points, ontology CRUD
 - **Layer 3 (Production)**: Neo4j — finalized ontology graph with vector index + Cypher
 
-The app code lives in the `ontology/` subdirectory. The PRD lives in `docs/PRD-MVP.md`.
+The app code lives in the `ontology/` subdirectory. PRDs are organized by status under `docs/` (`완료/`, `진행중/`, `진행전/`) — see `docs/STATUS.md` for the current implementation status index. The original MVP PRD is `docs/완료/PRD-MVP.md`.
+
+## 기획 문서 칸반 규칙 (MANDATORY)
+
+`docs/`는 칸반 보드다: **`진행전/` → `진행중/` → `완료/`**. 기획 문서는 항상 작업 상태에 맞는 폴더에 있어야 한다.
+
+기획 문서(`docs/**`의 PRD·로드맵·계획·스펙)를 **읽고 그 작업을 시작할 때**:
+1. 그 문서가 `진행전/`(또는 아직 미분류 상태)에 있으면 **`진행중/`으로 이동**한다.
+2. 사용자에게 "이 기획을 진행중으로 옮기고 개발을 시작한다"고 알린 뒤 작업에 착수한다.
+3. 작업이 **최종 완료·검증되면 해당 문서를 `완료/`로 이동**한다.
+4. 이동할 때마다 `docs/STATUS.md`의 상태표를 갱신한다.
+
+즉, 기획서를 펼치는 행위 = 칸반 카드를 다음 칸으로 옮기는 행위. 단순 참고/열람만 할 때는 이동하지 않는다 — 그 기획의 구현 작업을 실제로 시작/완료할 때만 옮긴다.
 
 ## Commands
 
