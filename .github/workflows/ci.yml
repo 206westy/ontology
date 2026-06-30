@@ -1,0 +1,39 @@
+name: CI
+
+# PRD-E P3-4: 회귀 게이트 — push/PR 에서 lint + build + vitest(roundtrip·reconcile·
+# cypher·embedding·dedup·거버넌스 단위/통합) 실행. 라이브 Neo4j/Supabase 테스트는
+# env 가드로 스킵(임시 .tmp 테스트는 커밋되지 않음). 계약 위반 시 빌드 실패.
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+
+defaults:
+  run:
+    working-directory: ontology
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    env:
+      # 빌드/테스트는 외부 연결 없이 동작 — placeholder 로 충분(런타임에만 사용).
+      DATABASE_URL: postgresql://placeholder
+      OPENAI_API_KEY: sk-placeholder
+      NEO4J_URI: neo4j+s://placeholder
+      NEO4J_USERNAME: neo4j
+      NEO4J_PASSWORD: placeholder
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: ontology/package-lock.json
+      - run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Unit & integration tests
+        run: npx vitest run
+      - name: Build
+        run: npm run build
