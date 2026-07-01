@@ -7,6 +7,7 @@ import { useAllProperties } from './useProperties';
 import { useEdges } from './useEdges';
 import { useRelationTypes } from './useRelationTypes';
 import { useAxioms } from './useAxioms';
+import { useInstanceValues } from './useInstanceValues';
 import { usePartitions } from './usePartitions';
 import { useOntologyStore } from './useOntologyStore';
 import type {
@@ -16,6 +17,7 @@ import type {
   RelationType,
   OntologyEdge,
   OntologyAxiom,
+  InstanceValue,
   Partition,
 } from '../lib/types';
 
@@ -28,6 +30,7 @@ export function useLoadOntology() {
   const edgesQuery = useEdges();
   const relationTypesQuery = useRelationTypes();
   const axiomsQuery = useAxioms();
+  const instanceValuesQuery = useInstanceValues();
   const partitionsQuery = usePartitions();
 
   const allLoaded =
@@ -37,6 +40,7 @@ export function useLoadOntology() {
     edgesQuery.isSuccess &&
     relationTypesQuery.isSuccess &&
     axiomsQuery.isSuccess &&
+    instanceValuesQuery.isSuccess &&
     partitionsQuery.isSuccess;
 
   const isLoading =
@@ -46,6 +50,7 @@ export function useLoadOntology() {
     edgesQuery.isLoading ||
     relationTypesQuery.isLoading ||
     axiomsQuery.isLoading ||
+    instanceValuesQuery.isLoading ||
     partitionsQuery.isLoading;
 
   const isError =
@@ -55,6 +60,7 @@ export function useLoadOntology() {
     edgesQuery.isError ||
     relationTypesQuery.isError ||
     axiomsQuery.isError ||
+    instanceValuesQuery.isError ||
     partitionsQuery.isError;
 
   // Track the latest dataUpdatedAt across all queries to detect fresh data
@@ -66,6 +72,7 @@ export function useLoadOntology() {
         edgesQuery.dataUpdatedAt,
         relationTypesQuery.dataUpdatedAt,
         axiomsQuery.dataUpdatedAt,
+        instanceValuesQuery.dataUpdatedAt,
         partitionsQuery.dataUpdatedAt,
       )
     : 0;
@@ -85,7 +92,7 @@ export function useLoadOntology() {
       relationTypes: (relationTypesQuery.data as RelationType[]) ?? [],
       edges: (edgesQuery.data as OntologyEdge[]) ?? [],
       axioms: (axiomsQuery.data as OntologyAxiom[]) ?? [],
-      instanceValues: [],
+      instanceValues: (instanceValuesQuery.data as InstanceValue[]) ?? [],
       partitions: (partitionsQuery.data as Partition[]) ?? [],
     });
   }, [
@@ -97,6 +104,7 @@ export function useLoadOntology() {
     edgesQuery.data,
     relationTypesQuery.data,
     axiomsQuery.data,
+    instanceValuesQuery.data,
     partitionsQuery.data,
     loadOntology,
   ]);

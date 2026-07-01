@@ -214,6 +214,8 @@ export interface PushResponse {
   cypherPreview?: string;
   error?: string;
   suggestion?: string;
+  // H2: Neo4j 반영은 성공했으나 Supabase 동기화 플래그 갱신이 실패한 부분 성공 알림.
+  warning?: string;
 }
 
 export async function POST(request: NextRequest) {
@@ -347,17 +349,43 @@ export async function POST(request: NextRequest) {
         }
       });
 
-      // 5. Mark commits as pushed in Supabase — 단일 왕복(commitId 당 1회 → IN 한 번)
-      await db
-        .update(commits)
-        .set({ pushedToNeo4j: true, pushedAt: new Date() })
-        .where(inArray(commits.id, commitIds));
+      // 5. Mark commits as pushed in Supabase — 단일 왕복(commitId 당 1회 → IN 한 번).
+      // H2: 이 업데이트는 Neo4j 트랜잭션 밖이다. Neo4j 가 이미 _SyncState 로 진실원을
+      // 가지므로, 실패해도 데이터 손실은 없지만 양 DB 플래그가 어긋난다.
+      // 짧게 재시도하고, 끝내 실패하면 "실패"가 아니라 "부분 성공(경고)"으로 보고한다.
+      // (실패로 보고하면 사용자가 재반영해 중복 push 를 유발한다.)
+      let flagUpdated = false;
+      let flagError: string | undefined;
+      for (let attempt = 0; attempt < 3 && !flagUpdated; attempt++) {
+        try {
+          await db
+            .update(commits)
+            .set({ pushedToNeo4j: true, pushedAt: new Date() })
+            .where(inArray(commits.id, commitIds));
+          flagUpdated = true;
+        } catch (e) {
+          flagError = e instanceof Error ? e.message : '알 수 없는 오류';
+          if (attempt < 2) {
+            await new Promise((r) => setTimeout(r, 200 * (attempt + 1)));
+          }
+        }
+      }
 
       const response: PushResponse = {
         success: true,
         commitIds,
         steps,
+        ...(flagUpdated
+          ? {}
+          : {
+              warning:
+                'Neo4j 반영은 완료됐지만 스테이징 동기화 표시 갱신에 실패했습니다. ' +
+                '다음 동기화 점검(reconcile)에서 자동 정정되며, 재반영은 필요하지 않습니다.',
+            }),
       };
+      if (!flagUpdated) {
+        console.error('[Neo4j Push] Supabase 동기화 플래그 갱신 실패:', flagError);
+      }
       return NextResponse.json(response);
     } catch (err) {
       // Transaction was automatically rolled back by Neo4j

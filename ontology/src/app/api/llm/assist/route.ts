@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { generateObject } from 'ai';
 import { openai } from '@ai-sdk/openai';
+import { LLM_MODELS } from '@/lib/llm/models';
 import { handleApiError } from '@/lib/api-error';
 import {
   assistRequestSchema,
@@ -145,7 +146,7 @@ ${selectedNodeId ? `\n현재 선택된 노드 id: ${selectedNodeId}` : ''}
 ${message}`;
 
     const result = await generateObject({
-      model: openai('gpt-5.4-mini'),
+      model: openai(LLM_MODELS.mini),
       schema: assistWireResponseSchema,
       system: SYSTEM_PROMPT,
       prompt,
@@ -159,7 +160,18 @@ ${message}`;
       .map(toOntologyAction)
       .filter((a): a is OntologyAction => a !== null);
 
-    return NextResponse.json({ reply: result.object.reply, actions });
+    // H1: 스키마 검증에서 떨어진 액션을 조용히 버리지 않고 개수를 알린다.
+    const droppedCount = result.object.actions.length - actions.length;
+    const warnings =
+      droppedCount > 0
+        ? [`AI 제안 ${droppedCount}건이 형식 오류로 적용되지 않았습니다.`]
+        : undefined;
+
+    return NextResponse.json({
+      reply: result.object.reply,
+      actions,
+      ...(warnings ? { warnings } : {}),
+    });
   } catch (err) {
     return handleApiError(err);
   }

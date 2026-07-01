@@ -10,7 +10,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
-import { useOntologyStore } from '../../hooks/useOntologyStore';
+import { useOntologyStore, clearChangesWithoutHistory } from '../../hooks/useOntologyStore';
 import { commitsApi, neo4jApi, type Neo4jPushStep } from '../../api';
 import { toast } from 'sonner';
 import PushSummary, { computePushSummary } from './PushSummary';
@@ -34,7 +34,6 @@ function apiStepsToUiSteps(apiSteps: Neo4jPushStep[]): PushStep[] {
 
 export default function NeoConfirmSheet({ open, onOpenChange }: NeoConfirmSheetProps) {
   const pendingChanges = useOntologyStore((s) => s.pendingChanges);
-  const clearChanges = useOntologyStore((s) => s.clearChanges);
 
   const [phase, setPhase] = useState<Phase>('loading');
   const [cypherPreview, setCypherPreview] = useState('');
@@ -157,7 +156,15 @@ export default function NeoConfirmSheet({ open, onOpenChange }: NeoConfirmSheetP
       });
 
       if (result.success) {
-        clearChanges();
+        clearChangesWithoutHistory();
+      }
+
+      // H2: Neo4j 반영은 됐으나 스테이징 플래그 갱신이 실패한 부분 성공을 알린다.
+      if (result.warning) {
+        toast.warning('부분 성공', {
+          description: result.warning,
+          duration: 8000,
+        });
       }
 
       setPhase('result');
@@ -176,7 +183,7 @@ export default function NeoConfirmSheet({ open, onOpenChange }: NeoConfirmSheetP
       });
       setPhase('result');
     }
-  }, [commitIds, steps.length, clearChanges]);
+  }, [commitIds, steps.length]);
 
   const handleClose = useCallback(() => {
     onOpenChange(false);
@@ -298,7 +305,7 @@ export default function NeoConfirmSheet({ open, onOpenChange }: NeoConfirmSheetP
                   onSkipFailed={
                     pushResult.failedCount > 0
                       ? () => {
-                          clearChanges();
+                          clearChangesWithoutHistory();
                           handleClose();
                         }
                       : undefined

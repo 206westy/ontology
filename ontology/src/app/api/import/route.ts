@@ -252,6 +252,14 @@ export async function POST(request: NextRequest) {
       const { jsonLdToOntology } = await import('@/lib/rdf/from-jsonld');
       const rdfResult = await jsonLdToOntology(jsonLdDoc);
       const ontology = normalizeRdfPayload(rdfResult);
+      // M7: RDF 경로도 JSON 경로와 동일한 스키마 검증을 거치게 한다(zod 우회 차단).
+      const validated = importRequestSchema.shape.ontology.safeParse(ontology);
+      if (!validated.success) {
+        return NextResponse.json(
+          { error: '가져온 JSON-LD 구조가 올바르지 않습니다.', detail: validated.error.flatten() },
+          { status: 400 },
+        );
+      }
       const stats = await insertOntology(ontology, strategy);
 
       return NextResponse.json(
@@ -271,6 +279,14 @@ export async function POST(request: NextRequest) {
       const { turtleToOntology } = await import('@/lib/rdf/from-turtle');
       const rdfResult = await turtleToOntology(turtleStr);
       const ontology = normalizeRdfPayload(rdfResult);
+      // M7: RDF 경로도 JSON 경로와 동일한 스키마 검증을 거치게 한다(zod 우회 차단).
+      const validated = importRequestSchema.shape.ontology.safeParse(ontology);
+      if (!validated.success) {
+        return NextResponse.json(
+          { error: '가져온 Turtle 구조가 올바르지 않습니다.', detail: validated.error.flatten() },
+          { status: 400 },
+        );
+      }
       const stats = await insertOntology(ontology, strategy);
 
       return NextResponse.json(

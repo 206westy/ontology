@@ -70,9 +70,6 @@ export default function EnrichmentCard({
                 >
                   {SOURCE_TYPE_LABELS[p.sourceType]}
                 </Badge>
-                <span className="text-[9px] text-muted-foreground font-mono">
-                  {Math.round(p.confidence * 100)}%
-                </span>
                 {p.needsReview && (
                   <Badge
                     variant="outline"

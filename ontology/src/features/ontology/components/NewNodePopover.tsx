@@ -37,7 +37,7 @@ type ParsedResult = ReturnType<typeof mapParseResult>;
 
 function mockParse(input: string): ParsedResult {
   const lines = input.split('\n').map((l) => l.trim()).filter(Boolean);
-  const result: ParsedResult = { classes: [], properties: [], relations: [], instances: [] };
+  const result: ParsedResult = { classes: [], properties: [], relations: [], instances: [], warnings: [] };
 
   lines.forEach((line) => {
     if (line.startsWith('#') || line.startsWith('class:') || line.startsWith('클래스:')) {
@@ -526,7 +526,13 @@ export default function NewNodePopover() {
 
     setEnrichLoading(true);
     try {
-      const { gaps } = await enrichApi.detect(subgraph);
+      const { gaps, llmDetectionFailed } = await enrichApi.detect(subgraph);
+      // M5: 정성 갭 탐지가 실패하면 결과가 "완전"해 보이지 않도록 알린다.
+      if (llmDetectionFailed) {
+        toast.warning('보강 갭 분석 일부 실패', {
+          description: 'AI 갭 탐지가 실패해 기본 규칙 결과만 표시됩니다.',
+        });
+      }
       // Islands are shown in the 섬 area; enrichment cards cover the rest.
       const items: EnrichmentItem[] = gaps
         .filter((g) => g.kind !== 'isolated')
@@ -626,6 +632,16 @@ export default function NewNodePopover() {
         existingClassNames,
         new Set(instances.map((i) => i.name)),
       );
+      // H1: 라우트 레벨 경고(예: 관계 추출 단계 실패)를 매핑 경고 앞에 합쳐 검토 UI에 노출.
+      if (result.warnings?.length) {
+        mapped.warnings = [
+          ...result.warnings.map((message) => ({
+            kind: 'empty_relations' as const,
+            message,
+          })),
+          ...mapped.warnings,
+        ];
+      }
       setParsed(mapped);
       setPhase('preview');
       void runGapDetection(mapped);
@@ -1067,17 +1083,8 @@ export default function NewNodePopover() {
     rel: ParsedResult['relations'][number],
     index: number,
   ) => {
-    // 표시 전용: 추출 시 함께 들어온 확신도(0~1)와 근거 문장을 노출해 검토를 돕는다.
-    const conf = typeof rel.confidence === 'number' ? rel.confidence : null;
-    const confPct = conf !== null ? Math.round(conf * 100) : null;
-    const confClass =
-      conf === null
-        ? ''
-        : conf >= 0.8
-          ? 'text-emerald-600 border-emerald-500/40 dark:text-emerald-400'
-          : conf >= 0.5
-            ? 'text-amber-600 border-amber-500/40 dark:text-amber-400'
-            : 'text-red-600 border-red-500/40 dark:text-red-400';
+    // 표시 전용: 근거 문장을 노출해 검토를 돕는다. M6: AI 확신도(confidence)는 매 추출마다
+    // 기준이 달라 재현 불가능한 신호라 사용자에게 숫자로 노출하지 않는다(값은 데이터로만 운반).
     return (
       <div key={index} className="py-0.5 group pl-1">
         <div className="flex items-center gap-1.5">
@@ -1097,16 +1104,6 @@ export default function NewNodePopover() {
             <span className="text-muted-foreground mx-1">&rarr;</span>
             <span className={existingClassNames.has(rel.targetName) ? 'text-muted-foreground' : ''}>{rel.targetName}</span>
           </span>
-          {confPct !== null && (
-            <Badge
-              variant="outline"
-              className={`text-[9px] h-4 px-1 shrink-0 tabular-nums ${confClass}`}
-              title={`AI 확신도 ${confPct}%`}
-              aria-label={`AI 확신도 ${confPct} 퍼센트`}
-            >
-              {confPct}%
-            </Badge>
-          )}
           <button
             className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive ml-auto"
             onClick={() => removeItem('relations', index)}
@@ -1489,6 +1486,25 @@ export default function NewNodePopover() {
                   <X className="w-4 h-4" />
                 </button>
               </div>
+
+              {/* H1: 조용히 누락되던 항목(임시 노드/관계 추출 실패 등)을 검토 단계에서 노출. */}
+              {parsed && parsed.warnings.length > 0 && (
+                <div className="mb-3 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-2 dark:border-amber-700 dark:bg-amber-900/30">
+                  <p className="text-[11px] font-medium text-amber-700 dark:text-amber-400">
+                    확인 필요 {parsed.warnings.length}건
+                  </p>
+                  <ul className="mt-1 space-y-0.5">
+                    {parsed.warnings.map((w, i) => (
+                      <li
+                        key={`${w.kind}-${i}`}
+                        className="text-[10px] text-amber-700/90 dark:text-amber-300/90"
+                      >
+                        · {w.message}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
               <div className="flex gap-3">
                 {/* 구조 — extracted structure (left column) */}

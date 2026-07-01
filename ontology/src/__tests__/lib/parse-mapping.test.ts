@@ -112,6 +112,8 @@ describe('mapParseResult (A-1)', () => {
     const out = mapParseResult(res, new Set());
     // RF Matcher was only referenced by a relation — still becomes a node so the edge resolves.
     expect(out.classes.find((c) => c.name === 'RF Matcher')).toBeDefined();
+    // H1: the fabricated endpoint must surface as a warning, not vanish silently.
+    expect(out.warnings.some((w) => w.kind === 'placeholder_endpoint' && w.name === 'RF Matcher')).toBe(true);
   });
 
   it('never produces properties or instances from class-only extraction', () => {
@@ -277,6 +279,7 @@ describe('computeIslands (A-5)', () => {
       properties: [],
       relations: [],
       instances: [],
+      warnings: [],
     };
     expect(computeIslands(parsed)).toEqual(['Floating']);
   });

@@ -3,6 +3,8 @@ import { generateText, tool, stepCountIs, zodSchema } from 'ai';
 import { openai } from '@ai-sdk/openai';
 import { z } from 'zod';
 import { getNeo4jDriver } from '@/lib/neo4j/client';
+import { findWriteClauseViolation } from '@/lib/neo4j/read-only';
+import { LLM_MODELS } from '@/lib/llm/models';
 import { text2CypherRequestSchema } from '@/features/ontology/lib/schemas';
 import { handleApiError } from '@/lib/api-error';
 
@@ -52,15 +54,26 @@ async function getNeo4jSchema(): Promise<string> {
   }
 }
 
-// Execute a Cypher query and return results
+// Execute a Cypher query and return results.
+// H4: 프롬프트로만 "READ만"을 지시하면 환각/주입된 쓰기 절이 그대로 실행될 수 있다.
+// 실행 전 쓰기 절을 차단하고(1차) Neo4j read 트랜잭션으로 실행해(2차) 이중으로 막는다.
 async function executeCypherQuery(
   query: string,
 ): Promise<{ success: boolean; data?: unknown[]; error?: string }> {
+  const violation = findWriteClauseViolation(query);
+  if (violation) {
+    return {
+      success: false,
+      error: `읽기 전용 쿼리만 실행할 수 있습니다. 금지된 절: ${violation}`,
+    };
+  }
+
   const driver = getNeo4jDriver();
   const session = driver.session();
 
   try {
-    const result = await session.run(query);
+    // executeRead 로 read 트랜잭션을 강제한다(쓰기 절은 DB 레벨에서도 거부됨).
+    const result = await session.executeRead((tx) => tx.run(query));
     const data = result.records.map((record) => {
       const obj: Record<string, unknown> = {};
       (record.keys as string[]).forEach((key: string) => {
@@ -107,7 +120,7 @@ export async function POST(request: NextRequest) {
 
     // 2. Use generateText with tool calling for generate -> execute -> correct loop
     const result = await generateText({
-      model: openai('gpt-5.4'),
+      model: openai(LLM_MODELS.primary),
       providerOptions: { openai: { reasoningEffort: 'medium', textVerbosity: 'low' } },
       maxOutputTokens: 30000,
       system: `You are a Neo4j Cypher expert. Given a user's natural language question and a Neo4j graph schema, generate a syntactically correct Cypher query.

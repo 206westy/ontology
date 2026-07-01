@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { generateText, Output } from 'ai';
 import { openai } from '@ai-sdk/openai';
+import { LLM_MODELS, LLM_MAX_RETRIES } from '@/lib/llm/models';
 import { eq } from 'drizzle-orm';
 import { getDb, classes } from '@/lib/drizzle';
 import { sourceRequestSchema, sourceLlmResponseSchema } from '@/features/ontology/lib/schemas';
@@ -122,10 +123,10 @@ Rules:
   if (webSnippets.length) parts.push(`Web snippets (treat as unverified):\n${webSnippets.join('\n')}`);
 
   const result = await generateText({
-    model: openai('gpt-5.4'),
+    model: openai(LLM_MODELS.primary),
     providerOptions: { openai: { reasoningEffort: 'low', textVerbosity: 'low' } },
     maxOutputTokens: 4000,
-    maxRetries: 1,
+    maxRetries: LLM_MAX_RETRIES,
     output: Output.object({ schema: sourceLlmResponseSchema }),
     system,
     prompt: parts.join('\n\n'),

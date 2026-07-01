@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { generateText, Output } from 'ai';
 import { openai } from '@ai-sdk/openai';
+import { LLM_MODELS, LLM_MAX_RETRIES } from '@/lib/llm/models';
 import {
   detectRequestSchema,
   llmGapResponseSchema,
@@ -29,15 +30,21 @@ export async function POST(request: Request) {
     const deterministic = detectDeterministicGaps(subgraph);
 
     let llmGaps: Gap[] = [];
+    let llmDetectionFailed = false;
     try {
       llmGaps = await detectQualitativeGaps(subgraph);
     } catch {
       // The deterministic gaps are still valuable if the LLM pass fails.
+      // M5: 정성 갭 탐지 실패를 조용히 [] 로 삼키지 않고 알린다(부분 결과를 완전으로 위장 방지).
+      llmDetectionFailed = true;
       llmGaps = [];
     }
 
     const gaps = mergeGaps(deterministic, llmGaps);
-    return NextResponse.json({ gaps });
+    return NextResponse.json({
+      gaps,
+      ...(llmDetectionFailed ? { llmDetectionFailed: true } : {}),
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     return NextResponse.json({ error: message }, { status: 500 });
@@ -66,10 +73,10 @@ Do NOT report isolation or undefined-reference gaps — those are handled separa
   const user = `Nodes:\n${nodeLines || '(none)'}\n\nRelations:\n${relLines || '(none)'}`;
 
   const result = await generateText({
-    model: openai('gpt-5.4'),
+    model: openai(LLM_MODELS.primary),
     providerOptions: { openai: { reasoningEffort: 'low', textVerbosity: 'low' } },
     maxOutputTokens: 8000,
-    maxRetries: 1,
+    maxRetries: LLM_MAX_RETRIES,
     output: Output.object({ schema: llmGapResponseSchema }),
     system,
     prompt: user,

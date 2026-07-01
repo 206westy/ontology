@@ -6,6 +6,24 @@ import { eq, and } from 'drizzle-orm';
 import { z } from 'zod';
 import { handleApiError } from '@/lib/api-error';
 
+export async function GET() {
+  try {
+    const db = await getDb();
+    const rows = await db.query.instanceValues.findMany();
+
+    const result = rows.map((row) => ({
+      id: row.id,
+      instanceId: row.instanceId,
+      propertyId: row.propertyId,
+      value: row.value ?? '',
+    }));
+
+    return NextResponse.json(result);
+  } catch (err) {
+    return handleApiError(err);
+  }
+}
+
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();

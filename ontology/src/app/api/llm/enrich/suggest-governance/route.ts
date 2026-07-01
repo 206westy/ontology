@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateObject } from 'ai';
 import { openai } from '@ai-sdk/openai';
+import { LLM_MODELS } from '@/lib/llm/models';
 import {
   suggestGovernanceRequestSchema,
   suggestGovernanceResponseSchema,
@@ -44,7 +45,7 @@ ${schemaContext ? `\n기존 스키마:\n${schemaContext}` : ''}
 위 텍스트에 근거가 있는 거버넌스 요소만 제안하라.`;
 
     const result = await generateObject({
-      model: openai('gpt-5.4'),
+      model: openai(LLM_MODELS.primary),
       schema: suggestGovernanceResponseSchema,
       system: SYSTEM_PROMPT,
       prompt,

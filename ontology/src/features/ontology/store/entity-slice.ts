@@ -840,5 +840,21 @@ export const createEntitySlice: SliceCreator<EntitySlice> = (set, get) => ({
     return { ok: true };
   },
 
-  loadOntology: (data) => set({ ...data, pendingChanges: [], selectedNodeId: null, selectedNodeType: null }),
+  loadOntology: (data) =>
+    set({
+      ...data,
+      pendingChanges: [],
+      selectedNodeId: null,
+      selectedNodeType: null,
+      // M8: 온톨로지 전환 시 이전 필터/포커스/하이라이트가 남아 혼란을 주지 않도록
+      // 뷰 상태를 기본값으로 초기화한다(데이터만 바뀌고 필터가 잔존하던 문제).
+      showClasses: true,
+      showInstances: true,
+      colorFilter: [],
+      minDegree: 0,
+      focusModeNodeId: null,
+      focusDepth: 1,
+      focusNodeId: null,
+      highlightNodeIds: [],
+    }),
 });

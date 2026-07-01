@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { generateObject } from 'ai';
 import { openai } from '@ai-sdk/openai';
+import { LLM_MODELS } from '@/lib/llm/models';
 import { z } from 'zod';
 
 // ── Rate limiter: max 3 requests per minute (in-memory) ──────
@@ -166,7 +167,7 @@ export async function POST(request: Request) {
     switch (type) {
       case 'class': {
         result = await generateObject({
-          model: openai('gpt-5.4'),
+          model: openai(LLM_MODELS.primary),
           schema: classSuggestionSchema,
           prompt: buildClassPrompt(context, currentInput, extra),
           providerOptions: { openai: { reasoningEffort: 'medium', textVerbosity: 'low' } },
@@ -176,7 +177,7 @@ export async function POST(request: Request) {
       }
       case 'property': {
         result = await generateObject({
-          model: openai('gpt-5.4'),
+          model: openai(LLM_MODELS.primary),
           schema: propertySuggestionSchema,
           prompt: buildPropertyPrompt(context, currentInput, extra),
           providerOptions: { openai: { reasoningEffort: 'medium', textVerbosity: 'low' } },
@@ -186,7 +187,7 @@ export async function POST(request: Request) {
       }
       case 'relation': {
         result = await generateObject({
-          model: openai('gpt-5.4'),
+          model: openai(LLM_MODELS.primary),
           schema: relationSuggestionSchema,
           prompt: buildRelationPrompt(context, currentInput, extra),
           providerOptions: { openai: { reasoningEffort: 'medium', textVerbosity: 'low' } },

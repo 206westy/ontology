@@ -158,6 +158,11 @@ export default function AIAssistantTab({ nodeName }: { nodeName: string }) {
           actions: res.actions.map((action) => ({ action, state: 'pending' as ActionState })),
         },
       ]);
+      // H1: 서버가 형식 오류로 드롭한 제안이 있으면 사용자에게 알린다(조용한 누락 방지).
+      const warnings = (res as { warnings?: string[] }).warnings;
+      if (warnings?.length) {
+        toast.warning(warnings.join(' '));
+      }
     } catch (err) {
       const aborted = err instanceof DOMException && err.name === 'AbortError';
       if (aborted) {

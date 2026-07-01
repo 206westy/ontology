@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateObject } from 'ai';
 import { openai } from '@ai-sdk/openai';
+import { LLM_MODELS } from '@/lib/llm/models';
 import {
   dedupResolveRequestSchema,
   dedupResolveResponseSchema,
@@ -59,7 +60,7 @@ ${schemaContext ? `\n온톨로지 맥락:\n${schemaContext}` : ''}
 위 새 항목에 대해 하나의 결정을 내려라.`;
 
     const result = await generateObject({
-      model: openai('gpt-5.4-mini'),
+      model: openai(LLM_MODELS.mini),
       schema: dedupResolveResponseSchema,
       system: SYSTEM_PROMPT,
       prompt,

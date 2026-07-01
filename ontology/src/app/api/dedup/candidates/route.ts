@@ -4,6 +4,7 @@ import { sql } from 'drizzle-orm';
 import { dedupCandidatesRequestSchema } from '@/features/ontology/lib/schemas';
 import { embedOne } from '@/features/ontology/lib/embedding';
 import { handleApiError } from '@/lib/api-error';
+import { combinedMatchScore } from '@/lib/entity-match/score';
 import type { DedupCandidate } from '@/features/ontology/lib/schemas';
 
 // PRD-E P2-4: 편집 시점 중복 후보 — pgvector 의미검색 top-k ∪ trigram 오타검색.
@@ -74,11 +75,11 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 최고 점수(둘 중 큰 값) 순 정렬
+    // H5: 공통 결합 점수(vec+trigram 가중)로 정렬 — 엔드포인트 간 일관된 순위.
     const candidates = [...byId.values()].sort(
       (a, b) =>
-        Math.max(b.vectorScore ?? 0, b.trigramScore ?? 0) -
-        Math.max(a.vectorScore ?? 0, a.trigramScore ?? 0),
+        combinedMatchScore(b.vectorScore, b.trigramScore) -
+        combinedMatchScore(a.vectorScore, a.trigramScore),
     );
 
     return NextResponse.json({ candidates });

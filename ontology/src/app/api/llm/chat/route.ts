@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { streamText, convertToModelMessages, type UIMessage } from 'ai';
 import { openai } from '@ai-sdk/openai';
+import { LLM_MODELS } from '@/lib/llm/models';
 
 export async function POST(request: NextRequest) {
   try {
@@ -53,7 +54,7 @@ ${contextParts.length > 0 ? `\nCurrent context:\n${contextParts.join('\n\n')}` :
     const modelMessages = await convertToModelMessages(normalized);
 
     const result = streamText({
-      model: openai('gpt-5.4'),
+      model: openai(LLM_MODELS.primary),
       system: systemPrompt,
       messages: modelMessages,
       providerOptions: { openai: { reasoningEffort: 'medium', textVerbosity: 'low' } },

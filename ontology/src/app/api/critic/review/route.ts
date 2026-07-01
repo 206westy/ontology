@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { generateText, Output } from 'ai';
 import { openai } from '@ai-sdk/openai';
+import { LLM_MODELS, LLM_MAX_RETRIES } from '@/lib/llm/models';
 import { z } from 'zod';
 import {
   reviewProposal,
@@ -70,15 +71,21 @@ export async function POST(request: Request) {
     const deterministic = reviewProposal(input);
 
     let llmIssues: CriticIssue[] = [];
+    let llmReviewFailed = false;
     try {
       llmIssues = await reviewQualitative(input);
     } catch {
-      // 결정론 결과는 LLM 실패와 무관하게 유효.
+      // 결정론 결과는 LLM 실패와 무관하게 유효하지만, M4: 정성 검토가 실패했음을
+      // 조용히 숨기지 않고 알린다(부분 검토를 "완전"으로 위장하지 않음).
+      llmReviewFailed = true;
       llmIssues = [];
     }
 
     const report = buildReport([...deterministic.issues, ...llmIssues]);
-    return NextResponse.json({ report });
+    return NextResponse.json({
+      report,
+      ...(llmReviewFailed ? { llmReviewFailed: true } : {}),
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     return NextResponse.json({ error: message }, { status: 500 });
@@ -105,10 +112,10 @@ async function reviewQualitative(input: ReviewInput): Promise<CriticIssue[]> {
   const user = `노드:\n${nodeLines || '(없음)'}\n\n관계:\n${relLines || '(없음)'}`;
 
   const result = await generateText({
-    model: openai('gpt-5.4'),
+    model: openai(LLM_MODELS.primary),
     providerOptions: { openai: { reasoningEffort: 'low', textVerbosity: 'low' } },
     maxOutputTokens: 8000,
-    maxRetries: 1,
+    maxRetries: LLM_MAX_RETRIES,
     output: Output.object({ schema: llmCriticResponseSchema }),
     system,
     prompt: user,

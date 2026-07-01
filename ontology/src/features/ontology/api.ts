@@ -188,6 +188,7 @@ export const axiomsApi = {
 
 // ─── Instance Values ──────────────────────────────────────
 export const instanceValuesApi = {
+  list: () => fetch('/api/instance-values').then((r) => handleResponse(r)),
   upsert: (data: CreateInstanceValueInput) =>
     fetch('/api/instance-values', {
       method: 'PATCH',
@@ -247,6 +248,8 @@ export interface ParsedRelation {
 export interface LlmParseResult {
   entities: ParsedEntity[];
   relations: ParsedRelation[];
+  // H1: 관계 추출 단계 실패 등 조용한 누락을 사용자에게 알리는 경고 메시지.
+  warnings?: string[];
 }
 
 export const llmApi = {
@@ -271,12 +274,16 @@ export interface DetectSubgraphInput {
 }
 
 export const enrichApi = {
-  detect: (subgraph: DetectSubgraphInput): Promise<{ gaps: Gap[] }> =>
+  detect: (
+    subgraph: DetectSubgraphInput,
+  ): Promise<{ gaps: Gap[]; llmDetectionFailed?: boolean }> =>
     fetch('/api/llm/enrich/detect', {
       method: 'POST',
       headers: jsonHeaders,
       body: JSON.stringify({ subgraph }),
-    }).then((r) => handleResponse<{ gaps: Gap[] }>(r)),
+    }).then((r) =>
+      handleResponse<{ gaps: Gap[]; llmDetectionFailed?: boolean }>(r),
+    ),
   source: (data: {
     gap: Gap;
     context?: string;
@@ -353,6 +360,8 @@ export interface Neo4jPushResponse {
   cypherPreview?: string;
   error?: string;
   suggestion?: string;
+  // H2: Neo4j 반영은 성공했으나 Supabase 동기화 플래그 갱신 실패(부분 성공) 알림.
+  warning?: string;
 }
 
 export interface Neo4jStatusResponse {

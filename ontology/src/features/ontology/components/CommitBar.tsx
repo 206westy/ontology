@@ -11,7 +11,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useOntologyStore, useTemporalStore } from '../hooks/useOntologyStore';
+import { useOntologyStore, useTemporalStore, clearChangesWithoutHistory } from '../hooks/useOntologyStore';
 import { commitsApi, embeddingsApi } from '../api';
 import { toast } from 'sonner';
 import NeoConfirmSheet from './neo4j/NeoConfirmSheet';
@@ -27,12 +27,15 @@ const OP_STYLES: Record<string, { label: string; className: string }> = {
 
 export default function CommitBar() {
   const pendingChanges = useOntologyStore((s) => s.pendingChanges);
-  const clearChanges = useOntologyStore((s) => s.clearChanges);
   const undo = useTemporalStore((s) => s.undo);
   const [showChanges, setShowChanges] = useState(false);
   const [showNeoPush, setShowNeoPush] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  const { enabled: autoSaveEnabled, toggle: toggleAutoSave } = useAutoSave();
+  const {
+    enabled: autoSaveEnabled,
+    toggle: toggleAutoSave,
+    status: autoSaveStatus,
+  } = useAutoSave();
 
   const opCounts = useMemo(() => {
     const counts = { ADD: 0, MOD: 0, DEL: 0 };
@@ -46,11 +49,15 @@ export default function CommitBar() {
   const [isCommitting, setIsCommitting] = useState(false);
   const hasChanges = pendingChanges.length > 0;
 
-  const autoSaveState: AutoSaveState = isCommitting
-    ? 'saving'
-    : hasChanges
-      ? 'unsaved'
-      : 'idle';
+  // C3: 자동 저장 실패/진행 상태를 인디케이터에 반영(예전엔 수동 커밋 상태만 봤음).
+  const autoSaveState: AutoSaveState =
+    autoSaveStatus === 'error'
+      ? 'error'
+      : isCommitting || autoSaveStatus === 'saving'
+        ? 'saving'
+        : hasChanges
+          ? 'unsaved'
+          : 'idle';
 
   const handleCommit = async () => {
     setIsCommitting(true);
@@ -66,7 +73,7 @@ export default function CommitBar() {
           afterSnapshot: c.afterSnapshot ?? null,
         })),
       });
-      clearChanges();
+      clearChangesWithoutHistory();
       // PRD-E P2-2: 커밋 후 임베딩 생성 트리거 (논블로킹).
       void embeddingsApi.process().catch(() => {});
       toast.success('저장 완료', { description: '변경사항이 Supabase에 저장되었습니다.' });

@@ -5,9 +5,11 @@ import { createEdgeSchema } from '@/features/ontology/lib/schemas';
 import { eq, or } from 'drizzle-orm';
 import { handleApiError } from '@/lib/api-error';
 import { recordAttribution } from '@/lib/attribution';
+import { parsePagination } from '@/lib/pagination';
 
 export async function GET(request: NextRequest) {
   const nodeId = request.nextUrl.searchParams.get('nodeId');
+  const { limit, offset } = parsePagination(request.nextUrl.searchParams);
 
   try {
     const db = await getDb();
@@ -15,9 +17,13 @@ export async function GET(request: NextRequest) {
       ? await db.query.edges.findMany({
           where: or(eq(edges.sourceId, nodeId), eq(edges.targetId, nodeId)),
           with: { relationType: true },
+          limit,
+          offset,
         })
       : await db.query.edges.findMany({
           with: { relationType: true },
+          limit,
+          offset,
         });
 
     return NextResponse.json(rows);

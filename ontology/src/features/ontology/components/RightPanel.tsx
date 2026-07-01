@@ -948,11 +948,11 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
               </div>
             )}
 
-            {/* Provenance (출처): 추출·보강 시 영속화된 sourceType/confidence/evidence 표시(표시 전용) */}
+            {/* Provenance (출처): 추출·보강 시 영속화된 sourceType/evidence 표시(표시 전용).
+                M6: AI confidence 는 매 추출마다 기준이 달라 재현 불가능한 신호라 노출하지 않는다
+                (값은 provenance 로 보존하되 사용자에게 숫자로 보여주지 않음). */}
             {selectedClass &&
-              (selectedClass.sourceType ||
-                selectedClass.confidence != null ||
-                selectedClass.evidence) && (
+              (selectedClass.sourceType || selectedClass.evidence) && (
                 <div className="px-4 pb-3 -mt-1 space-y-1.5">
                   <div className="flex items-center flex-wrap gap-1">
                     {selectedClass.sourceType && (
@@ -966,22 +966,6 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
                           sap: 'SAP',
                           user: '직접 입력',
                         } as Record<string, string>)[selectedClass.sourceType] ?? selectedClass.sourceType}
-                      </Badge>
-                    )}
-                    {selectedClass.confidence != null && (
-                      <Badge
-                        variant="outline"
-                        className={`text-[9px] h-4 px-1 tabular-nums ${
-                          selectedClass.confidence >= 0.8
-                            ? 'text-emerald-600 border-emerald-500/40 dark:text-emerald-400'
-                            : selectedClass.confidence >= 0.5
-                              ? 'text-amber-600 border-amber-500/40 dark:text-amber-400'
-                              : 'text-red-600 border-red-500/40 dark:text-red-400'
-                        }`}
-                        title={`AI 확신도 ${Math.round(selectedClass.confidence * 100)}%`}
-                        aria-label={`AI 확신도 ${Math.round(selectedClass.confidence * 100)} 퍼센트`}
-                      >
-                        {Math.round(selectedClass.confidence * 100)}%
                       </Badge>
                     )}
                   </div>
@@ -1305,22 +1289,6 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
                     >
                       {otherName}
                     </button>
-                    {edge.confidence != null && (
-                      <Badge
-                        variant="outline"
-                        className={`h-4 text-[9px] px-1 tabular-nums shrink-0 ${
-                          edge.confidence >= 0.8
-                            ? 'text-emerald-600 border-emerald-500/40 dark:text-emerald-400'
-                            : edge.confidence >= 0.5
-                              ? 'text-amber-600 border-amber-500/40 dark:text-amber-400'
-                              : 'text-red-600 border-red-500/40 dark:text-red-400'
-                        }`}
-                        title={`AI 확신도 ${Math.round(edge.confidence * 100)}%${edge.evidence ? ` · 근거: ${edge.evidence}` : ''}`}
-                        aria-label={`AI 확신도 ${Math.round(edge.confidence * 100)} 퍼센트`}
-                      >
-                        {Math.round(edge.confidence * 100)}%
-                      </Badge>
-                    )}
                     <button
                       className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive shrink-0"
                       onClick={() => removeEdge(edge.id)}

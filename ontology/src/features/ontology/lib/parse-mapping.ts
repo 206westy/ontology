@@ -3,6 +3,19 @@ import { levenshtein, normalizeName } from './similarity';
 import type { LlmParseResult } from '../api';
 import type { RelationCategory } from './types';
 
+// H1: 파싱 파이프라인이 조용히 흘려보내던 누락을 구조화 경고로 노출한다.
+// 비즈니스 로직(무엇을 만들지)은 그대로 두고 "무엇이 빠졌는지"만 검토 UI에 전달한다.
+export type ParseWarningKind =
+  | 'placeholder_endpoint' // 관계 끝점이 추출 안 된 엔티티 → 임시 노드 생성
+  | 'empty_relations' // 관계 추출 단계가 실패/빈 결과
+  | 'invalid_action_dropped'; // 스키마 검증 실패 액션 드롭
+
+export interface ParseWarning {
+  kind: ParseWarningKind;
+  message: string;
+  name?: string;
+}
+
 // Shape the preview/confirm pipeline understands. Carries optional evidence and
 // confidence so later stages (A-3/A-5) can display and persist provenance.
 export interface ParsedExtraction {
@@ -36,6 +49,8 @@ export interface ParsedExtraction {
     evidence?: string;
     values?: { propertyName: string; value: string; dataType: string }[];
   }[];
+  // H1: 조용한 누락을 사용자에게 알리는 구조화 경고(검토 UI 표시용).
+  warnings: ParseWarning[];
 }
 
 // Map the multi-stage parse output (entities + relations) onto the class/instance
@@ -53,23 +68,26 @@ export function mapParseResult(
   const classes: ParsedExtraction['classes'] = [];
   const instances: ParsedExtraction['instances'] = [];
   const properties: ParsedExtraction['properties'] = [];
+  const warnings: ParseWarning[] = [];
   const seenClass = new Set<string>();
   const seenInstance = new Set<string>();
   const propDefSeen = new Set<string>();
   const entities = res.entities ?? [];
   const rawRelations = res.relations ?? [];
 
+  // Returns true only when a brand-new class node was actually created.
   const addClass = (
     name: string,
     parentName: string | null,
     color: string,
     evidence?: string,
     description = '',
-  ) => {
+  ): boolean => {
     const trimmed = name.trim();
-    if (!trimmed || seenClass.has(trimmed) || existingClassNames.has(trimmed)) return;
+    if (!trimmed || seenClass.has(trimmed) || existingClassNames.has(trimmed)) return false;
     classes.push({ name: trimmed, description, color, parentName, evidence });
     seenClass.add(trimmed);
+    return true;
   };
 
   const kindOf = (e: LlmParseResult['entities'][number]) => e.nodeKind ?? 'class';
@@ -160,16 +178,27 @@ export function mapParseResult(
 
   // Ensure relation endpoints exist as nodes (class fallback if neither a class
   // nor an instance was extracted for that name).
+  // H1: a fabricated endpoint (created here, not extracted) is a hallucination
+  // suspect / orphan — surface it as a warning instead of dropping it silently.
+  const warnedPlaceholder = new Set<string>();
   for (const r of relations) {
     for (const endpoint of [r.sourceName, r.targetName]) {
       const t = endpoint.trim();
       if (!t) continue;
       if (seenInstance.has(t) || existingInstanceNames.has(t)) continue;
-      addClass(t, null, NODE_COLORS.leaf);
+      const created = addClass(t, null, NODE_COLORS.leaf);
+      if (created && !warnedPlaceholder.has(t)) {
+        warnedPlaceholder.add(t);
+        warnings.push({
+          kind: 'placeholder_endpoint',
+          name: t,
+          message: `관계 끝점 "${t}"이(가) 추출 결과에 없어 임시 노드로 추가했습니다. 확인이 필요합니다.`,
+        });
+      }
     }
   }
 
-  return { classes, properties, relations, instances };
+  return { classes, properties, relations, instances, warnings };
 }
 
 // PR1 (목표①): 액션 지향 관계와 서술(descriptive) 관계를 분리. descriptive 는 프리뷰에서

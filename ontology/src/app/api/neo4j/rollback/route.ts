@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getDb } from '@/lib/drizzle';
 import { commits, commitDetails } from '@/lib/drizzle/schema';
-import { eq, inArray } from 'drizzle-orm';
+import { inArray } from 'drizzle-orm';
 import { getNeo4jDriver } from '@/lib/neo4j/client';
 import {
   buildRollbackStatements,
@@ -113,12 +113,28 @@ export async function POST(request: NextRequest) {
         }
       });
 
-      // 6. Mark commits as not pushed
-      for (const commitId of commitIds) {
-        await db
-          .update(commits)
-          .set({ pushedToNeo4j: false, pushedAt: null })
-          .where(eq(commits.id, commitId));
+      // 6. Mark commits as not pushed.
+      // H2: Neo4j 롤백은 이미 커밋됐다. 이 Supabase 업데이트는 트랜잭션 밖이므로
+      // 실패해도 데이터는 안전하지만 플래그가 어긋난다. 단일 왕복(inArray)으로 재시도하고,
+      // 끝내 실패하면 "실패"가 아니라 "부분 성공(경고)"으로 보고한다(불필요한 재시도 방지).
+      let flagUpdated = false;
+      let flagError: string | undefined;
+      for (let attempt = 0; attempt < 3 && !flagUpdated; attempt++) {
+        try {
+          await db
+            .update(commits)
+            .set({ pushedToNeo4j: false, pushedAt: null })
+            .where(inArray(commits.id, commitIds));
+          flagUpdated = true;
+        } catch (e) {
+          flagError = e instanceof Error ? e.message : '알 수 없는 오류';
+          if (attempt < 2) {
+            await new Promise((r) => setTimeout(r, 200 * (attempt + 1)));
+          }
+        }
+      }
+      if (!flagUpdated) {
+        console.error('[Neo4j Rollback] Supabase 동기화 플래그 갱신 실패:', flagError);
       }
 
       return NextResponse.json({
@@ -126,6 +142,13 @@ export async function POST(request: NextRequest) {
         commitIds,
         message: '롤백이 완료되었습니다.',
         statementsExecuted: statements.length,
+        ...(flagUpdated
+          ? {}
+          : {
+              warning:
+                'Neo4j 롤백은 완료됐지만 스테이징 동기화 표시 갱신에 실패했습니다. ' +
+                '다음 동기화 점검(reconcile)에서 자동 정정됩니다.',
+            }),
       });
     } catch (err) {
       return NextResponse.json(

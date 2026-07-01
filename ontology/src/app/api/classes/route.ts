@@ -5,10 +5,12 @@ import { createClassSchema } from '@/features/ontology/lib/schemas';
 import { eq, isNull } from 'drizzle-orm';
 import { handleApiError } from '@/lib/api-error';
 import { recordAttribution } from '@/lib/attribution';
+import { parsePagination } from '@/lib/pagination';
 
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
   const parentId = searchParams.get('parentId');
+  const { limit, offset } = parsePagination(searchParams);
 
   try {
     const db = await getDb();
@@ -23,6 +25,8 @@ export async function GET(request: NextRequest) {
       where: condition,
       with: { children: true, properties: true },
       orderBy: (c, { asc }) => [asc(c.name)],
+      limit,
+      offset,
     });
 
     return NextResponse.json(rows);

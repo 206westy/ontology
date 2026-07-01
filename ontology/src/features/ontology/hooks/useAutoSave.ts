@@ -1,13 +1,18 @@
 'use client';
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { debounce } from 'es-toolkit';
-import { useOntologyStore } from './useOntologyStore';
+import { useOntologyStore, clearChangesWithoutHistory } from './useOntologyStore';
 import { commitsApi, embeddingsApi } from '../api';
 import { toast } from 'sonner';
 import { useLocalStorage } from 'react-use';
 
 const AUTO_SAVE_DEBOUNCE_MS = 30_000;
+// 자동 저장 실패 시 지수 백오프 재시도 (시도 간격 1.5s → 3s → 6s).
+const AUTO_SAVE_RETRY_BASE_MS = 1_500;
+const MAX_AUTO_SAVE_RETRIES = 3;
+
+export type AutoSaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
 function buildAutoSaveMessage(
   changes: { operation: string; targetTable: string }[],
@@ -49,6 +54,13 @@ function buildAutoSaveMessage(
 export function useAutoSave() {
   const [enabled, setEnabled] = useLocalStorage('auto-save-enabled', true);
   const isSavingRef = useRef(false);
+  const [status, setStatus] = useState<AutoSaveStatus>('idle');
+  // 재시도 상태. pendingChanges 는 실패해도 비우지 않으므로(낙관적 업데이트 유지)
+  // 다음 시도에서 그대로 재전송된다 = 사실상의 재시도 큐.
+  const retryCountRef = useRef(0);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 자기참조 setTimeout 재시도용 — 항상 최신 doAutoSave 를 가리킨다.
+  const doAutoSaveRef = useRef<() => Promise<void>>(() => Promise.resolve());
 
   const doAutoSave = useCallback(async () => {
     if (isSavingRef.current) return;
@@ -58,6 +70,7 @@ export function useAutoSave() {
     if (pendingChanges.length === 0) return;
 
     isSavingRef.current = true;
+    setStatus('saving');
     try {
       const message = buildAutoSaveMessage(pendingChanges);
       await commitsApi.create({
@@ -71,20 +84,55 @@ export function useAutoSave() {
           afterSnapshot: c.afterSnapshot ?? null,
         })),
       });
-      state.clearChanges();
+      clearChangesWithoutHistory();
+      retryCountRef.current = 0;
+      if (retryTimerRef.current) {
+        clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = null;
+      }
       // PRD-E P2-2: 커밋 후 임베딩 생성 트리거 (논블로킹).
       void embeddingsApi.process().catch(() => {});
+      setStatus('saved');
       toast.success('자동 저장 완료', {
         description: message,
         duration: 2000,
       });
     } catch {
-      // Silent fail for auto-save — don't disrupt user
-      console.error('[AutoSave] Failed to auto-save');
+      // C3: 실패를 더 이상 삼키지 않는다. pendingChanges 는 유지(데이터 손실 차단)하고
+      // 사용자에게 알린 뒤 지수 백오프로 재시도한다.
+      setStatus('error');
+      const canRetry = retryCountRef.current < MAX_AUTO_SAVE_RETRIES;
+      if (canRetry) {
+        retryCountRef.current += 1;
+        const delay = AUTO_SAVE_RETRY_BASE_MS * 2 ** (retryCountRef.current - 1);
+        if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = setTimeout(() => {
+          void doAutoSaveRef.current();
+        }, delay);
+        toast.error('자동 저장 실패 — 재시도 중', {
+          description: `변경사항이 아직 저장되지 않았습니다 (${retryCountRef.current}/${MAX_AUTO_SAVE_RETRIES}).`,
+          duration: 4000,
+        });
+      } else {
+        toast.error('자동 저장 실패', {
+          description:
+            '변경사항이 저장되지 않았습니다. 네트워크를 확인하고 다시 시도하세요.',
+          action: {
+            label: '다시 시도',
+            onClick: () => {
+              retryCountRef.current = 0;
+              void doAutoSaveRef.current();
+            },
+          },
+          duration: 10_000,
+        });
+      }
     } finally {
       isSavingRef.current = false;
     }
   }, []);
+
+  doAutoSaveRef.current = doAutoSave;
 
   const debouncedSave = useRef(
     debounce(doAutoSave, AUTO_SAVE_DEBOUNCE_MS),
@@ -130,10 +178,18 @@ export function useAutoSave() {
         })),
       });
 
-      navigator.sendBeacon(
-        '/api/commits',
-        new Blob([payload], { type: 'application/json' }),
-      );
+      const blob = new Blob([payload], { type: 'application/json' });
+      const queued = navigator.sendBeacon('/api/commits', blob);
+      // sendBeacon 이 큐잉에 실패(페이로드 과대/큐 포화)하면 keepalive fetch 로 폴백.
+      // keepalive 요청은 문서 언로드 후에도 전송이 보장된다.
+      if (!queued) {
+        void fetch('/api/commits', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: payload,
+          keepalive: true,
+        }).catch(() => {});
+      }
     };
 
     window.addEventListener('beforeunload', handleBeforeUnload);
@@ -155,12 +211,26 @@ export function useAutoSave() {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [enabled, doAutoSave]);
 
+  // 언마운트 시 대기 중인 재시도 타이머 정리.
+  useEffect(() => {
+    return () => {
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+    };
+  }, []);
+
   const toggle = useCallback(() => {
     setEnabled((prev) => !prev);
   }, [setEnabled]);
 
+  const retry = useCallback(() => {
+    retryCountRef.current = 0;
+    void doAutoSaveRef.current();
+  }, []);
+
   return {
     enabled: enabled ?? true,
     toggle,
+    status,
+    retry,
   };
 }

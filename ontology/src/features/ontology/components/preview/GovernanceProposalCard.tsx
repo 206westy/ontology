@@ -56,9 +56,6 @@ export default function GovernanceProposalCard({
         <Badge variant="secondary" className="text-[9px] h-4 px-1">
           {KIND_LABELS[proposal.kind]}
         </Badge>
-        <span className="text-[9px] text-muted-foreground font-mono">
-          {Math.round(proposal.confidence * 100)}%
-        </span>
         <Badge
           variant="outline"
           className="text-[9px] h-4 px-1 border-amber-400 text-amber-600 gap-0.5 ml-auto"

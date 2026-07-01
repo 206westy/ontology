@@ -31,6 +31,7 @@ docs/
 | v2-implementation-plan.md | v2 구현 계획 | v2 출시 완료 |
 | v2-vision-proposals.md | v2 비전 제안 | v2에 반영됨 |
 | graph-ux-rebrand.md | 그래프 UX 리브랜딩 + CSV 분석 격상 | M1~M5 완료·라이브 검증 (시각 언어/인스턴스 점·접힘/친절 패널/AI 계층 정렬/CSV LLM 분석) |
+| system-audit-remediation.md | 전수 감사 결함 수정 | 2026-07-01 C1~3·H1~6·M1·2·4·5·6·7·8 처리·테스트·프로덕션 빌드 통과. M6=신뢰(confidence) 표시 삭제. M3(청킹)=PRD-F Phase2 이관, M9(Redis)=불필요 → 사용자 결정으로 제외. 감사 항목 전부 클로즈 |
 
 추가 (이번 세션, 별도 메모리): 노드 기준 AI 확장 진입점, RLS 보안 락다운(14테이블 deny-all).
 
@@ -41,6 +42,7 @@ docs/
 | v5-prd-B.md | 구획(Named Graph) | 테이블·FK·Neo4j 브리지·PartitionSwitcher 구현됨. 랜딩/라우팅 일부 미확정, AI 자동 구획 제안(B-5) 미구현 |
 | v6-roadmap.md | AI 역할 전환(Critic 척추) | Phase1 Critic 일부 시작(`/api/critic/review`+`lib/critic/*`). Phase2~4 미착수 → 아래 |
 | perf-roundtrip-notes.md | DB 왕복 성능 최적화 | 측정·분석 완료, 최적화 구현은 재개 대기(handoff 노트) |
+| PRD-F.md | 재현 가능 생성·입력 완전성·Critic 적중률 | 계획 수립(Phase1 plan: `.claude/plans/prd-f.plan.md`). 구현 미착수. P1(식별자·결정성)→P2(청킹)→P3(측정)→P4(게이트) |
 
 ## 🔴 진행전 (`진행전/`)
 

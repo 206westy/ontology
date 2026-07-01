@@ -4,9 +4,11 @@ import { instances, instanceValues } from '@/lib/drizzle/schema';
 import { createInstanceSchema } from '@/features/ontology/lib/schemas';
 import { eq } from 'drizzle-orm';
 import { handleApiError } from '@/lib/api-error';
+import { parsePagination } from '@/lib/pagination';
 
 export async function GET(request: NextRequest) {
   const classId = request.nextUrl.searchParams.get('classId');
+  const { limit, offset } = parsePagination(request.nextUrl.searchParams);
 
   try {
     const db = await getDb();
@@ -15,10 +17,14 @@ export async function GET(request: NextRequest) {
           where: eq(instances.classId, classId),
           with: { values: true },
           orderBy: (i, { asc }) => [asc(i.name)],
+          limit,
+          offset,
         })
       : await db.query.instances.findMany({
           with: { values: true },
           orderBy: (i, { asc }) => [asc(i.name)],
+          limit,
+          offset,
         });
 
     return NextResponse.json(rows);
