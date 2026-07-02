@@ -211,6 +211,10 @@ npx playwright test e2e/auth.spec.ts           # E2E (dev 서버 자동 시작)
 
 <br/>
 
-## 라이선스
+## 라이선스 / License
 
-Private
+**이 프로젝트는 오픈소스가 아닙니다.** 저작권자의 사전 서면 허가 없이 이 저장소의 어떤 부분도 복제·클론·수정·배포·사용할 수 없습니다. GitHub에서 소스를 열람하는 것만으로는 어떠한 사용 권리도 부여되지 않습니다. 무단 사용·복제·배포는 법적 책임을 초래할 수 있습니다.
+
+**This project is not open source.** All Rights Reserved. No part of this repository may be copied, cloned, modified, distributed, or used without the prior written permission of the copyright holder. See the [LICENSE](./LICENSE) file for full terms.
+
+Copyright (c) 2026 Youngbae Jeon. All Rights Reserved.

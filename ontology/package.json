@@ -2,6 +2,7 @@
   "name": "ontology",
   "version": "0.1.0",
   "private": true,
+  "license": "UNLICENSED",
   "scripts": {
     "dev": "node scripts/run-next.mjs dev",
     "build": "next build",
