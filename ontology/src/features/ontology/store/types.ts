@@ -15,6 +15,14 @@ import type {
 } from '../lib/types';
 import type { OntologyAction } from '../lib/schemas';
 import type { ActionPlan } from '../lib/plan-actions';
+import type { PatternTraversalTemplate } from '../lib/patterns/types';
+
+// PRD-H (H7/M5): 활성 패턴의 CQ 번들(검수의 CQ 통과율 표시용). 발행 라이선스와
+// 별개로, 마지막 패턴 시드 생성의 competencyQuestions + traversalTemplates 를 들고 있는다.
+export interface ActivePatternCq {
+  competencyQuestions: string[];
+  traversalTemplates: PatternTraversalTemplate[];
+}
 
 export interface ApplyActionsResult {
   applied: string[]; // ids of created/updated nodes (for canvas highlight)
@@ -109,6 +117,14 @@ export interface UiSlice {
   // AIAssistantTab이 소비해 확장 프롬프트를 자동 투입한다. nonce로 재요청 구분.
   aiExpandRequest: { nodeId: string; nodeName: string; nodeType: 'class' | 'instance'; nonce: number } | null;
 
+  // PRD-H (M2): 마지막 패턴 시드 생성에 사용된 패턴(발행 라이선스 경고·머지 트리거용).
+  // license 가 미확인이면 NeoConfirmSheet 가 경고를 띄운다.
+  activePattern: { id: string | null; name: string; license: string | null } | null;
+  // PRD-H (H7/M5): 마지막 패턴 시드 생성의 CQ 번들(검수의 CQ 통과율 표시용). 없으면 null.
+  activePatternCq: ActivePatternCq | null;
+  // PRD-H H8-c (M2): 패턴 시드 생성 후 기존 EntityResolutionSheet(머지 미리보기) 노출 트리거.
+  entityResolutionOpen: boolean;
+
   // Filter state (P1-4) — colorFilter stored as array to avoid Zustand Set serialization issues
   showClasses: boolean;
   showInstances: boolean;
@@ -125,6 +141,15 @@ export interface UiSlice {
 
   openPopover: (state: PopoverState) => void;
   closePopover: () => void;
+
+  // PRD-H (M2): 활성 패턴 기록 + 머지 미리보기 시트 토글.
+  setActivePattern: (
+    pattern: { id: string | null; name: string; license: string | null } | null,
+  ) => void;
+  // PRD-H (H7/M5): 활성 패턴 CQ 번들 기록(검수 CQ 통과율용).
+  setActivePatternCq: (cq: ActivePatternCq | null) => void;
+  openEntityResolution: () => void;
+  closeEntityResolution: () => void;
 
   toggleExpanded: (nodeId: string) => void;
   setExpanded: (nodeId: string, expanded: boolean) => void;

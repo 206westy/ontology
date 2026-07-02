@@ -155,6 +155,7 @@ describe('parsedRelationSchema (PR1: 액션 지향 category)', () => {
     type: '증가시킨다',
     evidence: 'MW Power가 높으면 Particle 증가',
     confidence: 0.9,
+    categoryConfidence: 0.85,
   };
 
   it('requires a category (strict 모드 — optional 불가)', () => {

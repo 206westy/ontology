@@ -1,3 +1,5 @@
+import type { RelationCategory } from '@/features/ontology/lib/schemas';
+
 // S0 — Golden set scaffold. A golden case pairs an input document with the
 // ontology we expect extraction to produce, so S6 can measure precision/recall
 // and track 별모양 지수 / 재사용률 over time.
@@ -15,6 +17,9 @@ export interface GoldenRelation {
   source: string;
   target: string;
   type: string;
+  // PRD-F P3-1: category 실측을 위해 라벨에 액션 지향 분류를 포함한다.
+  // 판정 기준은 Stage2 프롬프트 루브릭과 동일(docs/golden-labeling.md).
+  category: RelationCategory;
 }
 
 export interface GoldenCase {
@@ -45,9 +50,9 @@ export const SYNTHETIC_CASE: GoldenCase = {
       { name: '윤활유 부족', type: '원인' },
     ],
     relations: [
-      { source: '과열', target: '마모', type: 'causes' },
-      { source: '마모', target: '진동 증가', type: 'measured_by' },
-      { source: '윤활유 부족', target: '과열', type: 'causes' },
+      { source: '과열', target: '마모', type: 'causes', category: 'causal' },
+      { source: '마모', target: '진동 증가', type: 'measured_by', category: 'diagnostic' },
+      { source: '윤활유 부족', target: '과열', type: 'causes', category: 'causal' },
     ],
   },
 };

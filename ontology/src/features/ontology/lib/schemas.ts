@@ -514,7 +514,18 @@ export const parsedRelationSchema = z.object({
   // Verbatim span grounding this relation. Empty grounding => no relation.
   evidence: z.string(),
   confidence: z.number().min(0).max(1),
+  // PRD-F P4-1: category 판정 자체에 대한 확신도(관계 존재 confidence 와 별개).
+  // strict 모드라 required. 저신뢰(< CATEGORY_CONFIDENCE_MIN)는 traversal 에서
+  // 강등되고 Critic 검수 큐로 간다(category 값 자체는 보존).
+  categoryConfidence: z.number().min(0).max(1),
 });
+
+// P4-1: category 저신뢰 컷. 이 미만이면 "포함하되 비우선"(드롭 아님).
+export const CATEGORY_CONFIDENCE_MIN = 0.7;
+
+export function isLowCategoryConfidence(catconf: number | null | undefined): boolean {
+  return typeof catconf === 'number' && catconf < CATEGORY_CONFIDENCE_MIN;
+}
 
 export const parseStage1ResponseSchema = z.object({
   entities: z.array(parsedEntitySchema),
@@ -533,6 +544,30 @@ export type ParsedEntity = z.infer<typeof parsedEntitySchema>;
 export type ParsedRelation = z.infer<typeof parsedRelationSchema>;
 export type ParseResponse = z.infer<typeof parseResponseSchema>;
 
+// PRD-H (H3/M2): confirmed 패턴을 추출의 SEED 로 주입하는 컨텍스트.
+// 역할(roles) → entity.type, 관계 타입 → Stage2 우선 예측 + 인과 계층 유도.
+// optional 이라 없으면 기존 generic 경로와 byte-for-byte 동일하다(회귀 0).
+export const parsePatternRoleContextSchema = z.object({
+  name: z.string().min(1),
+  description: z.string(),
+});
+
+export const parsePatternRelationContextSchema = z.object({
+  name: z.string().min(1),
+  category: relationCategoryEnum,
+  sourceRole: z.string().min(1),
+  targetRole: z.string().min(1),
+});
+
+export const parsePatternContextSchema = z.object({
+  domain: z.string().min(1),
+  roles: z.array(parsePatternRoleContextSchema),
+  relationTypes: z.array(parsePatternRelationContextSchema),
+  competencyQuestions: z.array(z.string()),
+});
+
+export type ParsePatternContext = z.infer<typeof parsePatternContextSchema>;
+
 export const parseRequestSchema = z.object({
   text: z.string().min(1),
   // M5: how to read the input. "text" = free-form prose (default, back-compat).
@@ -544,6 +579,8 @@ export const parseRequestSchema = z.object({
   // Enriched schema context (class hierarchy + types + key relations), built by
   // buildSchemaContext on the client. Used by A-2 for node reuse judgement.
   existingSchema: z.string().optional(),
+  // PRD-H H3: confirmed 패턴 시드(도메인 역할·관계). 없으면 generic 경로.
+  patternContext: parsePatternContextSchema.optional(),
 });
 
 export type ParseRequestInput = z.infer<typeof parseRequestSchema>;

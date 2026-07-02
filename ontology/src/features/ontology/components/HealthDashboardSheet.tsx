@@ -29,8 +29,15 @@ import { toast } from 'sonner';
 import { useOntologyStore } from '../hooks/useOntologyStore';
 import { healthApi, validateApi, type HealthMetrics, type ValidationResult } from '../api';
 import { findStructureIssues } from '../lib/graph-health';
+import { analyzeConnectivity } from '../lib/validate/connectivity';
+import {
+  evaluateCompetencyQuestions,
+  buildGraphPathChecker,
+  type CqGraphEdge,
+} from '../lib/validate/cq';
 import MetricCard from './health/MetricCard';
 import ViolationList from './health/ViolationList';
+import ConnectivityCqSection from './health/ConnectivityCqSection';
 
 export default function HealthDashboardSheet({
   open,
@@ -50,6 +57,36 @@ export default function HealthDashboardSheet({
   const storeInstances = useOntologyStore((s) => s.instances);
   const relationTypes = useOntologyStore((s) => s.relationTypes);
   const removeEdge = useOntologyStore((s) => s.removeEdge);
+  const activePatternCq = useOntologyStore((s) => s.activePatternCq);
+
+  // H7(M5): 연결성(도달성) — "섬 없음" 오탐 교정. 인스턴스까지 노드로 포함.
+  const connectivity = useMemo(() => {
+    const nodes = [
+      ...storeClasses.map((c) => ({ id: c.id })),
+      ...storeInstances.map((i) => ({ id: i.id })),
+    ];
+    return analyzeConnectivity(
+      nodes,
+      edges.map((e) => ({ sourceId: e.sourceId, targetId: e.targetId })),
+    );
+  }, [storeClasses, storeInstances, edges]);
+
+  // H7(M5): 활성 패턴의 CQ 세트로 답 경로 유무를 점검해 통과율(N/M)을 낸다.
+  const cqPassRate = useMemo(() => {
+    if (!activePatternCq) return null;
+    const relName = (rtId: string) =>
+      relationTypes.find((r) => r.id === rtId)?.name ?? '';
+    const cqEdges: CqGraphEdge[] = edges.map((e) => ({
+      sourceId: e.sourceId,
+      targetId: e.targetId,
+      relationName: relName(e.relationTypeId),
+    }));
+    return evaluateCompetencyQuestions(
+      activePatternCq.competencyQuestions,
+      activePatternCq.traversalTemplates,
+      buildGraphPathChecker(cqEdges),
+    );
+  }, [activePatternCq, edges, relationTypes]);
 
   // 클라이언트 구조 점검(자기 루프·중복 엣지). 서버 지표와 별개로 즉시 계산.
   const structureIssues = useMemo(() => {
@@ -165,6 +202,8 @@ export default function HealthDashboardSheet({
                   hint="자기 루프·중복 엣지"
                 />
               </div>
+
+              <ConnectivityCqSection connectivity={connectivity} cq={cqPassRate} />
 
               <div>
                 <h3 className="text-[11px] font-semibold text-muted-foreground mb-1.5">검증 위반</h3>

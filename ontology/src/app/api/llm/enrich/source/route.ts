@@ -7,6 +7,7 @@ import { getDb, classes } from '@/lib/drizzle';
 import { sourceRequestSchema, sourceLlmResponseSchema } from '@/features/ontology/lib/schemas';
 import { maskIdentifiers } from '@/features/ontology/lib/identifier-mask';
 import { webSearch, isWebSearchAvailable } from '@/features/ontology/lib/web-search';
+import { verifyWebClaim } from '@/features/ontology/lib/web-verify';
 import type { EnrichProposal } from '@/features/ontology/lib/enrich-types';
 
 // A-4 sourcing: fill a detected gap from prioritized sources —
@@ -55,16 +56,24 @@ export async function POST(request: Request) {
       const results = await webSearch(query, 3);
       webSnippets = results.map((r) => `${r.title}: ${r.content}`);
       webUsed = results.length > 0;
-      for (const r of results) {
+
+      // P4-2: 인용 페이지가 주장을 실제로 지지하는지 LLM-as-judge 로 검증.
+      // 통과만 web 제안으로, 실패는 드롭. 지지 스팬을 evidence 로 부착.
+      const verdicts = await Promise.all(
+        results.map((r) => verifyWebClaim(gap.targetName, r.title, r.content)),
+      );
+      results.forEach((r, i) => {
+        const verdict = verdicts[i];
+        if (!verdict.supported) return; // 미지지 주장은 제안에서 제외
         proposals.push({
           kind: gap.kind,
           value: r.content.slice(0, 280),
           sourceType: 'web',
-          evidence: r.url,
-          confidence: 0.5,
-          needsReview: true, // web always needs verification
+          evidence: `${r.url} — "${verdict.supportingSpan.slice(0, 200)}"`,
+          confidence: 0.6,
+          needsReview: true, // 검증 통과해도 최종 확정은 사람이
         });
-      }
+      });
     }
 
     // 3) LLM synthesis from session context / inference.

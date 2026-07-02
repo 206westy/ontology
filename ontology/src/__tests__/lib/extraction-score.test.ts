@@ -47,6 +47,39 @@ describe('scoreExtraction', () => {
   });
 });
 
+describe('scoreExtraction category (P3-2)', () => {
+  it('매칭된 관계의 category 정확도 산출 + 혼동행렬', () => {
+    const expected: ScoredSet = {
+      entities: [{ name: 'A' }, { name: 'B' }, { name: 'C' }],
+      relations: [
+        { source: 'A', target: 'B', type: 'causes', category: 'causal' },
+        { source: 'B', target: 'C', type: 'measured_by', category: 'diagnostic' },
+      ],
+    };
+    const actual: ScoredSet = {
+      entities: [{ name: 'A' }, { name: 'B' }, { name: 'C' }],
+      relations: [
+        { source: 'A', target: 'B', type: 'causes', category: 'causal' }, // 일치
+        { source: 'B', target: 'C', type: 'measured_by', category: 'procedural' }, // 오분류
+      ],
+    };
+    const score = scoreExtraction(expected, actual);
+    expect(score.category.matched).toBe(2);
+    expect(score.category.correct).toBe(1);
+    expect(score.category.accuracy).toBeCloseTo(0.5);
+    expect(score.category.confusion.diagnostic.procedural).toBe(1);
+    expect(score.category.confusion.causal.causal).toBe(1);
+  });
+
+  it('category 라벨이 없으면 accuracy=null (회귀 안전, relation PRF 불변)', () => {
+    const gold: ScoredSet = set(['A', 'B'], [['A', 'B', 'causes']]);
+    const score = scoreExtraction(gold, gold);
+    expect(score.category.accuracy).toBeNull();
+    expect(score.category.matched).toBe(0);
+    expect(score.relations.f1).toBe(1);
+  });
+});
+
 describe('golden set measurement loop', () => {
   it('every golden case scores perfectly against itself (self-consistent fixture)', () => {
     for (const c of GOLDEN_CASES) {

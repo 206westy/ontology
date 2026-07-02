@@ -2,8 +2,9 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, ShieldAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { buildPublishLicenseWarning } from '../../lib/patterns/license';
 import {
   Sheet,
   SheetContent,
@@ -34,6 +35,9 @@ function apiStepsToUiSteps(apiSteps: Neo4jPushStep[]): PushStep[] {
 
 export default function NeoConfirmSheet({ open, onOpenChange }: NeoConfirmSheetProps) {
   const pendingChanges = useOntologyStore((s) => s.pendingChanges);
+  // PRD-H T7 (M2): 이 생성에 사용된 패턴의 라이선스가 미확인이면 발행 전 경고(warn-only).
+  const activePattern = useOntologyStore((s) => s.activePattern);
+  const licenseWarning = buildPublishLicenseWarning([activePattern]);
 
   const [phase, setPhase] = useState<Phase>('loading');
   const [cypherPreview, setCypherPreview] = useState('');
@@ -243,6 +247,17 @@ export default function NeoConfirmSheet({ open, onOpenChange }: NeoConfirmSheetP
                 className="space-y-4"
               >
                 <PushSummary summary={summary} />
+
+                {licenseWarning && (
+                  <div
+                    className="flex items-start gap-2 rounded-md border border-amber-400/60 bg-amber-50 p-2 text-[11px] text-amber-700 dark:bg-amber-950/30 dark:text-amber-400"
+                    data-testid="publish-license-warning"
+                  >
+                    <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    <span>{licenseWarning}</span>
+                  </div>
+                )}
+
                 <CypherPreview cypher={cypherPreview} />
 
                 <div className="flex items-center justify-end gap-2 pt-2">

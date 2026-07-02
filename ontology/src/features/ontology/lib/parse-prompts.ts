@@ -1,4 +1,4 @@
-import type { ParsedEntity } from './schemas';
+import type { ParsedEntity, ParsePatternContext } from './schemas';
 
 // Multi-stage parse prompts (A-1). Extraction (points) is split from connection
 // (lines) into two focused LLM calls. The hard rules below exist to kill the
@@ -10,6 +10,37 @@ interface PromptContext {
   existingRelationTypes?: string[];
   // Enriched schema context (hierarchy + types + key relations) for node reuse (A-2).
   existingSchema?: string;
+  // PRD-H H3 (M2): confirmed 패턴 시드. 있으면 역할/관계로 추출을 유도한다.
+  patternContext?: ParsePatternContext;
+}
+
+// PRD-H H3: Stage1 역할 블록 — 추출된 엔티티의 type 을 패턴 역할로 강제한다.
+// 순수 함수(단위 테스트 대상). patternContext 없으면 호출부에서 아예 붙지 않는다.
+export function buildStage1PatternBlock(pc: ParsePatternContext): string {
+  const roleLines = pc.roles
+    .map((r) => `- ${r.name}: ${r.description || '(역할 설명 없음)'}`)
+    .join('\n');
+  return `Domain pattern context (도메인 "${pc.domain}") — 이 입력은 이미 이 패턴으로 확정되었습니다. 각 엔티티의 "type"(역할)을 아래 ROLE 이름 중 하나로 배정하세요. 새로운 최상위 타입을 지어내지 말고, 텍스트의 개념을 가장 가까운 역할로 분류합니다.
+Roles(역할):
+${roleLines}
+모든 엔티티는 위 역할 중 하나에 매핑되어야 합니다(매핑 불가한 개념은 추출하지 마세요).`;
+}
+
+// PRD-H H3: Stage2 관계 블록 — 패턴 관계 타입을 우선 예측하고 인과 계층(chain)을
+// 만들도록 유도한다(깊이 1 평면 목록 금지: 예 증상→원인→점검→조치).
+export function buildStage2PatternBlock(pc: ParsePatternContext): string {
+  const relLines = pc.relationTypes
+    .map((rt) => `- ${rt.name} (${rt.category}): ${rt.sourceRole} → ${rt.targetRole}`)
+    .join('\n');
+  const cqLines = pc.competencyQuestions.map((q) => `- ${q}`).join('\n');
+  const parts = [
+    `Domain pattern relations (도메인 "${pc.domain}") — 아래 패턴 관계 타입을 우선적으로 사용하세요. 결과는 반드시 CAUSAL HIERARCHY(인과 계층 체인)를 이뤄야 합니다 — 문서 제목이나 한 허브에 모두 매다는 깊이 1 평면 목록은 금지입니다. 역할들을 체인으로 연결하세요(예: 증상 → 원인 → 점검 → 조치).`,
+    `Pattern relation types(관계 타입):\n${relLines}`,
+  ];
+  if (cqLines) {
+    parts.push(`Competency questions(이 관계들이 답해야 하는 질문):\n${cqLines}`);
+  }
+  return parts.join('\n');
 }
 
 const SHARED_RULES = `Hard rules:
@@ -71,6 +102,9 @@ export function buildStage1User(ctx: PromptContext): string {
       `Existing classes (reuse as types when relevant): ${ctx.existingClasses.join(', ')}`,
     );
   }
+  if (ctx.patternContext) {
+    parts.push(buildStage1PatternBlock(ctx.patternContext));
+  }
   return parts.join('\n\n');
 }
 
@@ -90,7 +124,8 @@ For each relation provide:
     - "descriptive": a definition, naming, parallel, or layout statement. Weak and non-actionable — prefer not emitting it at all (see rules below).
 - DISCRIMINATION RULE for "~하면 ~한다" (condition→action) sentences: do NOT classify by surface form, because diagnostic and procedural share that shape. If the action's purpose is to NARROW DOWN the cause (fault-finding: inspect/check/suspect to locate the problem), it is "diagnostic". If the action EXECUTES a predetermined operation or scheduled/sequenced step, it is "procedural". 예: "particle이 증가하면 chuck을 점검한다" → diagnostic (원인을 좁힘); "필터를 6개월마다 교체한다" / "A 다음에 B를 수행한다" → procedural (정해진 조치를 실행).
 - evidence: the verbatim span that grounds the relation.
-- confidence: 0..1, how strongly the text supports this relation.
+- confidence: 0..1, how strongly the text supports this relation EXISTING.
+- categoryConfidence: 0..1, how certain you are about the CATEGORY choice specifically (separate from confidence). If the sentence is ambiguous between two categories (e.g. diagnostic vs procedural), lower this value. High only when the purpose is unmistakable.
 
 ${SHARED_RULES}
 - Co-occurrence is NOT grounding. If two entities merely appear together with no stated connection, do NOT relate them.
@@ -114,6 +149,9 @@ export function buildStage2User(ctx: PromptContext, entities: ParsedEntity[]): s
     parts.push(
       `Existing relation types (reuse when appropriate): ${ctx.existingRelationTypes.join(', ')}`,
     );
+  }
+  if (ctx.patternContext) {
+    parts.push(buildStage2PatternBlock(ctx.patternContext));
   }
   return parts.join('\n\n');
 }
@@ -184,7 +222,8 @@ For each relation provide:
 - type: a concise verb naming the link, derived from the column's meaning (a "공급사"/supplier column -> "supplied_by"; a "부서"/department column -> "belongs_to"; a "담당자"/owner column -> "assigned_to"; a "위치"/location column -> "located_in"). Keep the verb general — do NOT bake the specific cell value into the predicate.
 - category: classify by PURPOSE. Reference-column links (belongs-to, located-in, supplied-by, assigned-to, part-of, owned-by) are "structural". Use "causal", "diagnostic", or "procedural" ONLY if the table explicitly encodes such a process between records.
 - evidence: the row (or the relevant header+cell) that grounds the link.
-- confidence: 0..1.
+- confidence: 0..1, how strongly the table supports this link EXISTING.
+- categoryConfidence: 0..1, certainty about the CATEGORY choice specifically. Reference-column links are usually unambiguous (high); lower it only when a process reading is plausible.
 
 Rules:
 - Only relate a record to the entities named by its OWN row's reference columns. Never relate two records to each other merely because they share a column value — that shared value is the referenced entity, so relate BOTH records TO it instead.

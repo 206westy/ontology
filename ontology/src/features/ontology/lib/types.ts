@@ -121,6 +121,8 @@ export interface OntologyEdge {
   sourceType?: string | null;
   confidence?: number | null;
   evidence?: string | null;
+  // PRD-F P4-1: category 판정 확신도. 저신뢰는 traversal 비우선(값 자체는 보존).
+  categoryConfidence?: number | null;
 }
 
 export interface OntologyAxiom {

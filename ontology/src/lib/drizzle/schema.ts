@@ -270,6 +270,8 @@ export const edges = pgTable(
     sourceType: text('source_type'),
     confidence: real('confidence'),
     evidence: text('evidence'),
+    // PRD-F P4-1: category 판정 확신도(저신뢰는 traversal 비우선). nullable.
+    categoryConfidence: real('category_confidence'),
   },
   (t) => [
     unique('uq_edge').on(t.relationTypeId, t.sourceId, t.targetId),
@@ -550,6 +552,77 @@ export const attributions = pgTable(
     check(
       'chk_attr_confidence',
       sql`${t.confidence} IS NULL OR (${t.confidence} >= 0 AND ${t.confidence} <= 1)`,
+    ),
+  ],
+);
+
+// ─── patterns (PRD-H H1/M1: 패턴 학습형 캐시) ──────────────────
+// 도메인 설계 패턴(역할+관계+CQ+traversal)을 재사용·버전 가능한 번들로 보관.
+// 발견 파이프라인(retrieve›adapt›synthesize)이 채우고, 같은 도메인은 재사용(수렴)한다.
+export const patterns = pgTable(
+  'patterns',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    key: text('key').notNull(),
+    name: text('name').notNull(),
+    nameKo: text('name_ko').notNull().default(''),
+    version: integer('version').notNull().default(1),
+    domain: text('domain').notNull(),
+    roles: jsonb('roles').notNull().default([]),
+    relationTypes: jsonb('relation_types').notNull().default([]),
+    competencyQuestions: jsonb('competency_questions').notNull().default([]),
+    traversalTemplates: jsonb('traversal_templates').notNull().default([]),
+    method: text('method').notNull().default('synthesized'),
+    sourceRepo: text('source_repo'),
+    sourceUri: text('source_uri'),
+    sourceLabel: text('source_label'),
+    license: text('license'),
+    isDraft: boolean('is_draft').notNull().default(false),
+    previousVersionId: uuid('previous_version_id').references(
+      (): any => patterns.id,
+      { onDelete: 'set null' },
+    ),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    unique('uq_pattern_key_version').on(t.key, t.version),
+    index('idx_patterns_domain').on(t.domain),
+    index('idx_patterns_key').on(t.key),
+    check(
+      'chk_pattern_method',
+      sql`${t.method} IN ('retrieved', 'adapted', 'synthesized', 'bootstrap')`,
+    ),
+  ],
+);
+
+// ─── term_glossary (PRD-H H4/M3: 맥락 주입형 용어 해소 캐시) ─────
+// 미정의·모호 용어(약어·은어)를 도메인 + 현재 온톨로지 맥락으로 좁혀 확정한 뜻을
+// 도메인-스코프로 보관한다. 확정 결과를 캐시해 재검색 폭주를 막고 이후 추출·검색에 재주입한다.
+export const termGlossary = pgTable(
+  'term_glossary',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    domain: text('domain').notNull(),
+    partitionId: uuid('partition_id').references(() => partitions.id, {
+      onDelete: 'set null',
+    }),
+    term: text('term').notNull(),
+    meaning: text('meaning').notNull(),
+    source: text('source').notNull().default('user'),
+    confidence: real('confidence'),
+    evidence: text('evidence'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    unique('uq_term_glossary_domain_term').on(t.domain, t.term),
+    index('idx_term_glossary_domain').on(t.domain),
+    check(
+      'chk_term_glossary_source',
+      sql`${t.source} IN ('internal', 'context', 'web', 'user')`,
     ),
   ],
 );

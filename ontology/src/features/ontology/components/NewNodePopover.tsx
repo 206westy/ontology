@@ -20,6 +20,8 @@ import { useOntologyStore } from '../hooks/useOntologyStore';
 import { NODE_COLORS } from '../constants/colors';
 import { llmApi, enrichApi, dedupApi, constraintsApi, type LlmParseResult, type DetectSubgraphInput } from '../api';
 import { mapParseResult, findPossibleDuplicates, computeIslands, partitionRelationsByCategory } from '../lib/parse-mapping';
+import { stableEntityId, stableEdgeId } from '../lib/identity';
+import { DEFAULT_PARTITION_ID } from '../lib/types';
 import { reviewProposal, type CriticIssue, type CriticSeverity } from '../lib/critic/review';
 import { buildParseSchemaContext } from '../lib/schema-context';
 import type { EnrichmentItem, EnrichProposal } from '../lib/enrich-types';
@@ -223,6 +225,7 @@ export default function NewNodePopover() {
   const addRelationType = useOntologyStore((s) => s.addRelationType);
   const addEdge = useOntologyStore((s) => s.addEdge);
   const addInstance = useOntologyStore((s) => s.addInstance);
+  const currentPartitionId = useOntologyStore((s) => s.currentPartitionId);
   const setInstanceValue = useOntologyStore((s) => s.setInstanceValue);
   const addAxiom = useOntologyStore((s) => s.addAxiom);
 
@@ -800,6 +803,10 @@ export default function NewNodePopover() {
   const handleConfirm = () => {
     if (!parsed) return;
 
+    // P1-1: 이 확정으로 만드는 노드는 현재 구획에 속한다. 안정 id 산출에 같은
+    // 구획을 써 재유입 시 동일 id 로 수렴시킨다(random UUID 대신 content-hash).
+    const partition = currentPartitionId ?? DEFAULT_PARTITION_ID;
+
     // PRD-E P2-5: reuse 는 생성 스킵하고 기존 id 로 별칭. relate 는 생성 후 엣지 추가.
     const relateLinks: { fromName: string; targetId: string; relationType: string }[] = [];
 
@@ -849,6 +856,7 @@ export default function NewNodePopover() {
       }
       const enrich = adoptedDefinition.get(cls.name);
       const id = addClass({
+        id: stableEntityId(cls.name, 'class', partition),
         name: cls.name,
         description: enrich ? enrich.value : cls.description,
         color: cls.color ?? NODE_COLORS.mid,
@@ -900,6 +908,7 @@ export default function NewNodePopover() {
         relateLinks.push({ fromName: inst.name, targetId: dd.targetId, relationType: dd.relationType });
       }
       const instId = addInstance({
+        id: stableEntityId(inst.name, 'instance', partition),
         name: inst.name,
         classId,
         description: inst.description ?? '',
@@ -933,6 +942,7 @@ export default function NewNodePopover() {
           relTypeIdByName.set(rel.relationName, relTypeId);
         }
         addEdge({
+          id: stableEdgeId(src.id, tgt.id, rel.relationName, rel.category ?? 'descriptive'),
           sourceId: src.id,
           targetId: tgt.id,
           sourceKind: src.kind,
@@ -941,6 +951,7 @@ export default function NewNodePopover() {
           sourceType: rel.evidence ? 'session_doc' : null,
           confidence: rel.confidence ?? null,
           evidence: rel.evidence ?? null,
+          categoryConfidence: rel.categoryConfidence ?? null,
         });
       }
     });
@@ -958,6 +969,7 @@ export default function NewNodePopover() {
         relTypeIdByName.set(link.relationType, relTypeId);
       }
       addEdge({
+        id: stableEdgeId(from.id, link.targetId, link.relationType, 'descriptive'),
         sourceId: from.id,
         targetId: link.targetId,
         sourceKind: from.kind,

@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from 'react';
 import EmptyState from './EmptyState';
+import EntityResolutionSheet from './EntityResolutionSheet';
 import GraphContextMenu, { type ContextMenuPosition } from './GraphContextMenu';
 import FocusModeBar from './FocusModeBar';
 import GraphLegend from './GraphLegend';
@@ -25,6 +26,9 @@ export default function GraphCanvas() {
   const instances = useOntologyStore((s) => s.instances);
   const openPopover = useOntologyStore((s) => s.openPopover);
   const updateClass = useOntologyStore((s) => s.updateClass);
+  // PRD-H H8-c (M2): 패턴 시드 생성 후 머지 미리보기 시트 트리거(store 구동).
+  const entityResolutionOpen = useOntologyStore((s) => s.entityResolutionOpen);
+  const closeEntityResolution = useOntologyStore((s) => s.closeEntityResolution);
 
   const {
     setContainer,
@@ -129,6 +133,12 @@ export default function GraphCanvas() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* H8-c: 머지 미리보기(기존 EntityResolutionSheet 재사용) — 자동 병합 없음 */}
+      <EntityResolutionSheet
+        open={entityResolutionOpen}
+        onOpenChange={(o) => { if (!o) closeEntityResolution(); }}
+      />
 
       {/* Hint bar + zoom indicator */}
       <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-3 px-3 py-1.5 rounded-full bg-card/80 backdrop-blur-sm border border-border shadow-elevation-1 text-caption text-muted-foreground z-10">

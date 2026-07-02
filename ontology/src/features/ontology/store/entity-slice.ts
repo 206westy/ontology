@@ -14,6 +14,7 @@ import type {
 import { DEFAULT_PARTITION_ID } from '../lib/types';
 import type { EntitySlice, SliceCreator } from './types';
 import { uuid } from '../lib/uuid';
+import { stableEntityId, stableEdgeId } from '../lib/identity';
 import { planAssistantActions } from '../lib/plan-actions';
 
 // 노드(class/instance)의 소속 구획 id 를 해석. instance 는 소속 class 의 구획을 상속.
@@ -396,6 +397,7 @@ export const createEntitySlice: SliceCreator<EntitySlice> = (set, get) => ({
       sourceType: data.sourceType ?? null,
       confidence: data.confidence ?? null,
       evidence: data.evidence ?? null,
+      categoryConfidence: data.categoryConfidence ?? null,
     };
     set((state) => ({
       edges: [...state.edges, newEdge],
@@ -513,9 +515,11 @@ export const createEntitySlice: SliceCreator<EntitySlice> = (set, get) => ({
           if (!parent) { skip(`상위 클래스를 찾을 수 없습니다: ${parentName}`); continue; }
           parentId = parent.id;
         }
+        const classPartitionId = get().currentPartitionId ?? DEFAULT_PARTITION_ID;
         const newClass: OntologyClass = {
-          id: generateId(), parentId,
-          partitionId: get().currentPartitionId ?? DEFAULT_PARTITION_ID,
+          // P1-1: 재유입 시 같은 노드로 수렴하도록 content-hash 안정 id 사용.
+          id: stableEntityId(name, 'class', classPartitionId), parentId,
+          partitionId: classPartitionId,
           name,
           description: description ?? '', color: color ?? '#7c3aed',
           positionX: 0, positionY: 0,
@@ -556,7 +560,9 @@ export const createEntitySlice: SliceCreator<EntitySlice> = (set, get) => ({
           skip(`이미 존재하는 인스턴스입니다: ${name}`); continue;
         }
         const newInstance: OntologyInstance = {
-          id: generateId(), classId: cls.id, name, description: '',
+          // P1-1: instance 는 소속 class 의 구획을 상속해 안정 id 산출.
+          id: stableEntityId(name, 'instance', cls.partitionId ?? DEFAULT_PARTITION_ID),
+          classId: cls.id, name, description: '',
           createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
         };
         instances.push(newInstance);
@@ -603,7 +609,10 @@ export const createEntitySlice: SliceCreator<EntitySlice> = (set, get) => ({
           skip(`이미 존재하는 관계입니다: ${sourceName} → ${targetName}`); continue;
         }
         const newEdge: OntologyEdge = {
-          id: generateId(), relationTypeId: rt.id,
+          // P1-1: 엣지도 안정 id — 안 그러면 재유입마다 새 random id 로 같은 노드
+          // 사이 관계가 중복 생성된다(cypher-builder edge MERGE 가 {id} 로 묶음).
+          id: stableEdgeId(s.id, t.id, rt.name, rt.category),
+          relationTypeId: rt.id,
           sourceId: s.id, targetId: t.id, sourceKind: s.kind, targetKind: t.kind,
           createdAt: new Date().toISOString(),
         };

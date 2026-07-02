@@ -16,6 +16,9 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
   showAllPartitions: false,
   zoomAction: null,
   aiExpandRequest: null,
+  activePattern: null,
+  activePatternCq: null,
+  entityResolutionOpen: false,
 
   // Filter defaults (P1-4)
   showClasses: true,
@@ -49,6 +52,11 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
 
   openPopover: (popoverState) => set({ popoverState }),
   closePopover: () => set({ popoverState: null }),
+
+  setActivePattern: (pattern) => set({ activePattern: pattern }),
+  setActivePatternCq: (cq) => set({ activePatternCq: cq }),
+  openEntityResolution: () => set({ entityResolutionOpen: true }),
+  closeEntityResolution: () => set({ entityResolutionOpen: false }),
 
   toggleExpanded: (nodeId) =>
     set((state) => {

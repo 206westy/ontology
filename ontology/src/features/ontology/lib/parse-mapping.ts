@@ -41,6 +41,8 @@ export interface ParsedExtraction {
     category?: RelationCategory;
     evidence?: string;
     confidence?: number;
+    // PRD-F P4-1: category 판정 확신도(저신뢰 라우팅용).
+    categoryConfidence?: number;
   }[];
   instances: {
     className: string;
@@ -174,6 +176,7 @@ export function mapParseResult(
     category: r.category,
     evidence: r.evidence,
     confidence: r.confidence,
+    categoryConfidence: r.categoryConfidence,
   }));
 
   // Ensure relation endpoints exist as nodes (class fallback if neither a class

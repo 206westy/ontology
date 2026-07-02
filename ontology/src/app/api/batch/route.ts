@@ -292,7 +292,7 @@ async function applyMutation(
 ) {
   const data = op.data as Record<string, unknown>;
   const { id: _id, ...fields } = data;
-  let resultId = op.id;
+  const resultId = op.id;
 
   if (op.action === 'update' && op.id) {
     if (op.type === 'class') {

@@ -8,6 +8,24 @@ import {
   buildStage1UserCsv,
   buildStage2SystemCsv,
 } from '@/features/ontology/lib/parse-prompts';
+import type { ParsePatternContext } from '@/features/ontology/lib/schemas';
+
+// PRD-H H3 (M2): 진단 도메인 패턴 시드 — 증상→원인→점검→조치 인과 계층.
+const diagnosticPattern: ParsePatternContext = {
+  domain: 'diagnostic',
+  roles: [
+    { name: '증상', description: '관측된 이상/증상' },
+    { name: '원인', description: '증상을 일으키는 근본 원인' },
+    { name: '점검', description: '원인을 좁히기 위한 점검 항목' },
+    { name: '조치', description: '문제를 해결하는 조치' },
+  ],
+  relationTypes: [
+    { name: 'caused_by', category: 'causal', sourceRole: '증상', targetRole: '원인' },
+    { name: 'inspected_by', category: 'diagnostic', sourceRole: '원인', targetRole: '점검' },
+    { name: 'resolved_by', category: 'procedural', sourceRole: '점검', targetRole: '조치' },
+  ],
+  competencyQuestions: ['증상 X의 원인은?', 'Y를 점검하려면?'],
+};
 
 describe('parse-prompts (A-1)', () => {
   it('stage 1 system forbids the title hub and merging look-alike concepts', () => {
@@ -82,6 +100,52 @@ describe('parse-prompts (A-1)', () => {
     expect(user).toContain('MW Power (파라미터)');
     expect(user).toContain('Particle (결과)');
     expect(user).toContain('orig text');
+  });
+});
+
+// PRD-H H3 (M2): 패턴 시드 주입 — 역할 타이핑 + 인과 계층 유도. 없으면 무변화.
+describe('parse-prompts pattern-seeded (H3/M2)', () => {
+  it('stage 1 user types entities using the pattern roles when patternContext is present', () => {
+    const user = buildStage1User({
+      text: 'particle이 증가하면 Chuck을 점검한다',
+      patternContext: diagnosticPattern,
+    });
+    // 도메인 + 모든 역할 이름이 프롬프트에 들어가고 type=역할 지시가 있어야 한다.
+    expect(user).toContain('diagnostic');
+    expect(user).toContain('증상');
+    expect(user).toContain('원인');
+    expect(user).toContain('점검');
+    expect(user).toContain('조치');
+    expect(user).toMatch(/role|역할/i);
+  });
+
+  it('stage 2 user prefers pattern relation types and demands a causal hierarchy chain', () => {
+    const user = buildStage2User(
+      { text: 'orig', patternContext: diagnosticPattern },
+      [
+        { name: 'particle 초과', type: '증상', nodeKind: 'class', parentType: null, evidence: 'x', description: null, properties: [] },
+        { name: 'Chuck 오염', type: '원인', nodeKind: 'class', parentType: null, evidence: 'y', description: null, properties: [] },
+      ],
+    );
+    expect(user).toContain('caused_by');
+    expect(user).toContain('inspected_by');
+    expect(user).toContain('resolved_by');
+    // 인과 계층(chain) 요구 + CQ 노출
+    expect(user).toMatch(/CAUSAL HIERARCHY|인과 계층/);
+    expect(user).toContain('증상 X의 원인은?');
+    // 평면 목록 금지 표현(증상→원인→점검→조치 체인 유도)
+    expect(user).toContain('증상');
+  });
+
+  it('is byte-for-byte identical to the generic path when patternContext is absent (no regression)', () => {
+    const base = { text: 'plasma strip report', existingSchema: '- 하드웨어\n  - Chuck' };
+    const withUndef = buildStage1User({ ...base, patternContext: undefined });
+    const plain = buildStage1User(base);
+    expect(withUndef).toBe(plain);
+    // 패턴 블록 마커가 generic 경로엔 절대 없어야 한다.
+    expect(plain).not.toContain('Domain pattern context');
+    const s2 = buildStage2User({ text: 'orig' }, []);
+    expect(s2).not.toContain('Domain pattern relations');
   });
 });
 

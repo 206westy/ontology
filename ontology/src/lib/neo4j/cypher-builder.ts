@@ -275,7 +275,9 @@ function edgeUpsert(
   const attr = attrParams('edges', detail.targetId, context);
   return {
     // MERGE on id → 재푸시 중복 0. domain/range·cardinality·출처 반영.
-    query: `MATCH (a {id: $sourceId}), (b {id: $targetId}) MERGE (a)-[r:${safeRelName} {id: $id}]->(b) SET r.relationTypeId = $relationTypeId, r.bridge = $bridge, r.min_cardinality = toInteger($minCardinality), r.max_cardinality = toInteger($maxCardinality), r.sourceKind = $sourceKind, r.targetKind = $targetKind, r.${SRC} = $src, r.${CONF} = $conf, r.${SRC_REF} = $srcRef`,
+    // PRD-F P4-1: category 판정 확신도(_catconf)를 관계 속성으로 운반한다. myATHENA
+    // traversal 은 저신뢰(_catconf < 0.7)를 "포함하되 비우선"으로 처리한다(드롭 아님).
+    query: `MATCH (a {id: $sourceId}), (b {id: $targetId}) MERGE (a)-[r:${safeRelName} {id: $id}]->(b) SET r.relationTypeId = $relationTypeId, r.bridge = $bridge, r.min_cardinality = toInteger($minCardinality), r.max_cardinality = toInteger($maxCardinality), r.sourceKind = $sourceKind, r.targetKind = $targetKind, r._catconf = $catconf, r.${SRC} = $src, r.${CONF} = $conf, r.${SRC_REF} = $srcRef`,
     params: {
       id: detail.targetId,
       sourceId: snap.sourceId ?? '',
@@ -286,6 +288,7 @@ function edgeUpsert(
       maxCardinality: snap.maxCardinality ?? null,
       sourceKind: snap.sourceKind ?? null,
       targetKind: snap.targetKind ?? null,
+      catconf: snap.categoryConfidence ?? null,
       ...attr,
     },
     description: `관계 "${relName}"${snap.isBridge ? ' (bridge)' : ''} 엣지 생성`,

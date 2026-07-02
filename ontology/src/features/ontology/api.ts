@@ -1,4 +1,24 @@
 import type { Gap, EnrichProposal } from './lib/enrich-types';
+import type { ParsePatternContext } from './lib/schemas';
+import type {
+  Pattern,
+  RecognizeResult,
+  DiscoverPatternRequestInput,
+  PromotePatternRequestInput,
+} from './lib/patterns/types';
+import type {
+  ResolveTermsRequestInput,
+  ConfirmTermRequestInput,
+  TermResolution,
+  TermGlossaryEntry,
+} from './lib/terms/types';
+import type { DiscoverSource } from './lib/patterns/discover';
+import type { DriftRequestInput, DriftJudgment } from './lib/patterns/drift';
+import type {
+  BridgeSuggestion,
+  CreateBridgeInput,
+} from './lib/bridge/cross-partition';
+import type { OntologyEdge } from './lib/types';
 import type {
   CreateClassInput,
   UpdateClassInput,
@@ -40,6 +60,93 @@ async function handleResponse<T>(res: Response): Promise<T> {
 }
 
 const jsonHeaders = { 'Content-Type': 'application/json' };
+
+// ─── Patterns (PRD-H H1/M1: 학습형 캐시 + 발견) ─────────────
+// 발견 응답: 캐시 히트(cached:true) 또는 발견 초안(cached:false).
+export interface DiscoverPatternResult {
+  cached: boolean;
+  recognize: RecognizeResult;
+  // 히트 시에만.
+  pattern?: Pattern;
+  // 미스(발견) 시에만.
+  method?: 'adapted' | 'synthesized';
+  source?: DiscoverSource | null;
+  draft?: PromotePatternRequestInput;
+}
+
+export const patternsApi = {
+  list: (): Promise<Pattern[]> =>
+    fetch('/api/patterns').then((r) => handleResponse<Pattern[]>(r)),
+  hit: (domain: string): Promise<{ pattern: Pattern | null }> =>
+    fetch(`/api/patterns?domain=${encodeURIComponent(domain)}`).then((r) =>
+      handleResponse<{ pattern: Pattern | null }>(r),
+    ),
+  // 승격(promote): 발견 초안을 캐시에 영속화.
+  promote: (data: PromotePatternRequestInput): Promise<Pattern> =>
+    fetch('/api/patterns', {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify(data),
+    }).then((r) => handleResponse<Pattern>(r)),
+};
+
+export const discoverPatternApi = {
+  discover: (data: DiscoverPatternRequestInput): Promise<DiscoverPatternResult> =>
+    fetch('/api/llm/discover-pattern', {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify(data),
+    }).then((r) => handleResponse<DiscoverPatternResult>(r)),
+};
+
+// ─── Drift (PRD-H H5/M4: 스키마 드리프트 3분기 판정) ──────────
+// 패턴 밖 신규 요소를 매핑/확장/분기로 판정. 자동 반영 없음(컨펌 게이트).
+export const driftApi = {
+  judge: (data: DriftRequestInput): Promise<{ judgments: DriftJudgment[] }> =>
+    fetch('/api/llm/drift', {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify(data),
+    }).then((r) => handleResponse<{ judgments: DriftJudgment[] }>(r)),
+};
+
+// ─── Bridges (PRD-H H6/M4: 크로스-구획 브릿지) ────────────────
+// 후보 조회(GET)는 dedup 인프라를 크로스-구획 스코프로 재사용. 생성(POST)은 컨펌 시에만.
+export const bridgesApi = {
+  candidates: (): Promise<{ suggestions: BridgeSuggestion[] }> =>
+    fetch('/api/bridges').then((r) =>
+      handleResponse<{ suggestions: BridgeSuggestion[] }>(r),
+    ),
+  create: (data: CreateBridgeInput): Promise<OntologyEdge> =>
+    fetch('/api/bridges', {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify(data),
+    }).then((r) => handleResponse<OntologyEdge>(r)),
+};
+
+// ─── Terms (PRD-H H4/M3: 맥락 주입형 용어 해소 + 용어집 캐시) ──────
+export const termsApi = {
+  // 배치 해소: 랭킹된 후보(내부→맥락→opt-in 웹). 확정은 별도(confirm).
+  resolve: (data: ResolveTermsRequestInput): Promise<{ resolutions: TermResolution[] }> =>
+    fetch('/api/llm/resolve-terms', {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify(data),
+    }).then((r) => handleResponse<{ resolutions: TermResolution[] }>(r)),
+  // 도메인-스코프 용어집 조회(재주입 소스).
+  glossary: (domain: string): Promise<{ entries: TermGlossaryEntry[] }> =>
+    fetch(`/api/term-glossary?domain=${encodeURIComponent(domain)}`).then((r) =>
+      handleResponse<{ entries: TermGlossaryEntry[] }>(r),
+    ),
+  // 확정(upsert): 뜻을 용어집 캐시에 등록.
+  confirm: (data: ConfirmTermRequestInput): Promise<TermGlossaryEntry> =>
+    fetch('/api/term-glossary', {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify(data),
+    }).then((r) => handleResponse<TermGlossaryEntry>(r)),
+};
 
 // ─── Partitions (PRD-B B-1) ────────────────────────────────
 export const partitionsApi = {
@@ -212,6 +319,8 @@ export interface LlmParseInput {
   existingRelationTypes?: string[];
   // Enriched schema context (hierarchy + types + key relations) for node reuse (A-2).
   existingSchema?: string;
+  // PRD-H H3 (M2): confirmed 패턴 시드(역할·관계). 있으면 역할 타이핑 + 인과 계층 유도.
+  patternContext?: ParsePatternContext;
 }
 
 // Multi-stage parse output (A-1): entities (points) + grounded relations (lines).
