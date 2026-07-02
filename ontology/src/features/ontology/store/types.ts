@@ -125,6 +125,18 @@ export interface UiSlice {
   // PRD-H H8-c (M2): 패턴 시드 생성 후 기존 EntityResolutionSheet(머지 미리보기) 노출 트리거.
   entityResolutionOpen: boolean;
 
+  // PRD-I (M2): 가이드 여정(패턴 발견→검수) 오버레이 노출 여부와 초기 씨앗 텍스트.
+  // 어디서든(빈 캔버스/툴바) openGuided 로 열어 단일 GuidedJourney 로 라우팅한다.
+  guidedOpen: boolean;
+  guidedInitialText: string | null;
+
+  // PRD-I (M4): 라이프사이클 프레이밍(초안→확정→발행) 파생용 세션 타임스탬프.
+  // 확정 = 수동 커밋(Supabase 저장) 성공 시각, 발행 = Neo4j 푸시 성공 시각.
+  // UI 슬라이스 소속이라 undo/redo(temporal partialize) 대상이 아니다 — 발행 이력을
+  // 되돌리기로 되살리면 안 되기 때문. 없으면 null.
+  lastCommittedAt: string | null;
+  lastPublishedAt: string | null;
+
   // Filter state (P1-4) — colorFilter stored as array to avoid Zustand Set serialization issues
   showClasses: boolean;
   showInstances: boolean;
@@ -150,6 +162,12 @@ export interface UiSlice {
   setActivePatternCq: (cq: ActivePatternCq | null) => void;
   openEntityResolution: () => void;
   closeEntityResolution: () => void;
+  // PRD-I (M2): 가이드 여정 열기(선택적 씨앗 텍스트) / 닫기.
+  openGuided: (initialText?: string) => void;
+  closeGuided: () => void;
+  // PRD-I (M4): 수동 커밋/발행 성공 시점 기록(라이프사이클 상태 파생용).
+  markCommitted: () => void;
+  markPublished: () => void;
 
   toggleExpanded: (nodeId: string) => void;
   setExpanded: (nodeId: string, expanded: boolean) => void;

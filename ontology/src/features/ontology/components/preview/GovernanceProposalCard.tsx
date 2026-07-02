@@ -1,8 +1,8 @@
 'use client';
 
-import { Check, X, ShieldAlert, Loader2 } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import { Check, X, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ConfirmCard } from '@/components/ui/confirm-card';
 import type { GovernanceProposal, GovernanceKind } from '../../lib/schemas';
 
 const KIND_LABELS: Record<GovernanceKind, string> = {
@@ -26,6 +26,7 @@ interface GovernanceProposalCardProps {
 
 // PRD-E P2-7: 거버넌스 제안 카드. 모든 제안은 evidence+confidence 와 "검증 필요"를
 // 달고, 자동 적용되지 않는다 — 사용자가 승인할 때만 반영된다(HITL).
+// PRD-I §3: 공통 ConfirmCard 껍데기로 정규화 — 검증 필요는 항상 attention 플래그.
 export default function GovernanceProposalCard({
   proposal,
   applied,
@@ -47,60 +48,45 @@ export default function GovernanceProposalCard({
     .join(' · ');
 
   return (
-    <div
-      className={`rounded-lg border p-2 ${
-        applied ? 'border-primary bg-primary/5' : 'border-border'
-      }`}
-    >
-      <div className="flex items-center gap-1.5 mb-1 flex-wrap">
-        <Badge variant="secondary" className="text-[9px] h-4 px-1">
-          {KIND_LABELS[proposal.kind]}
-        </Badge>
-        <Badge
-          variant="outline"
-          className="text-[9px] h-4 px-1 border-amber-400 text-amber-600 gap-0.5 ml-auto"
-        >
-          <ShieldAlert className="w-2.5 h-2.5" />
-          검증 필요
-        </Badge>
-      </div>
-
-      <p className="text-[11px] font-medium">{proposal.title}</p>
-      {detail && (
-        <p className="text-[10px] text-muted-foreground mt-0.5 font-mono">{detail}</p>
-      )}
-      {proposal.evidence && (
-        <p className="text-[9px] text-muted-foreground/70 mt-0.5 italic">
-          {proposal.evidence}
-        </p>
-      )}
-
-      <div className="flex justify-end gap-1.5 mt-1.5">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-6 px-2 text-[10px] gap-0.5"
-          onClick={onIgnore}
-          disabled={applied}
-        >
-          <X className="w-3 h-3" />
-          무시
-        </Button>
-        <Button
-          variant={applied ? 'default' : 'outline'}
-          size="sm"
-          className="h-6 px-2 text-[10px] gap-0.5"
-          onClick={onApprove}
-          disabled={applied || applying}
-        >
-          {applying ? (
-            <Loader2 className="w-3 h-3 animate-spin" />
-          ) : (
-            <Check className="w-3 h-3" />
-          )}
-          {applied ? '반영됨' : '승인'}
-        </Button>
-      </div>
-    </div>
+    <ConfirmCard
+      eyebrow={KIND_LABELS[proposal.kind]}
+      attention
+      title={proposal.title}
+      evidence={proposal.evidence || undefined}
+      applied={applied}
+      preview={
+        detail ? (
+          <p className="text-[10px] text-muted-foreground font-mono">{detail}</p>
+        ) : undefined
+      }
+      actions={
+        <>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 px-2 text-[10px] gap-0.5"
+            onClick={onIgnore}
+            disabled={applied}
+          >
+            <X className="w-3 h-3" />
+            무시
+          </Button>
+          <Button
+            variant={applied ? 'default' : 'outline'}
+            size="sm"
+            className="h-6 px-2 text-[10px] gap-0.5"
+            onClick={onApprove}
+            disabled={applied || applying}
+          >
+            {applying ? (
+              <Loader2 className="w-3 h-3 animate-spin" />
+            ) : (
+              <Check className="w-3 h-3" />
+            )}
+            {applied ? '반영됨' : '승인'}
+          </Button>
+        </>
+      }
+    />
   );
 }

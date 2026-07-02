@@ -18,6 +18,7 @@ import {
   Loader2,
   GitMerge,
   Activity,
+  Wand2,
 } from 'lucide-react';
 import FilterPanel from './FilterPanel';
 import PartitionSwitcher from './PartitionSwitcher';
@@ -36,6 +37,7 @@ import { toast } from 'sonner';
 
 export default function Toolbar() {
   const openPopover = useOntologyStore((s) => s.openPopover);
+  const openGuided = useOntologyStore((s) => s.openGuided);
   const pastStates = useTemporalStore((s) => s.pastStates);
   const futureStates = useTemporalStore((s) => s.futureStates);
   const undo = useTemporalStore((s) => s.undo);
@@ -213,6 +215,20 @@ export default function Toolbar() {
       <div className="flex-1" />
 
       {/* Right side actions */}
+      {/* PRD-I (M2): 어디서든 가이드 여정(패턴 발견→검수)을 여는 단일 진입점 */}
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-7 text-xs gap-1"
+        onClick={() => openGuided()}
+        title="가이드 여정 (패턴으로 시작)"
+      >
+        <Wand2 className="w-3.5 h-3.5" />
+        가이드
+      </Button>
+
+      <Separator orientation="vertical" className="h-5 mx-1" />
+
       {/* S5: 상시 구조 건강도 점수 (라이브) */}
       <HealthScoreBadge />
 

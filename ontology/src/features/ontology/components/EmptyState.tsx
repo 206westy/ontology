@@ -25,108 +25,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { importExportApi, bridgesApi, driftApi } from '../api';
+import { importExportApi } from '../api';
 import { TEMPLATES, buildImportPayload } from '../constants/templates';
 import type { TemplateMetadata } from '../constants/templates';
 import { useOntologyStore } from '../hooks/useOntologyStore';
-import { usePatternGeneration } from '../hooks/usePatternGeneration';
-import { useResolveTerms, useConfirmTerm } from '../hooks/useTerms';
-import { useCreateBridge } from '../hooks/useBridges';
-import { usePromotePattern } from '../hooks/usePatterns';
-import PatternDiscoveryPanel, {
-  type PatternGenerateArgs,
-} from './patterns/PatternDiscoveryPanel';
-import type { PatternReviewData } from './patterns/PatternReviewSequence';
-import type { TermCandidate, TermResolution } from '../lib/terms/types';
-import type { BridgeSuggestion } from '../lib/bridge/cross-partition';
-import type { Pattern } from '../lib/patterns/types';
-import type { DriftElement, DriftJudgment } from '../lib/patterns/drift';
-import { extendedPatternToPromote, type ExtendedPatternDraft } from '../lib/patterns/extend';
 import { safeTransition, nodeEnter } from '@/lib/motion-presets';
-
-const MAX_CONTEXT_NODES = 40;
-
-// 감지된 미정의·모호 용어를 현재 온톨로지 맥락으로 좁혀 후보(랭킹)로 해소한다. 웹은 off.
-async function resolveDetectedTerms(
-  terms: string[],
-  domain: string,
-  resolve: (data: {
-    terms: string[];
-    domain: string;
-    contextNodes: string[];
-    allowWeb: boolean;
-  }) => Promise<{ resolutions: TermResolution[] }>,
-): Promise<TermResolution[]> {
-  if (terms.length === 0) return [];
-  const store = useOntologyStore.getState();
-  const contextNodes = [
-    ...store.classes.map((c) => c.name),
-    ...store.instances.map((i) => i.name),
-  ].slice(0, MAX_CONTEXT_NODES);
-  try {
-    const res = await resolve({ terms, domain, contextNodes, allowWeb: false });
-    return res.resolutions;
-  } catch {
-    return [];
-  }
-}
-
-// 크로스-구획 동일성 브릿지 후보(자동 생성 없음 — 표시만).
-async function fetchBridgeSuggestions(): Promise<BridgeSuggestion[]> {
-  try {
-    const res = await bridgesApi.candidates();
-    return res.suggestions;
-  } catch {
-    return [];
-  }
-}
-
-// H5(M4): 패턴 밖 신규 요소를 판정(map/extend/fork)하고, 패턴 밖(≠map)이 있으면
-// 드리프트 검수 카드에 넘길 패턴 객체 + 판정을 만든다. 자동 반영 없음(카드 컨펌 뒤).
-async function judgeDriftForReview(
-  args: PatternGenerateArgs,
-  elements: DriftElement[],
-): Promise<{ driftPattern: Pattern | null; driftJudgments: DriftJudgment[] }> {
-  const empty = { driftPattern: null, driftJudgments: [] as DriftJudgment[] };
-  if (elements.length === 0) return empty;
-  const roles = args.patternContext.roles.map((r) => ({
-    name: r.name,
-    nodeKind: 'class' as const,
-    description: r.description,
-  }));
-  try {
-    const { judgments } = await driftApi.judge({
-      domain: args.patternContext.domain,
-      roles,
-      relationTypes: args.patternContext.relationTypes,
-      elements,
-    });
-    if (judgments.every((j) => j.decision === 'map')) return empty;
-    const driftPattern: Pattern = {
-      id: args.pattern.id ?? '',
-      key: '',
-      name: args.pattern.name,
-      nameKo: args.pattern.name,
-      version: 1,
-      domain: args.patternContext.domain,
-      roles,
-      relationTypes: args.patternContext.relationTypes,
-      competencyQuestions: args.patternContext.competencyQuestions,
-      traversalTemplates: args.cq.traversalTemplates,
-      method: 'synthesized',
-      sourceRepo: null,
-      sourceUri: null,
-      sourceLabel: null,
-      license: args.pattern.license,
-      isDraft: false,
-      previousVersionId: null,
-      createdAt: '',
-    };
-    return { driftPattern, driftJudgments: judgments };
-  } catch {
-    return empty;
-  }
-}
 
 interface EmptyStateProps {
   onDoubleClick: (event: React.MouseEvent) => void;
@@ -268,113 +171,10 @@ export default function EmptyState({ onDoubleClick }: EmptyStateProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const [confirmTemplate, setConfirmTemplate] = useState<TemplateMetadata | null>(null);
   const [loadingId, setLoadingId] = useState<string | null>(null);
-  // PRD-H H3 (M2): 패턴 발견/컨펌 게이트 진입 오버레이.
-  const [showPatternPanel, setShowPatternPanel] = useState(false);
-  // PRD-H H8 (M5): 생성 완료 후 패널을 검수(HITL) 모드로 유지시키는 데이터.
-  const [review, setReview] = useState<PatternReviewData | null>(null);
-  const [reviewDomain, setReviewDomain] = useState<string | null>(null);
-  // H5(M4) 분기(fork): 발견 게이트를 새 개념들로 다시 열 때의 씨앗 텍스트.
-  const [forkText, setForkText] = useState('');
   const openPopover = useOntologyStore((s) => s.openPopover);
-  const runPatternGeneration = usePatternGeneration();
-  const resolveTerms = useResolveTerms();
-  const confirmTerm = useConfirmTerm();
-  const createBridge = useCreateBridge();
-  const promotePattern = usePromotePattern();
+  const openGuided = useOntologyStore((s) => s.openGuided);
 
   const transition = safeTransition(nodeEnter);
-
-  const closePatternPanel = useCallback(() => {
-    setReview(null);
-    setReviewDomain(null);
-    setForkText('');
-    setShowPatternPanel(false);
-  }, []);
-
-  // 컨펌 후에만 호출된다(게이트는 패널 내부). 시드 생성 → 진행형 렌더 →
-  // 검수 계획(용어 해소 + 크로스-구획 브릿지) 수집. 검수할 게 있으면 패널을 유지한다.
-  // 자동 반영 없음 — 반영은 각 카드 컨펌 뒤에서만(confirm-gate).
-  const handlePatternGenerate = useCallback(
-    async (args: PatternGenerateArgs) => {
-      const domain = args.patternContext.domain;
-      setReviewDomain(domain);
-      const gen = await runPatternGeneration(args);
-      const detectedTerms = gen?.detectedTerms ?? [];
-      const driftElements = gen?.driftElements ?? [];
-
-      const termResolutions = await resolveDetectedTerms(
-        detectedTerms,
-        domain,
-        resolveTerms.mutateAsync,
-      );
-      const bridges = await fetchBridgeSuggestions();
-      // H5(M4): 패턴 밖 요소를 판정(map/extend/fork)해 드리프트 검수 단계를 채운다.
-      const { driftPattern, driftJudgments } = await judgeDriftForReview(args, driftElements);
-
-      if (termResolutions.length === 0 && bridges.length === 0 && !driftPattern) {
-        closePatternPanel();
-        return;
-      }
-      setReview({ termResolutions, driftPattern, driftJudgments, bridges });
-    },
-    [runPatternGeneration, resolveTerms, closePatternPanel],
-  );
-
-  // 확장(extend): 확장 초안을 캐시에 승격(패턴 버전업). 자동 아님 — 카드 컨펌 뒤.
-  const handleReviewExtend = useCallback(
-    (draft: ExtendedPatternDraft) => {
-      promotePattern.mutate(extendedPatternToPromote(draft));
-    },
-    [promotePattern],
-  );
-
-  // 분기(fork): 현재 검수를 접고 발견 게이트를 분기된 개념들로 다시 연다(H2 발견 재호출).
-  const handleReviewFork = useCallback((elements: DriftElement[]) => {
-    setReview(null);
-    setReviewDomain(null);
-    setForkText(elements.map((e) => e.name).join(', '));
-  }, []);
-
-  const handleReviewConfirmTerm = useCallback(
-    (term: string, candidate: TermCandidate) => {
-      if (!reviewDomain) return;
-      confirmTerm.mutate({
-        domain: reviewDomain,
-        term,
-        meaning: candidate.meaning,
-        source: candidate.source,
-        confidence: candidate.confidence,
-        evidence: candidate.rationale || null,
-      });
-    },
-    [confirmTerm, reviewDomain],
-  );
-
-  const handleReviewManualTerm = useCallback(
-    (term: string, meaning: string) => {
-      if (!reviewDomain) return;
-      confirmTerm.mutate({ domain: reviewDomain, term, meaning, source: 'user' });
-    },
-    [confirmTerm, reviewDomain],
-  );
-
-  const handleReviewConnectBridge = useCallback(
-    (suggestion: BridgeSuggestion) => {
-      const store = useOntologyStore.getState();
-      const existing = store.relationTypes.find((rt) => rt.name === suggestion.relationType);
-      const relationTypeId = existing?.id ?? store.addRelationType({ name: suggestion.relationType });
-      createBridge.mutate({
-        sourceId: suggestion.sourceId,
-        targetId: suggestion.targetId,
-        sourceKind: suggestion.kind,
-        targetKind: suggestion.kind,
-        relationTypeId,
-        evidence: suggestion.evidence,
-        confidence: suggestion.score,
-      });
-    },
-    [createBridge],
-  );
 
   // 붙여넣기(파싱) 플로우를 화면 중앙에서 연다. initialText 가 있으면 자동 파싱.
   const openPasteFlow = useCallback(
@@ -472,7 +272,7 @@ export default function EmptyState({ onDoubleClick }: EmptyStateProps) {
                 기존 붙여넣기/예시 진입은 그대로 두고 추가 경로만 제공한다. */}
             <button
               className="inline-flex items-center gap-1.5 text-[12px] text-muted-foreground transition-colors hover:text-foreground"
-              onClick={() => setShowPatternPanel(true)}
+              onClick={() => openGuided()}
             >
               <Boxes className="w-3.5 h-3.5" />
               패턴으로 시작
@@ -499,31 +299,6 @@ export default function EmptyState({ onDoubleClick }: EmptyStateProps) {
           </div>
         </motion.div>
       </div>
-
-      {/* PRD-H H3 (M2): 패턴 발견/컨펌 게이트 오버레이 — 컨펌 전에는 생성 미시작 */}
-      {showPatternPanel && (
-        <div
-          className="absolute inset-0 z-30 flex items-start justify-center bg-background/70 backdrop-blur-sm pt-24"
-          data-testid="pattern-panel-overlay"
-          onClick={closePatternPanel}
-        >
-          <div onClick={(e) => e.stopPropagation()}>
-            <PatternDiscoveryPanel
-              key={`pattern-panel-${forkText}`}
-              initialText={forkText}
-              onGenerate={handlePatternGenerate}
-              onCancel={closePatternPanel}
-              review={review}
-              onReviewConfirmTerm={handleReviewConfirmTerm}
-              onReviewManualTerm={handleReviewManualTerm}
-              onReviewExtend={handleReviewExtend}
-              onReviewFork={handleReviewFork}
-              onReviewConnectBridge={handleReviewConnectBridge}
-              onReviewComplete={closePatternPanel}
-            />
-          </div>
-        </div>
-      )}
 
       {/* Template confirmation dialog */}
       <AlertDialog

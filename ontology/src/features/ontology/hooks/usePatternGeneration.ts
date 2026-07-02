@@ -120,7 +120,9 @@ export function usePatternGeneration() {
     // H8-c: 서로 다른 표면형이 같은 개념일 수 있어 머지 미리보기를 띄운다(자동 병합 없음).
     s.openEntityResolution();
 
-    return { warnings, detectedTerms, driftElements };
+    // PRD-I (M3, Task 3.2): 상위(GuidedJourney)가 중복/거버넌스/보강/Critic 검수 단계를
+    // 계산할 수 있도록 매핑 결과를 그대로 넘긴다. LLM/parse 재실행 없이 재사용하기 위함.
+    return { warnings, detectedTerms, driftElements, mapped };
   }, []);
 }
 

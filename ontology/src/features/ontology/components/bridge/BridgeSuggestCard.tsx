@@ -1,8 +1,8 @@
 'use client';
 
-import { Link2, SplitSquareHorizontal, ShieldAlert } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import { Link2, SplitSquareHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ConfirmCard } from '@/components/ui/confirm-card';
 import type { BridgeSuggestion } from '../../lib/bridge/cross-partition';
 
 interface BridgeSuggestCardProps {
@@ -23,6 +23,7 @@ function partitionLabel(
 
 // PRD-H H8-f: 브릿지 제안 카드. 같은 대상이 두 구획에 등장할 때 "브릿지로 연결?"을 묻는다.
 // 타입·근거를 함께 노출하고(무분별 연결 방지), 확정 시에만 연결한다.
+// PRD-I §3: 공통 ConfirmCard 껍데기로 재정규화(판정→근거→미리보기→액션).
 export default function BridgeSuggestCard({
   suggestion,
   partitionNames,
@@ -45,58 +46,44 @@ export default function BridgeSuggestCard({
   const tgtLabel = partitionLabel(targetPartition, partitionNames);
 
   return (
-    <div className="rounded-md border border-border bg-card p-2.5 space-y-2">
-      <div className="flex items-center justify-between gap-2">
-        <Badge variant="outline" className="h-4 px-1 text-[9px]">
-          브릿지 후보
-        </Badge>
-        <span className="text-[10px] text-muted-foreground">
-          {Math.round(score * 100)}% 유사
-        </span>
-      </div>
-
-      <p className="text-[11px] font-medium">
-        {entity}이(가) [{srcLabel}]·[{tgtLabel}] 양쪽에 등장 — 브릿지로 연결?
-      </p>
-
-      <div className="flex flex-wrap items-center gap-1.5">
-        <Badge variant="secondary" className="h-4 px-1 text-[9px]">
-          타입: {relationType}
-        </Badge>
-        <Badge
-          variant="outline"
-          className="h-4 gap-0.5 px-1 text-[9px] border-amber-400 text-amber-600"
-        >
-          <ShieldAlert className="h-2.5 w-2.5" />
-          검증 필요
-        </Badge>
-      </div>
-
-      {evidence && (
-        <p className="text-[9px] italic text-muted-foreground/80">근거: {evidence}</p>
-      )}
-
-      <div className="flex items-center justify-end gap-1.5">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-6 gap-0.5 px-2 text-[10px]"
-          onClick={onDistinct}
-        >
-          <SplitSquareHorizontal className="h-3 w-3" />
-          별개
-        </Button>
-        <Button
-          variant="default"
-          size="sm"
-          className="h-6 gap-0.5 px-2 text-[10px]"
-          onClick={() => onConnect(suggestion)}
-          disabled={connecting}
-        >
-          <Link2 className="h-3 w-3" />
-          연결
-        </Button>
-      </div>
-    </div>
+    <ConfirmCard
+      eyebrow="브릿지 후보"
+      verdict="relate"
+      attention
+      title={
+        <>
+          {entity}이(가) [{srcLabel}]·[{tgtLabel}] 양쪽에 등장 — 브릿지로 연결?
+        </>
+      }
+      evidence={
+        <>
+          타입: {relationType} · {Math.round(score * 100)}% 유사
+          {evidence && <> · 근거: {evidence}</>}
+        </>
+      }
+      actions={
+        <>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 gap-0.5 px-2 text-[10px]"
+            onClick={onDistinct}
+          >
+            <SplitSquareHorizontal className="h-3 w-3" />
+            별개
+          </Button>
+          <Button
+            variant="default"
+            size="sm"
+            className="h-6 gap-0.5 px-2 text-[10px]"
+            onClick={() => onConnect(suggestion)}
+            disabled={connecting}
+          >
+            <Link2 className="h-3 w-3" />
+            연결
+          </Button>
+        </>
+      }
+    />
   );
 }

@@ -19,6 +19,10 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
   activePattern: null,
   activePatternCq: null,
   entityResolutionOpen: false,
+  guidedOpen: false,
+  guidedInitialText: null,
+  lastCommittedAt: null,
+  lastPublishedAt: null,
 
   // Filter defaults (P1-4)
   showClasses: true,
@@ -57,6 +61,10 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
   setActivePatternCq: (cq) => set({ activePatternCq: cq }),
   openEntityResolution: () => set({ entityResolutionOpen: true }),
   closeEntityResolution: () => set({ entityResolutionOpen: false }),
+  openGuided: (initialText) => set({ guidedOpen: true, guidedInitialText: initialText ?? null }),
+  closeGuided: () => set({ guidedOpen: false, guidedInitialText: null }),
+  markCommitted: () => set({ lastCommittedAt: new Date().toISOString() }),
+  markPublished: () => set({ lastPublishedAt: new Date().toISOString() }),
 
   toggleExpanded: (nodeId) =>
     set((state) => {

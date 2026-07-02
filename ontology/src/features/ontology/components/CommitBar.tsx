@@ -17,6 +17,7 @@ import { toast } from 'sonner';
 import NeoConfirmSheet from './neo4j/NeoConfirmSheet';
 import CommitHistoryPanel from './CommitHistoryPanel';
 import AutoSaveIndicator, { type AutoSaveState } from './AutoSaveIndicator';
+import LifecycleIndicator from './LifecycleIndicator';
 import { useAutoSave } from '../hooks/useAutoSave';
 
 const OP_STYLES: Record<string, { label: string; className: string }> = {
@@ -27,6 +28,7 @@ const OP_STYLES: Record<string, { label: string; className: string }> = {
 
 export default function CommitBar() {
   const pendingChanges = useOntologyStore((s) => s.pendingChanges);
+  const markCommitted = useOntologyStore((s) => s.markCommitted);
   const undo = useTemporalStore((s) => s.undo);
   const [showChanges, setShowChanges] = useState(false);
   const [showNeoPush, setShowNeoPush] = useState(false);
@@ -74,6 +76,8 @@ export default function CommitBar() {
         })),
       });
       clearChangesWithoutHistory();
+      // PRD-I (M4): 확정(committed) 상태로 전환 — 라이프사이클 표시용.
+      markCommitted();
       // PRD-E P2-2: 커밋 후 임베딩 생성 트리거 (논블로킹).
       void embeddingsApi.process().catch(() => {});
       toast.success('저장 완료', { description: '변경사항이 Supabase에 저장되었습니다.' });
@@ -99,6 +103,10 @@ export default function CommitBar() {
         >
           스테이징(초안)
         </Badge>
+        <LifecycleIndicator
+          onOpenChanges={() => setShowChanges(true)}
+          onPublish={() => setShowNeoPush(true)}
+        />
         <span className="text-[11px] text-foreground">
           변경사항 {pendingChanges.length}건
         </span>

@@ -42,6 +42,7 @@ Dev server runs at http://localhost:3000.
 
 ### Mandatory Rules
 
+- **Always respond in Korean (한글).** 사용자에게 보내는 모든 답변은 한글로 작성한다. (코드·식별자·명령어는 원문 유지)
 - **Always use `'use client'` directive** on all components (client components only).
 - **Page params must use Promise** — `page.tsx` params props are async (Next.js 15 pattern).
 - Use `picsum.photos` for placeholder images.

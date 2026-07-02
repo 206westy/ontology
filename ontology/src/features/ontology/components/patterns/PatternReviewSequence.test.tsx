@@ -7,6 +7,10 @@ import type { Pattern } from '../../lib/patterns/types';
 import type { TermResolution } from '../../lib/terms/types';
 import type { DriftJudgment } from '../../lib/patterns/drift';
 import type { BridgeSuggestion } from '../../lib/bridge/cross-partition';
+import type { HitlDedupItem } from '../../lib/patterns/hitl';
+import type { GovernanceProposal } from '../../lib/schemas';
+import type { EnrichmentItem } from '../../lib/enrich-types';
+import type { CriticIssue } from '../../lib/critic/review';
 
 const pattern: Pattern = {
   id: 'pat-1',
@@ -69,11 +73,24 @@ function setup(data: Partial<PatternReviewData> = {}, extra = {}) {
     driftJudgments: data.driftJudgments ?? [],
     bridges: data.bridges ?? [],
     partitionNames: data.partitionNames ?? { [P1]: '메인트', [P2]: '행정' },
+    dedup: data.dedup ?? [],
+    governance: data.governance ?? [],
+    enrichment: data.enrichment ?? [],
+    critic: data.critic ?? [],
     onConfirmTerm: vi.fn(),
     onManualTerm: vi.fn(),
     onExtend: vi.fn(),
     onFork: vi.fn(),
     onConnectBridge: vi.fn(),
+    onConfirmDedup: vi.fn(),
+    onIgnoreDedup: vi.fn(),
+    onApproveGovernance: vi.fn(),
+    onIgnoreGovernance: vi.fn(),
+    onAdoptEnrichment: vi.fn(),
+    onIgnoreEnrichment: vi.fn(),
+    onSourceEnrichment: vi.fn(),
+    onAckCritic: vi.fn(),
+    onIgnoreCritic: vi.fn(),
     onComplete: vi.fn(),
     ...extra,
   };
@@ -166,5 +183,118 @@ describe('PatternReviewSequence (H8/M5)', () => {
     const props = setup();
     expect(screen.getByText(/검수 완료/)).toBeInTheDocument();
     expect(props.onComplete).toHaveBeenCalledOnce();
+  });
+});
+
+// PRD-I (M3, Task 3.2): 팝오버의 다섯 결정을 별개 스텝으로 렌더한다.
+const dedupItem: HitlDedupItem = {
+  name: '펌프447',
+  decision: 'reuse',
+  targetName: '펌프 447',
+  confidence: 0.95,
+  evidence: '동일 설비 번호',
+};
+
+const governanceProposal: GovernanceProposal = {
+  kind: 'constraint_cardinality',
+  title: '증상은 최소 1개의 원인을 가진다',
+  targetClass: '증상',
+  relationType: 'caused_by',
+  property: null,
+  minCardinality: 1,
+  maxCardinality: null,
+  enumValues: null,
+  disjointWith: null,
+  axiomLogic: null,
+  evidence: '문서 3.2절',
+  confidence: 0.8,
+};
+
+const enrichmentItem: EnrichmentItem = {
+  id: 'VV::no_definition',
+  gap: { targetName: 'VV밸브', kind: 'no_definition', reason: '정의가 없습니다', severity: 'high' },
+  proposals: [
+    {
+      kind: 'no_definition',
+      value: '진공 밸브',
+      sourceType: 'session_doc',
+      evidence: '세션 문서',
+      confidence: 0.9,
+      needsReview: false,
+    },
+  ],
+};
+
+const criticIssue: CriticIssue = {
+  kind: 'duplicate_existing',
+  severity: 'high',
+  targetName: '펌프447',
+  relatedName: '펌프 447',
+  reason: '기존 노드와 유사',
+  suggestion: '재사용을 검토하세요',
+  ruleId: 'dup-exist',
+};
+
+describe('PatternReviewSequence 새 스텝 (PRD-I M3)', () => {
+  it('중복 대조 스텝을 렌더하고 확정 콜백을 넘긴다', async () => {
+    const user = userEvent.setup();
+    const props = setup({ dedup: [dedupItem] });
+    expect(screen.getByText(/1\/1 단계/)).toBeInTheDocument();
+    expect(screen.getByText('펌프447')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /이 판정으로/ }));
+    expect(props.onConfirmDedup).toHaveBeenCalledWith(dedupItem);
+    expect(await screen.findByText(/검수 완료/)).toBeInTheDocument();
+  });
+
+  it('거버넌스 스텝을 렌더하고 승인 콜백을 넘긴다', async () => {
+    const user = userEvent.setup();
+    const props = setup({ governance: [governanceProposal] });
+    expect(screen.getByText(/거버넌스/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /승인/ }));
+    expect(props.onApproveGovernance).toHaveBeenCalledWith(governanceProposal);
+  });
+
+  it('보강 스텝을 렌더하고 채택 콜백을 넘긴다', async () => {
+    const user = userEvent.setup();
+    const props = setup({ enrichment: [enrichmentItem] });
+    expect(screen.getByText(/VV밸브/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /채택/ }));
+    expect(props.onAdoptEnrichment).toHaveBeenCalledWith(enrichmentItem);
+  });
+
+  it('Critic 자문 스텝을 렌더하고 확인 콜백을 넘긴다(읽기전용 자문)', async () => {
+    const user = userEvent.setup();
+    const props = setup({ critic: [criticIssue] });
+    expect(screen.getByText(/1\/1 단계/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /확인/ }));
+    expect(props.onAckCritic).toHaveBeenCalledWith(criticIssue);
+    expect(await screen.findByText(/검수 완료/)).toBeInTheDocument();
+  });
+
+  it('confirm gate: 렌더만으로는 새 스텝 콜백이 발화하지 않는다', () => {
+    const props = setup({
+      dedup: [dedupItem],
+      governance: [governanceProposal],
+      enrichment: [enrichmentItem],
+      critic: [criticIssue],
+    });
+    expect(props.onConfirmDedup).not.toHaveBeenCalled();
+    expect(props.onApproveGovernance).not.toHaveBeenCalled();
+    expect(props.onAdoptEnrichment).not.toHaveBeenCalled();
+    expect(props.onAckCritic).not.toHaveBeenCalled();
+  });
+
+  it('전체 순서: 용어 → 중복 → 거버넌스 → 보강 → 자문 → 브릿지 (7단계 중 6)', () => {
+    setup({
+      termResolutions: [termResolution],
+      dedup: [dedupItem],
+      governance: [governanceProposal],
+      enrichment: [enrichmentItem],
+      critic: [criticIssue],
+      bridges: [bridge],
+    });
+    // 용어가 먼저(1/6), 총 6스텝(드리프트 없음). 진행률 라벨로 첫 스텝이 용어임을 확인.
+    expect(screen.getByText(/1\/6 단계/)).toBeInTheDocument();
+    expect(screen.getByText('· 용어 확인')).toBeInTheDocument();
   });
 });

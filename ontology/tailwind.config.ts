@@ -106,6 +106,15 @@ const config = {
           foreground: 'hsl(var(--info-foreground))',
           light: 'hsl(var(--info-light))',
         },
+        /* PRD-I §1: 온톨로지 역할색 (증상·원인·점검·조치·부품·행정) */
+        role: {
+          symptom: 'hsl(var(--role-symptom))',
+          cause: 'hsl(var(--role-cause))',
+          check: 'hsl(var(--role-check))',
+          action: 'hsl(var(--role-action))',
+          part: 'hsl(var(--role-part))',
+          admin: 'hsl(var(--role-admin))',
+        },
         /* v3: AI colors */
         ai: {
           primary: 'hsl(var(--ai-primary))',

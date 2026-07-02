@@ -1,6 +1,8 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+@custom-variant dark (&:is(.dark *));
+
 @config "../../tailwind.config.ts";
 
 @plugin "@tailwindcss/typography";
@@ -141,6 +143,15 @@
     --node-process-bg:  168 36% 45% / 0.12;
     --node-artifact-bg: 26 34% 52%  / 0.12;
 
+    /* PRD-I §1: 온톨로지 역할색(증상·원인·점검·조치·부품·행정).
+       node 팔레트 hue를 재사용해 god-node처럼 튀지 않게. SVG·배지·엣지 모두 이 토큰 참조. */
+    --role-symptom: 332 38% 60%; /* 증상 — rose */
+    --role-cause:   14 45% 57%;  /* 원인 — terracotta */
+    --role-check:   202 40% 53%; /* 점검 — blue */
+    --role-action:  168 36% 45%; /* 조치 — teal */
+    --role-part:    26 34% 52%;  /* 부품 — brown */
+    --role-admin:   246 32% 64%; /* 행정 — indigo (primary 퍼플과 구분) */
+
     /* === v4: Gradient Brand === */
     --gradient-brand-from: 263 70% 50.4%;
     --gradient-brand-to: 217 91% 60%;
@@ -269,6 +280,14 @@
     --node-concept-bg:  246 36% 72% / 0.20;
     --node-process-bg:  168 40% 56% / 0.20;
     --node-artifact-bg: 26 38% 62%  / 0.20;
+
+    /* PRD-I §1: 역할색 다크 변형(명도 상향, node 다크 팔레트와 정합) */
+    --role-symptom: 332 42% 68%; /* 증상 */
+    --role-cause:   14 50% 66%;  /* 원인 */
+    --role-check:   202 44% 62%; /* 점검 */
+    --role-action:  168 40% 56%; /* 조치 */
+    --role-part:    26 38% 62%;  /* 부품 */
+    --role-admin:   246 36% 72%; /* 행정 */
 
     /* === v4: Gradient Brand (dark) === */
     --gradient-brand-from: 263 70% 58%;
@@ -489,4 +508,37 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+:root {
+  --sidebar: hsl(0 0% 98%);
+  --sidebar-foreground: hsl(240 5.3% 26.1%);
+  --sidebar-primary: hsl(240 5.9% 10%);
+  --sidebar-primary-foreground: hsl(0 0% 98%);
+  --sidebar-accent: hsl(240 4.8% 95.9%);
+  --sidebar-accent-foreground: hsl(240 5.9% 10%);
+  --sidebar-border: hsl(220 13% 91%);
+  --sidebar-ring: hsl(217.2 91.2% 59.8%);
+}
+
+.dark {
+  --sidebar: hsl(240 5.9% 10%);
+  --sidebar-foreground: hsl(240 4.8% 95.9%);
+  --sidebar-primary: hsl(224.3 76.3% 48%);
+  --sidebar-primary-foreground: hsl(0 0% 100%);
+  --sidebar-accent: hsl(240 3.7% 15.9%);
+  --sidebar-accent-foreground: hsl(240 4.8% 95.9%);
+  --sidebar-border: hsl(240 3.7% 15.9%);
+  --sidebar-ring: hsl(217.2 91.2% 59.8%);
+}
+
+@theme inline {
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
 }

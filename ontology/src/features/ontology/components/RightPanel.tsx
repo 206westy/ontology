@@ -17,6 +17,7 @@ import {
   Terminal,
   Shield,
   Sparkles,
+  FileSearch,
 } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
@@ -32,6 +33,8 @@ import { usePropertyAutocomplete } from '../hooks/useAutocomplete';
 import AutocompleteSuggestions from './AutocompleteSuggestions';
 import Text2CypherTab from './Text2CypherTab';
 import ConstraintsPanel from './ConstraintsPanel';
+import EvidencePanel, { type EdgeEvidence } from './EvidencePanel';
+import { sourceTypeLabel } from '../lib/source-type-labels';
 
 const DATA_TYPES: DataType[] = ['string', 'integer', 'float', 'boolean', 'date', 'enum'];
 
@@ -930,6 +933,10 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
             <Terminal className="w-3 h-3" />
             Cypher
           </TabsTrigger>
+          <TabsTrigger value="evidence" className="text-xs h-7 px-3 data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none gap-1">
+            <FileSearch className="w-3 h-3" />
+            근거
+          </TabsTrigger>
         </TabsList>
 
         {/* Detail Tab */}
@@ -957,15 +964,7 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
                   <div className="flex items-center flex-wrap gap-1">
                     {selectedClass.sourceType && (
                       <Badge variant="outline" className="text-[9px] h-4 px-1 text-muted-foreground">
-                        {({
-                          session_doc: '세션 문서',
-                          existing_graph: '기존 그래프',
-                          web: '웹',
-                          inferred: '추론',
-                          document: '문서',
-                          sap: 'SAP',
-                          user: '직접 입력',
-                        } as Record<string, string>)[selectedClass.sourceType] ?? selectedClass.sourceType}
+                        {sourceTypeLabel(selectedClass.sourceType)}
                       </Badge>
                     )}
                   </div>
@@ -1319,6 +1318,38 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
         {/* Cypher Tab */}
         <TabsContent value="cypher" className="flex-1 mt-0 min-h-0 flex flex-col">
           <Text2CypherTab />
+        </TabsContent>
+
+        {/* Evidence Tab (근거) — 데이터 모델의 provenance 노출(표시 전용) */}
+        <TabsContent value="evidence" className="flex-1 mt-0 min-h-0 flex flex-col">
+          <EvidencePanel
+            nodeName={nodeName}
+            nodeProvenance={
+              selectedClass
+                ? {
+                    sourceType: selectedClass.sourceType,
+                    evidence: selectedClass.evidence,
+                    confidence: selectedClass.confidence,
+                  }
+                : null
+            }
+            edgeEvidence={nodeEdges.map((edge): EdgeEvidence => {
+              const relType = relationTypes.find((r) => r.id === edge.relationTypeId);
+              const isOutgoing = edge.sourceId === selectedNodeId;
+              const otherNodeId = isOutgoing ? edge.targetId : edge.sourceId;
+              const otherClass = classes.find((c) => c.id === otherNodeId);
+              const otherInstance = instances.find((i) => i.id === otherNodeId);
+              return {
+                id: edge.id,
+                relationName: relType?.name ?? 'relation',
+                direction: isOutgoing ? 'out' : 'in',
+                otherName: otherClass?.name ?? otherInstance?.name ?? '?',
+                sourceType: edge.sourceType,
+                evidence: edge.evidence,
+                confidence: edge.confidence,
+              };
+            })}
+          />
         </TabsContent>
       </Tabs>
     </aside>

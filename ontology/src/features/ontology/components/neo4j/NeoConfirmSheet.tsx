@@ -35,6 +35,7 @@ function apiStepsToUiSteps(apiSteps: Neo4jPushStep[]): PushStep[] {
 
 export default function NeoConfirmSheet({ open, onOpenChange }: NeoConfirmSheetProps) {
   const pendingChanges = useOntologyStore((s) => s.pendingChanges);
+  const markPublished = useOntologyStore((s) => s.markPublished);
   // PRD-H T7 (M2): 이 생성에 사용된 패턴의 라이선스가 미확인이면 발행 전 경고(warn-only).
   const activePattern = useOntologyStore((s) => s.activePattern);
   const licenseWarning = buildPublishLicenseWarning([activePattern]);
@@ -161,6 +162,8 @@ export default function NeoConfirmSheet({ open, onOpenChange }: NeoConfirmSheetP
 
       if (result.success) {
         clearChangesWithoutHistory();
+        // PRD-I (M4): 발행(published) 성공 시점 기록 — 라이프사이클 표시용.
+        markPublished();
       }
 
       // H2: Neo4j 반영은 됐으나 스테이징 플래그 갱신이 실패한 부분 성공을 알린다.
@@ -187,7 +190,7 @@ export default function NeoConfirmSheet({ open, onOpenChange }: NeoConfirmSheetP
       });
       setPhase('result');
     }
-  }, [commitIds, steps.length]);
+  }, [commitIds, steps.length, markPublished]);
 
   const handleClose = useCallback(() => {
     onOpenChange(false);

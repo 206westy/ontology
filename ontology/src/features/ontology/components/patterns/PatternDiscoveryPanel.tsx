@@ -20,6 +20,10 @@ import type { TermCandidate } from '../../lib/terms/types';
 import type { DriftElement } from '../../lib/patterns/drift';
 import type { ExtendedPatternDraft } from '../../lib/patterns/extend';
 import type { BridgeSuggestion } from '../../lib/bridge/cross-partition';
+import type { HitlDedupItem } from '../../lib/patterns/hitl';
+import type { GovernanceProposal } from '../../lib/schemas';
+import type { EnrichmentItem } from '../../lib/enrich-types';
+import type { CriticIssue } from '../../lib/critic/review';
 import type { DiscoverPatternResult } from '../../api';
 
 // PRD-H H3 (M2): 패턴 발견/컨펌 게이트 진입 패널. 입력 → useDiscoverPattern →
@@ -50,6 +54,16 @@ interface PatternDiscoveryPanelProps {
   onReviewExtend?: (draft: ExtendedPatternDraft) => void;
   onReviewFork?: (elements: DriftElement[]) => void;
   onReviewConnectBridge?: (suggestion: BridgeSuggestion) => void;
+  // PRD-I (M3): 새 검수 스텝 콜백(선택). 없으면 no-op.
+  onReviewConfirmDedup?: (item: HitlDedupItem) => void;
+  onReviewIgnoreDedup?: (item: HitlDedupItem) => void;
+  onReviewApproveGovernance?: (proposal: GovernanceProposal) => void;
+  onReviewIgnoreGovernance?: (proposal: GovernanceProposal) => void;
+  onReviewAdoptEnrichment?: (item: EnrichmentItem) => void;
+  onReviewIgnoreEnrichment?: (item: EnrichmentItem) => void;
+  onReviewSourceEnrichment?: (item: EnrichmentItem) => void;
+  onReviewAckCritic?: (issue: CriticIssue) => void;
+  onReviewIgnoreCritic?: (issue: CriticIssue) => void;
   onReviewComplete?: () => void;
 }
 
@@ -82,6 +96,15 @@ export default function PatternDiscoveryPanel({
   onReviewExtend = noop,
   onReviewFork = noop,
   onReviewConnectBridge = noop,
+  onReviewConfirmDedup = noop,
+  onReviewIgnoreDedup = noop,
+  onReviewApproveGovernance = noop,
+  onReviewIgnoreGovernance = noop,
+  onReviewAdoptEnrichment = noop,
+  onReviewIgnoreEnrichment = noop,
+  onReviewSourceEnrichment = noop,
+  onReviewAckCritic = noop,
+  onReviewIgnoreCritic = noop,
   onReviewComplete,
 }: PatternDiscoveryPanelProps) {
   const [text, setText] = useState(initialText);
@@ -159,11 +182,24 @@ export default function PatternDiscoveryPanel({
           driftJudgments={review.driftJudgments}
           bridges={review.bridges}
           partitionNames={review.partitionNames}
+          dedup={review.dedup}
+          governance={review.governance}
+          enrichment={review.enrichment}
+          critic={review.critic}
           onConfirmTerm={onReviewConfirmTerm}
           onManualTerm={onReviewManualTerm}
           onExtend={onReviewExtend}
           onFork={onReviewFork}
           onConnectBridge={onReviewConnectBridge}
+          onConfirmDedup={onReviewConfirmDedup}
+          onIgnoreDedup={onReviewIgnoreDedup}
+          onApproveGovernance={onReviewApproveGovernance}
+          onIgnoreGovernance={onReviewIgnoreGovernance}
+          onAdoptEnrichment={onReviewAdoptEnrichment}
+          onIgnoreEnrichment={onReviewIgnoreEnrichment}
+          onSourceEnrichment={onReviewSourceEnrichment}
+          onAckCritic={onReviewAckCritic}
+          onIgnoreCritic={onReviewIgnoreCritic}
           onComplete={onReviewComplete}
         />
       ) : (

@@ -14,6 +14,7 @@ import RelationPopover from '@/features/ontology/components/RelationPopover';
 import HierarchyPopover from '@/features/ontology/components/HierarchyPopover';
 import DeleteConfirmDialog from '@/features/ontology/components/DeleteConfirmDialog';
 import CommandPalette from '@/features/ontology/components/CommandPalette';
+import GuidedJourney from '@/features/ontology/components/journey/GuidedJourney';
 import OnboardingGuide from '@/features/ontology/components/OnboardingGuide';
 import SplashScreen from '@/features/ontology/components/SplashScreen';
 import { useLoadOntology } from '@/features/ontology/hooks/useLoadOntology';
@@ -206,6 +207,9 @@ export default function Home() {
 
       {/* Command Palette (Ctrl+K / Cmd+K) */}
       <CommandPalette />
+
+      {/* PRD-I (M2): 가이드 여정 오버레이 — 캔버스 상태와 무관하게 어디서든 노출 */}
+      <GuidedJourney />
 
       {/* Onboarding Guide (first visit only) */}
       <OnboardingGuide />

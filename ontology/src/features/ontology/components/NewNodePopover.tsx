@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef, Fragment } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Paperclip, ClipboardPaste, ArrowRight, ArrowLeft, Check, Trash2, Loader2, ChevronRight, Link2, Circle, Plus, Table, AlertTriangle } from 'lucide-react';
+import { X, Paperclip, ClipboardPaste, ArrowRight, ArrowLeft, Check, Trash2, Loader2, ChevronRight, Link2, Circle, Plus, Table, AlertTriangle, Wand2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -178,6 +178,10 @@ const popoverAnimation = {
 const POPOVER_WIDTH = 400;
 const POPOVER_EST_HEIGHT = 400;
 
+// PRD-I (M3, Task 3.3): 입력이 이 길이를 넘거나 CSV 탭이면 "가이드 여정" 전환을 권한다.
+// (짧은 텍스트/빠른 입력은 절대 권하지 않는다 — Quick 경로 무회귀.)
+const GUIDED_SUGGEST_THRESHOLD = 280;
+
 // PRD-E P2-5: 중복대조 결정 배지
 const DEDUP_LABEL: Record<string, string> = {
   reuse: '재사용',
@@ -220,6 +224,7 @@ const criticKey = (i: CriticIssue) => `${i.ruleId}::${i.targetName}::${i.related
 export default function NewNodePopover() {
   const popoverState = useOntologyStore((s) => s.popoverState);
   const closePopover = useOntologyStore((s) => s.closePopover);
+  const openGuided = useOntologyStore((s) => s.openGuided);
   const addClass = useOntologyStore((s) => s.addClass);
   const addProperty = useOntologyStore((s) => s.addProperty);
   const addRelationType = useOntologyStore((s) => s.addRelationType);
@@ -476,6 +481,14 @@ export default function NewNodePopover() {
     setQuickDesc('');
     setQuickType('class');
     setQuickParentId('');
+  };
+
+  // PRD-I (M3, Task 3.3): 큰 입력을 가이드 여정으로 넘긴다. 현재 입력 텍스트를 씨앗으로
+  // 실어 보내고 팝오버를 닫는다. Quick 경로(짧은 텍스트)에서는 이 버튼이 뜨지 않는다.
+  const handleSwitchToGuided = () => {
+    const seed = activeTab === 'csv' ? csvText : inputText;
+    openGuided(seed);
+    resetAndClose();
   };
 
   // A-3: detect enrichment gaps for the freshly-extracted subgraph (+ adjacent
@@ -1208,6 +1221,26 @@ export default function NewNodePopover() {
                     CSV
                   </TabsTrigger>
                 </TabsList>
+
+                {/* PRD-I (M3, Task 3.3): 대용량 입력(또는 CSV)일 때만 가이드 여정 전환 제안.
+                    빠른 입력·짧은 텍스트에서는 렌더되지 않아 Quick 경로가 그대로 유지된다. */}
+                {(activeTab === 'csv' || inputText.length > GUIDED_SUGGEST_THRESHOLD) && (
+                  <button
+                    type="button"
+                    onClick={handleSwitchToGuided}
+                    data-testid="switch-to-guided"
+                    className="mb-3 flex w-full items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-2.5 py-2 text-left transition-colors hover:bg-primary/10"
+                  >
+                    <Wand2 className="h-3.5 w-3.5 shrink-0 text-primary" />
+                    <span className="text-[11px] text-foreground">
+                      이 분량은 가이드 여정이 편합니다
+                    </span>
+                    <span className="ml-auto flex shrink-0 items-center gap-0.5 text-[11px] font-medium text-primary">
+                      가이드로 전환
+                      <ArrowRight className="h-3 w-3" />
+                    </span>
+                  </button>
+                )}
 
                 {/* Quick Input Tab */}
                 <TabsContent value="quick" className="space-y-2.5 mt-0">

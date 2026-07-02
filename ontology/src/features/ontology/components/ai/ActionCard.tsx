@@ -2,7 +2,7 @@
 
 import { Check, X, Plus, Pencil, Link2, Box, Tag, Layers } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { ConfirmCard } from '@/components/ui/confirm-card';
 import type { OntologyAction } from '../../lib/schemas';
 
 export type ActionState = 'pending' | 'applied' | 'ignored' | 'skipped';
@@ -38,6 +38,8 @@ function previewText(action: OntologyAction): string {
   }
 }
 
+// PRD-I §3: 공통 ConfirmCard 껍데기로 정규화. op 유형은 eyebrow, 적용 미리보기는 preview.
+// 적용 불가(skipped)는 block 판정으로 표시하고, applied 상태는 applied 플래그로 매핑한다.
 export default function ActionCard({
   action,
   state,
@@ -56,44 +58,45 @@ export default function ActionCard({
   const isResolved = state !== 'pending';
 
   return (
-    <div
-      className={`rounded-md border p-2 space-y-1.5 transition-colors ${
-        state === 'applied'
-          ? 'border-emerald-500/40 bg-emerald-500/5'
-          : state === 'skipped'
-            ? 'border-destructive/30 bg-destructive/5'
-            : state === 'ignored'
-              ? 'border-border bg-muted/30 opacity-60'
-              : 'border-border bg-card'
-      }`}
-    >
-      <div className="flex items-center gap-1.5">
-        <Badge variant="outline" className="h-4 text-[9px] px-1 gap-0.5 shrink-0">
+    <ConfirmCard
+      eyebrow={
+        <span className="inline-flex items-center gap-0.5">
           <Icon className="w-2.5 h-2.5" />
           {meta.label}
-        </Badge>
-        <span className="text-[11px] font-medium text-foreground truncate">{action.label}</span>
-      </div>
-
-      <p className="text-[10px] font-mono text-muted-foreground break-all">{previewText(action)}</p>
-
-      {state === 'skipped' && skipReason && (
-        <p className="text-[10px] text-destructive">{skipReason}</p>
-      )}
-
-      {!isResolved ? (
-        <div className="flex items-center justify-end gap-1 pt-0.5">
-          <Button variant="ghost" size="sm" className="h-5 text-[10px] px-1.5" onClick={onIgnore}>
-            <X className="w-3 h-3 mr-0.5" />
-            무시
-          </Button>
-          <Button size="sm" className="h-5 text-[10px] px-2 gap-0.5" onClick={onApply}>
-            <Plus className="w-3 h-3" />
-            적용
-          </Button>
-        </div>
-      ) : (
-        <div className="flex items-center justify-end">
+        </span>
+      }
+      verdict={state === 'skipped' ? 'block' : undefined}
+      applied={state === 'applied'}
+      className={state === 'ignored' ? 'opacity-60' : undefined}
+      title={action.label}
+      preview={
+        <>
+          <p className="text-[10px] font-mono text-muted-foreground break-all">
+            {previewText(action)}
+          </p>
+          {state === 'skipped' && skipReason && (
+            <p className="text-[10px] text-destructive mt-1">{skipReason}</p>
+          )}
+        </>
+      }
+      actions={
+        !isResolved ? (
+          <>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-5 text-[10px] px-1.5"
+              onClick={onIgnore}
+            >
+              <X className="w-3 h-3 mr-0.5" />
+              무시
+            </Button>
+            <Button size="sm" className="h-5 text-[10px] px-2 gap-0.5" onClick={onApply}>
+              <Plus className="w-3 h-3" />
+              적용
+            </Button>
+          </>
+        ) : (
           <span className="text-[10px] text-muted-foreground inline-flex items-center gap-0.5">
             {state === 'applied' && (
               <>
@@ -103,8 +106,8 @@ export default function ActionCard({
             {state === 'ignored' && '무시함'}
             {state === 'skipped' && '적용 불가'}
           </span>
-        </div>
-      )}
-    </div>
+        )
+      }
+    />
   );
 }

@@ -5,6 +5,7 @@ import { Check, ShieldAlert, Pencil, SkipForward, Shuffle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { ConfirmCard } from '@/components/ui/confirm-card';
 import type {
   TermCandidate,
   TermCandidateSource,
@@ -37,7 +38,7 @@ interface TermConfirmCardProps {
 
 // PRD-H H8-e: 용어 확인 카드. 후보(랭킹+신뢰도+출처)와 "무엇을 근거로 이 뜻을 골랐는지"
 // (주입한 맥락)를 투명하게 보여준다. 웹 후보는 "검증 필요". 확정 전에는 아무 뜻도 정해지지 않는다.
-// 확정 시 "이후 이 온톨로지에서 VV=밸브로 사용" 안내를 띄운다.
+// PRD-I §3: 공통 ConfirmCard 껍데기로 재정규화(판정→근거→미리보기→액션).
 export default function TermConfirmCard({
   resolution,
   confirmed = false,
@@ -70,22 +71,10 @@ export default function TermConfirmCard({
 
   const guidance = confirmedMeaning ?? (confirmed ? candidates[selected]?.meaning : null);
 
-  return (
-    <div className="rounded-lg border border-primary/40 bg-primary/5 p-2">
-      <div className="mb-1 flex flex-wrap items-center gap-1.5">
-        <Badge variant="secondary" className="h-4 px-1 text-[9px]">
-          용어 확인
-        </Badge>
-        <span className="text-[11px] font-medium">{term}</span>
-      </div>
-
-      {/* 투명성: 이 뜻을 고른 근거 맥락(무엇을 주입했는지). */}
-      <p className="mb-1.5 text-[9px] text-muted-foreground/80">
-        근거 맥락: <span className="italic">{contextInjected}</span>
-      </p>
-
+  const preview = (
+    <>
       {hasCandidates ? (
-        <ul className="mb-2 space-y-1">
+        <ul className="space-y-1">
           {candidates.map((c, i) => {
             const pct = Math.round(c.confidence * 100);
             const isSelected = i === selected;
@@ -131,13 +120,13 @@ export default function TermConfirmCard({
           })}
         </ul>
       ) : (
-        <p className="mb-2 text-[10px] text-muted-foreground">
+        <p className="text-[10px] text-muted-foreground">
           맥락에서 뜻 후보를 찾지 못했습니다. 직접 입력하거나 건너뛰세요.
         </p>
       )}
 
       {showManual && (
-        <div className="mb-2 flex gap-1.5">
+        <div className="mt-2 flex gap-1.5">
           <Input
             value={manual}
             onChange={(e) => setManual(e.target.value)}
@@ -157,52 +146,68 @@ export default function TermConfirmCard({
       )}
 
       {guidance && (
-        <p className="mb-1.5 rounded-md bg-emerald-500/10 px-1.5 py-1 text-[10px] text-emerald-700">
+        <p className="mt-1.5 rounded-md bg-emerald-500/10 px-1.5 py-1 text-[10px] text-emerald-700">
           이후 이 온톨로지에서 {term}={guidance}로 사용
         </p>
       )}
+    </>
+  );
 
-      <div className="flex flex-wrap justify-end gap-1.5">
+  const actions = (
+    <>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-6 gap-0.5 px-2 text-[10px]"
+        onClick={onSkip}
+      >
+        <SkipForward className="h-3 w-3" />
+        건너뛰기
+      </Button>
+      {onOther && (
         <Button
           variant="ghost"
           size="sm"
           className="h-6 gap-0.5 px-2 text-[10px]"
-          onClick={onSkip}
+          onClick={onOther}
         >
-          <SkipForward className="h-3 w-3" />
-          건너뛰기
+          <Shuffle className="h-3 w-3" />
+          다른 뜻
         </Button>
-        {onOther && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-6 gap-0.5 px-2 text-[10px]"
-            onClick={onOther}
-          >
-            <Shuffle className="h-3 w-3" />
-            다른 뜻
-          </Button>
-        )}
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-6 gap-0.5 px-2 text-[10px]"
-          onClick={() => setShowManual((v) => !v)}
-        >
-          <Pencil className="h-3 w-3" />
-          직접 입력
-        </Button>
-        <Button
-          variant="default"
-          size="sm"
-          className="h-6 gap-0.5 px-2 text-[10px]"
-          onClick={handleConfirm}
-          disabled={!hasCandidates}
-        >
-          <Check className="h-3 w-3" />
-          이 뜻으로
-        </Button>
-      </div>
-    </div>
+      )}
+      <Button
+        variant="outline"
+        size="sm"
+        className="h-6 gap-0.5 px-2 text-[10px]"
+        onClick={() => setShowManual((v) => !v)}
+      >
+        <Pencil className="h-3 w-3" />
+        직접 입력
+      </Button>
+      <Button
+        variant="default"
+        size="sm"
+        className="h-6 gap-0.5 px-2 text-[10px]"
+        onClick={handleConfirm}
+        disabled={!hasCandidates}
+      >
+        <Check className="h-3 w-3" />
+        이 뜻으로
+      </Button>
+    </>
+  );
+
+  return (
+    <ConfirmCard
+      eyebrow="용어 확인"
+      title={term}
+      evidence={
+        <>
+          근거 맥락: <span className="italic">{contextInjected}</span>
+        </>
+      }
+      preview={preview}
+      actions={actions}
+    />
   );
 }
