@@ -15,6 +15,11 @@ import { toast } from 'sonner';
 export function useApiSync() {
   const qc = useQueryClient();
   const syncedRef = useRef(new Set<string>());
+  // 진행형(패턴) 생성은 노드·엣지를 여러 setTimeout 배치로 나눠 추가하므로 store 구독이
+  // 배치마다 여러 번 발화한다. 각 발화를 await 없이 쏘면 relation_type 배치와 edge 배치가
+  // DB에서 경쟁해 edges_relation_type_id_fkey(엣지가 아직 없는 관계타입 참조) 500이 난다.
+  // → 동기화 호출을 단일 큐로 직렬화해 enqueue 순서 = commit 순서를 보장한다.
+  const syncQueueRef = useRef<Promise<void>>(Promise.resolve());
 
   useEffect(() => {
     const unsub = useOntologyStore.subscribe(
@@ -28,9 +33,12 @@ export function useApiSync() {
         }
 
         if (newChanges.length > 0) {
-          syncChangesInOrder(newChanges, state).catch(() => {
-            // Individual errors are already handled inside syncChangesInOrder
-          });
+          // 이전 동기화가 끝난(=커밋된) 뒤 다음 배치를 보낸다(FK 경쟁 방지).
+          syncQueueRef.current = syncQueueRef.current
+            .then(() => syncChangesInOrder(newChanges, state))
+            .catch(() => {
+              // Individual errors are already handled inside syncChangesInOrder
+            });
         }
 
         // Keep the set from growing unbounded

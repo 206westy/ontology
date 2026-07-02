@@ -136,7 +136,34 @@ function buildInsertionPlan(
   const classIdByName = new Map<string, string>();
   store.classes.forEach((c) => classIdByName.set(c.name, c.id));
 
-  // 클래스 노드 + 생성 클로저.
+  // 프로퍼티는 소속 클래스가 DB에 먼저 있어야 한다(class→property FK). 신규 클래스의
+  // 프로퍼티는 그 클래스 생성 클로저에서 같은 순서로 만들고, 기존(이미 커밋된) 클래스의
+  // 프로퍼티만 즉시 생성한다. → 동기화 직렬화(useApiSync)와 함께 FK 순서를 보장.
+  const newClassNames = new Set(mapped.classes.map((c) => c.name));
+  const propsByClass = new Map<string, typeof mapped.properties>();
+  const propIdByKey = new Map<string, string>();
+  const addProp = (className: string, classId: string, prop: (typeof mapped.properties)[number]) => {
+    const pid = store.addProperty({
+      name: prop.name,
+      classId,
+      dataType: prop.dataType as 'string' | 'integer' | 'float' | 'boolean' | 'date' | 'enum',
+      isRequired: prop.isRequired,
+      enumValues: prop.enumValues,
+    });
+    propIdByKey.set(`${className}::${prop.name}`, pid);
+  };
+  mapped.properties.forEach((prop) => {
+    if (newClassNames.has(prop.className)) {
+      const arr = propsByClass.get(prop.className) ?? [];
+      arr.push(prop);
+      propsByClass.set(prop.className, arr);
+      return;
+    }
+    const classId = classIdByName.get(prop.className);
+    if (classId) addProp(prop.className, classId, prop);
+  });
+
+  // 클래스 노드 + 생성 클로저(클래스 → 그 클래스의 프로퍼티 순, 같은 틱).
   mapped.classes.forEach((cls) => {
     const id = stableEntityId(cls.name, 'class', partition);
     classIdByName.set(cls.name, id);
@@ -152,22 +179,8 @@ function buildInsertionPlan(
         sourceType: cls.evidence ? 'session_doc' : null,
         evidence: cls.evidence ?? null,
       });
+      (propsByClass.get(cls.name) ?? []).forEach((prop) => addProp(cls.name, id, prop));
     });
-  });
-
-  // 프로퍼티는 비시각 스키마라 즉시 생성(진행형 대상 아님).
-  const propIdByKey = new Map<string, string>();
-  mapped.properties.forEach((prop) => {
-    const classId = classIdByName.get(prop.className);
-    if (!classId) return;
-    const id = store.addProperty({
-      name: prop.name,
-      classId,
-      dataType: prop.dataType as 'string' | 'integer' | 'float' | 'boolean' | 'date' | 'enum',
-      isRequired: prop.isRequired,
-      enumValues: prop.enumValues,
-    });
-    propIdByKey.set(`${prop.className}::${prop.name}`, id);
   });
 
   // 인스턴스 노드 + 생성 클로저(값 포함).
