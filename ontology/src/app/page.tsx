@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import dynamic from 'next/dynamic';
 import { Group, Panel, Separator, usePanelRef } from 'react-resizable-panels';
 import type { Layout } from 'react-resizable-panels';
 import { Loader2, FolderTree, PanelRight } from 'lucide-react';
 import ExplorerPanel from '@/features/ontology/components/ExplorerPanel';
-import GraphCanvas from '@/features/ontology/components/GraphCanvas';
 import Toolbar from '@/features/ontology/components/Toolbar';
 import RightPanel from '@/features/ontology/components/RightPanel';
 import CommitBar from '@/features/ontology/components/CommitBar';
@@ -22,6 +22,17 @@ import { useKeyboardShortcuts } from '@/features/ontology/hooks/useKeyboardShort
 import { useApiSync } from '@/features/ontology/hooks/useApiSync';
 import { useUrlSelectionSync } from '@/features/ontology/hooks/useUrlSelectionSync';
 import { useOntologyStore } from '@/features/ontology/hooks/useOntologyStore';
+
+// PRD-Perf M2-1: cytoscape 코어 + 레이아웃 4종(fcose/cola/dagre/edgehandles)은
+// GraphCanvas 에서만 소비된다 — 경계에서 지연 로드해 초기 번들에서 분리.
+const GraphCanvas = dynamic(() => import('@/features/ontology/components/GraphCanvas'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex-1 flex items-center justify-center">
+      <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+    </div>
+  ),
+});
 
 function ResizeHandle() {
   return (
