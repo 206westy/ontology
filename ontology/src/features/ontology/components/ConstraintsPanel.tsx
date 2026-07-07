@@ -117,6 +117,12 @@ function RuleKindBadge({ kind }: { kind: ConstraintKind }) {
   );
 }
 
+// PRD-L M3: 관계 레이어 배지 라벨 — semantic(지식)/kinetic(행동).
+const RELATION_LAYER_LABEL: Record<string, string> = {
+  semantic: '지식',
+  kinetic: '행동',
+};
+
 function getSeverityIcon(severity: string) {
   const opt = SEVERITY_OPTIONS.find((s) => s.value === severity);
   if (!opt) return { Icon: Info, color: 'text-muted-foreground' };
@@ -648,10 +654,11 @@ export default function ConstraintsPanel() {
               </div>
             )}
 
-            {/* Relation Type (for cardinality and domain_range) */}
+            {/* Relation (for cardinality and domain_range) */}
+            {/* PRD-L M3: "관계 타입" 개념 노출 제거 — 라벨은 "관계", 값은 relationTypeId 유지(데이터모델 보존). */}
             {form.kind === 'enforced' && (form.constraintType === 'cardinality' || form.constraintType === 'domain_range') && (
               <div className="space-y-1.5">
-                <Label className="text-xs">관계 타입</Label>
+                <Label className="text-xs">관계</Label>
                 <Select
                   value={form.relationTypeId || '_none'}
                   onValueChange={(v) =>
@@ -665,7 +672,12 @@ export default function ConstraintsPanel() {
                     <SelectItem value="_none">(없음)</SelectItem>
                     {relationTypes.map((r) => (
                       <SelectItem key={r.id} value={r.id}>
-                        {r.name}
+                        <span className="flex items-center gap-2">
+                          {r.name}
+                          <span className="rounded border px-1 text-[9px] leading-tight text-muted-foreground">
+                            {RELATION_LAYER_LABEL[r.layer] ?? r.layer}
+                          </span>
+                        </span>
                       </SelectItem>
                     ))}
                   </SelectContent>

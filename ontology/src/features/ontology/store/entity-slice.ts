@@ -529,40 +529,30 @@ export const createEntitySlice: SliceCreator<EntitySlice> = (set, get) => ({
         continue;
       }
 
-      if (action.op === 'add_relation_type') {
-        const { name, sourceClassName, targetClassName } = action.payload;
-        if (findRelType(name)) { skip(`이미 존재하는 관계 타입입니다: ${name}`); continue; }
-        let sourceClassId = '';
-        let targetClassId = '';
-        if (sourceClassName) {
-          const c = findClass(sourceClassName);
-          if (!c) { skip(`출발 클래스를 찾을 수 없습니다: ${sourceClassName}`); continue; }
-          sourceClassId = c.id;
-        }
-        if (targetClassName) {
-          const c = findClass(targetClassName);
-          if (!c) { skip(`도착 클래스를 찾을 수 없습니다: ${targetClassName}`); continue; }
-          targetClassId = c.id;
-        }
-        const newType: RelationType = {
-          id: generateId(), name, description: '', layer: 'semantic',
-          sourceClassId, targetClassId,
-          createdAt: new Date().toISOString(),
-        };
-        relationTypes.push(newType);
-        changes.push(createChange('ADD', 'relation_types', newType.id, newType.name, undefined, newType as unknown as Record<string, unknown>));
-        continue;
-      }
-
-      if (action.op === 'add_edge') {
-        const { relationTypeName, sourceName, targetName } = action.payload;
-        const rt = findRelType(relationTypeName);
-        if (!rt) { skip(`관계 타입을 찾을 수 없습니다: ${relationTypeName}`); continue; }
+      // PRD-L M3: 관계유형+엣지 이중성 제거 — 단일 add_relation 으로 통합.
+      // ① relationName 으로 기존 유형 검색 → ② 없으면 자동 생성 → ③ 양끝 해소 → ④ 엣지 생성.
+      // RelationPopover 의 "이름 입력 → 유형 자동 생성 + 엣지 생성" 과 동일 의미.
+      if (action.op === 'add_relation') {
+        const { relationName, sourceName, targetName, layer } = action.payload;
         const s = resolveNode(sourceName);
         if (!s) { skip(`출발 노드를 찾을 수 없습니다: ${sourceName}`); continue; }
         const t = resolveNode(targetName);
         if (!t) { skip(`도착 노드를 찾을 수 없습니다: ${targetName}`); continue; }
         if (s.id === t.id) { skip(`출발과 도착이 같습니다: ${sourceName}`); continue; }
+
+        let rt = findRelType(relationName);
+        if (!rt) {
+          const newType: RelationType = {
+            id: generateId(), name: relationName, description: '',
+            layer: layer ?? 'semantic',
+            sourceClassId: '', targetClassId: '',
+            createdAt: new Date().toISOString(),
+          };
+          relationTypes.push(newType);
+          changes.push(createChange('ADD', 'relation_types', newType.id, newType.name, undefined, newType as unknown as Record<string, unknown>));
+          rt = newType;
+        }
+
         if (edges.some((e) => e.relationTypeId === rt.id && e.sourceId === s.id && e.targetId === t.id)) {
           skip(`이미 존재하는 관계입니다: ${sourceName} → ${targetName}`); continue;
         }

@@ -721,22 +721,18 @@ export const ontologyActionSchema = z.discriminatedUnion('op', [
       name: z.string().min(1),
     }),
   }),
+  // PRD-L M3: 관계유형(RelationType)+관계(Edge) 이중성을 단일 "관계 추가"로 통합.
+  // relationName 이 처음이면 store 가 유형을 자동 생성한 뒤 엣지를 만든다.
   z.object({
-    op: z.literal('add_relation_type'),
+    op: z.literal('add_relation'),
     label: z.string(),
     payload: z.object({
-      name: z.string().min(1),
-      sourceClassName: z.string().optional(),
-      targetClassName: z.string().optional(),
-    }),
-  }),
-  z.object({
-    op: z.literal('add_edge'),
-    label: z.string(),
-    payload: z.object({
-      relationTypeName: z.string().min(1),
+      relationName: z.string().min(1),
       sourceName: z.string().min(1),
       targetName: z.string().min(1),
+      // LLM 이 판단(지식=semantic / 행동=kinetic). 생략 시 store 가 'semantic' 기본.
+      layer: relationLayerEnum.optional(),
+      description: z.string().optional(),
     }),
   }),
   z.object({
@@ -778,8 +774,7 @@ export const assistWireActionSchema = z.object({
     'add_class',
     'add_property',
     'add_instance',
-    'add_relation_type',
-    'add_edge',
+    'add_relation',
     'update_class',
   ]),
   label: z.string(),
@@ -791,11 +786,11 @@ export const assistWireActionSchema = z.object({
   dataType: z.enum(['string', 'integer', 'float', 'boolean', 'date', 'enum']).nullable(),
   enumValues: z.array(z.string()).nullable(),
   isRequired: z.boolean().nullable(),
-  sourceClassName: z.string().nullable(),
-  targetClassName: z.string().nullable(),
-  relationTypeName: z.string().nullable(),
+  // PRD-L M3: 단일 add_relation 용 필드(관계 이름/양끝/레이어).
+  relationName: z.string().nullable(),
   sourceName: z.string().nullable(),
   targetName: z.string().nullable(),
+  layer: relationLayerEnum.nullable(),
 });
 
 export type AssistWireAction = z.infer<typeof assistWireActionSchema>;

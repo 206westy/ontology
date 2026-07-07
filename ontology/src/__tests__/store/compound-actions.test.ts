@@ -76,6 +76,63 @@ describe('applyAssistantActions (P0-1)', () => {
     expect(res.skipped).toHaveLength(1);
     expect(useOntologyStore.getState().classes).toHaveLength(1);
   });
+
+  // PRD-L M3: 단일 add_relation — ① 미존재 시 유형 자동 생성 + 엣지 생성 한 번에.
+  it('add_relation auto-creates a relation type and an edge in one action', () => {
+    const store = useOntologyStore.getState();
+    store.addClass({ name: 'Person' });
+    store.addClass({ name: 'Company' });
+    const changesBefore = useOntologyStore.getState().pendingChanges.length;
+    const res = useOntologyStore.getState().applyAssistantActions([
+      { op: 'add_relation', label: 'r1', payload: { relationName: 'worksFor', sourceName: 'Person', targetName: 'Company', layer: 'kinetic' } },
+    ]);
+    const state = useOntologyStore.getState();
+
+    expect(res.skipped).toHaveLength(0);
+    expect(state.relationTypes).toHaveLength(1);
+    expect(state.relationTypes[0].name).toBe('worksFor');
+    expect(state.relationTypes[0].layer).toBe('kinetic');
+    expect(state.edges).toHaveLength(1);
+    // 유형 자동 생성 + 엣지 = 이 액션이 추가한 pendingChanges 2건.
+    expect(state.pendingChanges.length - changesBefore).toBe(2);
+  });
+
+  // ② 이미 존재하는 유형이면 재사용해 중복 생성하지 않는다.
+  it('add_relation reuses an existing relation type (name-normalized)', () => {
+    const store = useOntologyStore.getState();
+    const person = store.addClass({ name: 'Person' });
+    const company = store.addClass({ name: 'Company' });
+    const other = store.addClass({ name: 'Team' });
+    store.addRelationType({ name: 'worksFor' });
+
+    useOntologyStore.getState().applyAssistantActions([
+      { op: 'add_relation', label: 'r1', payload: { relationName: 'WORKSFOR', sourceName: 'Person', targetName: 'Company' } },
+      { op: 'add_relation', label: 'r2', payload: { relationName: 'worksFor', sourceName: 'Person', targetName: 'Team' } },
+    ]);
+    const state = useOntologyStore.getState();
+
+    // 재사용 — 유형은 여전히 1개, 엣지는 2개.
+    expect(state.relationTypes).toHaveLength(1);
+    expect(state.edges).toHaveLength(2);
+    expect(state.edges.every((e) => e.relationTypeId === state.relationTypes[0].id)).toBe(true);
+    // 양끝 해소 검증.
+    const rtId = state.relationTypes[0].id;
+    expect(state.edges.some((e) => e.sourceId === person && e.targetId === company && e.relationTypeId === rtId)).toBe(true);
+    expect(state.edges.some((e) => e.sourceId === person && e.targetId === other && e.relationTypeId === rtId)).toBe(true);
+  });
+
+  // ③ 양끝 노드를 못 찾으면 skip.
+  it('add_relation skips when an endpoint cannot be resolved', () => {
+    useOntologyStore.getState().addClass({ name: 'Person' });
+    const res = useOntologyStore.getState().applyAssistantActions([
+      { op: 'add_relation', label: 'r1', payload: { relationName: 'worksFor', sourceName: 'Person', targetName: 'Ghost' } },
+    ]);
+    const state = useOntologyStore.getState();
+    expect(res.skipped).toHaveLength(1);
+    expect(res.skipped[0].reason).toContain('도착 노드를 찾을 수 없습니다');
+    expect(state.relationTypes).toHaveLength(0);
+    expect(state.edges).toHaveLength(0);
+  });
 });
 
 describe('mergeEntities (P0-2)', () => {

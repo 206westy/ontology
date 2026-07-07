@@ -14,7 +14,8 @@ import type { OntologyAction } from './schemas';
 // 같은 판정 로직을 공유해야 하며 plan-actions.test.ts 가 패리티를 강제한다.
 
 export type ActionStatus = 'create' | 'update' | 'skip';
-export type ActionKind = 'class' | 'property' | 'instance' | 'relation_type' | 'edge';
+// PRD-L M3: 관계유형/엣지 이중성 제거 — 단일 'relation' 카드로 통합.
+export type ActionKind = 'class' | 'property' | 'instance' | 'relation';
 
 export interface ActionOutcome {
   label: string;
@@ -52,8 +53,7 @@ const KIND_BY_OP: Record<OntologyAction['op'], ActionKind> = {
   add_class: 'class',
   add_property: 'property',
   add_instance: 'instance',
-  add_relation_type: 'relation_type',
-  add_edge: 'edge',
+  add_relation: 'relation',
   update_class: 'class',
 };
 
@@ -147,32 +147,21 @@ export function planAssistantActions(
       continue;
     }
 
-    if (action.op === 'add_relation_type') {
-      const { name, sourceClassName, targetClassName } = action.payload;
-      if (findRelType(name)) { skip(`이미 존재하는 관계 타입입니다: ${name}`); continue; }
-      if (sourceClassName && !findClass(sourceClassName)) {
-        skip(`출발 클래스를 찾을 수 없습니다: ${sourceClassName}`);
-        continue;
-      }
-      if (targetClassName && !findClass(targetClassName)) {
-        skip(`도착 클래스를 찾을 수 없습니다: ${targetClassName}`);
-        continue;
-      }
-      relationTypes.push({ id: nextId(), name });
-      outcomes.push({ ...base, status: 'create', detail: `관계 타입 "${name}" 추가` });
-      continue;
-    }
-
-    if (action.op === 'add_edge') {
-      const { relationTypeName, sourceName, targetName } = action.payload;
-      const rt = findRelType(relationTypeName);
-      if (!rt) { skip(`관계 타입을 찾을 수 없습니다: ${relationTypeName}`); continue; }
+    // PRD-L M3: 단일 add_relation 시뮬레이션 — store 와 동일 판정.
+    // 양끝 해소 → (유형 없으면 자동 생성) → 중복/자기참조 검사 → 엣지 생성.
+    if (action.op === 'add_relation') {
+      const { relationName, sourceName, targetName } = action.payload;
       const s = resolveNode(sourceName);
       if (!s) { skip(`출발 노드를 찾을 수 없습니다: ${sourceName}`); continue; }
       const t = resolveNode(targetName);
       if (!t) { skip(`도착 노드를 찾을 수 없습니다: ${targetName}`); continue; }
       if (s.id === t.id) { skip(`출발과 도착이 같습니다: ${sourceName}`); continue; }
-      if (edges.some((e) => e.relationTypeId === rt.id && e.sourceId === s.id && e.targetId === t.id)) {
+      let rt = findRelType(relationName);
+      if (!rt) {
+        rt = { id: nextId(), name: relationName };
+        relationTypes.push(rt);
+      }
+      if (edges.some((e) => e.relationTypeId === rt!.id && e.sourceId === s.id && e.targetId === t.id)) {
         skip(`이미 존재하는 관계입니다: ${sourceName} → ${targetName}`);
         continue;
       }
@@ -180,7 +169,7 @@ export function planAssistantActions(
       outcomes.push({
         ...base,
         status: 'create',
-        detail: `관계 "${sourceName} → ${targetName}" 추가 (${relationTypeName})`,
+        detail: `관계 "${sourceName} → ${targetName}" 추가 (${relationName})`,
       });
       continue;
     }

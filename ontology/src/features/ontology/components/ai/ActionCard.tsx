@@ -7,6 +7,7 @@ import type { OntologyAction } from '../../lib/schemas';
 
 export type ActionState = 'pending' | 'applied' | 'ignored' | 'skipped';
 
+// PRD-L M3: 관계유형+엣지 이중성 제거 — 단일 "관계 추가" 카드.
 const OP_META: Record<
   OntologyAction['op'],
   { label: string; icon: typeof Plus }
@@ -14,10 +15,12 @@ const OP_META: Record<
   add_class: { label: '클래스', icon: Layers },
   add_property: { label: '프로퍼티', icon: Tag },
   add_instance: { label: '인스턴스', icon: Box },
-  add_relation_type: { label: '관계 타입', icon: Link2 },
-  add_edge: { label: '관계', icon: Link2 },
+  add_relation: { label: '관계', icon: Link2 },
   update_class: { label: '클래스 수정', icon: Pencil },
 };
+
+// PRD-L M2/M3: 레이어 배지 — semantic(지식)/kinetic(행동).
+const LAYER_LABEL: Record<string, string> = { semantic: '지식', kinetic: '행동' };
 
 function previewText(action: OntologyAction): string {
   switch (action.op) {
@@ -29,10 +32,8 @@ function previewText(action: OntologyAction): string {
       return `${action.payload.className}.${action.payload.name} : ${action.payload.dataType}`;
     case 'add_instance':
       return `${action.payload.className} → ${action.payload.name}`;
-    case 'add_relation_type':
-      return action.payload.name;
-    case 'add_edge':
-      return `${action.payload.sourceName} —[${action.payload.relationTypeName}]→ ${action.payload.targetName}`;
+    case 'add_relation':
+      return `${action.payload.sourceName} —[${action.payload.relationName}]→ ${action.payload.targetName}`;
     case 'update_class':
       return action.payload.className;
   }
@@ -56,6 +57,11 @@ export default function ActionCard({
   const meta = OP_META[action.op];
   const Icon = meta.icon;
   const isResolved = state !== 'pending';
+  // PRD-L M3: 관계 카드는 레이어(지식/행동) 배지를 함께 노출한다.
+  const layerLabel =
+    action.op === 'add_relation'
+      ? LAYER_LABEL[action.payload.layer ?? 'semantic']
+      : undefined;
 
   return (
     <ConfirmCard
@@ -63,6 +69,11 @@ export default function ActionCard({
         <span className="inline-flex items-center gap-0.5">
           <Icon className="w-2.5 h-2.5" />
           {meta.label}
+          {layerLabel && (
+            <span className="ml-0.5 rounded border px-1 text-[9px] leading-tight text-muted-foreground">
+              {layerLabel}
+            </span>
+          )}
         </span>
       }
       verdict={state === 'skipped' ? 'block' : undefined}

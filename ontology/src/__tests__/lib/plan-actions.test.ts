@@ -92,17 +92,18 @@ describe('previewAssistantActions(store) === applyAssistantActions 패리티', (
       ],
     },
     {
-      name: '관계 타입 + 엣지 + 자기참조 skip',
+      // PRD-L M3: 단일 add_relation — 유형 자동 생성 + 자기참조/중복 skip.
+      name: '관계 추가(유형 자동 생성) + 자기참조/중복 skip',
       seed: () => {
         const s = useOntologyStore.getState();
         s.addClass({ name: 'Person' });
         s.addClass({ name: 'Company' });
       },
       actions: [
-        { op: 'add_relation_type', label: 'rt', payload: { name: 'worksFor', sourceClassName: 'Person', targetClassName: 'Company' } },
-        { op: 'add_edge', label: 'e1', payload: { relationTypeName: 'worksFor', sourceName: 'Person', targetName: 'Company' } },
-        { op: 'add_edge', label: 'self', payload: { relationTypeName: 'worksFor', sourceName: 'Person', targetName: 'Person' } },
-        { op: 'add_edge', label: 'no-rt', payload: { relationTypeName: 'Ghost', sourceName: 'Person', targetName: 'Company' } },
+        { op: 'add_relation', label: 'e1', payload: { relationName: 'worksFor', sourceName: 'Person', targetName: 'Company' } },
+        { op: 'add_relation', label: 'self', payload: { relationName: 'worksFor', sourceName: 'Person', targetName: 'Person' } },
+        { op: 'add_relation', label: 'dup', payload: { relationName: 'worksFor', sourceName: 'Person', targetName: 'Company' } },
+        { op: 'add_relation', label: 'no-src', payload: { relationName: 'owns', sourceName: 'Ghost', targetName: 'Company' } },
       ],
     },
     {
