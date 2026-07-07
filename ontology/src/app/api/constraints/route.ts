@@ -54,7 +54,9 @@ export async function POST(request: NextRequest) {
       .insert(constraints)
       .values({
         ...(parsed.data.id ? { id: parsed.data.id } : {}),
-        constraintType: parsed.data.constraintType,
+        // PRD-L M1: enforced=타입 규칙 / memo=설명 메모(constraintType NULL).
+        kind: parsed.data.kind,
+        constraintType: parsed.data.constraintType ?? null,
         description: parsed.data.description,
         sourceClassId: parsed.data.sourceClassId ?? null,
         targetClassId: parsed.data.targetClassId ?? null,

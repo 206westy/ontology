@@ -14,7 +14,7 @@
  *   - owl:Restriction        (cardinality constraints on edges, partial)
  *
  * NOT SUPPORTED:
- *   - Axioms (project-specific logic, no standard OWL mapping)
+ *   - Memo rules (constraints kind='memo' — project-specific, no standard OWL mapping)
  *   - Complex OWL DL expressions (unions, intersections, complements)
  *   - Disjoint / property_value / domain_range constraints
  *   - Annotation properties beyond rdfs:label / rdfs:comment

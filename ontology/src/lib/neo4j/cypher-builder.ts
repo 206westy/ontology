@@ -11,6 +11,9 @@ export interface CypherStatement {
 }
 
 const operationEnum = z.enum(['ADD', 'MOD', 'DEL']);
+// PRD-L M1 하위호환: 'axioms'/'axiom_classes' 는 과거 커밋 detail 스냅샷을 파싱만
+// 허용하기 위해 남긴다(테이블은 DROP됨). Cypher 는 생성되지 않고 조용히 스킵된다 —
+// enum 에서 제거하면 과거 커밋이 섞인 push/rollback 전체가 검증 에러로 실패한다.
 const targetTableEnum = z.enum([
   'classes',
   'instances',
@@ -369,8 +372,6 @@ export function buildCypherStatements(
     instances: 3,
     instance_values: 4,
     edges: 5,
-    axioms: 6,
-    axiom_classes: 7,
   };
   const sorted = [...details].sort((a, b) => {
     const opOrder = { ADD: 0, MOD: 1, DEL: 2 };
@@ -495,7 +496,8 @@ export function buildCypherStatements(
         statements.push(relationTypeDel(detail));
       }
     }
-    // axioms, axiom_classes: 거버넌스 — Supabase 전용 (Neo4j 미운반, 설계대로)
+    // 과거 커밋의 axioms/axiom_classes detail: PRD-L M1 이후 스킵(Neo4j 미운반).
+    // 현행 규칙(constraints)도 거버넌스 — Supabase 전용(설계대로).
   }
 
   return statements;

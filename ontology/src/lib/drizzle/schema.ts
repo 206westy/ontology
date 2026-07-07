@@ -90,7 +90,6 @@ export const classesRelations = relations(classes, ({ one, many }) => ({
   children: many(classes, { relationName: 'classHierarchy' }),
   properties: many(properties),
   instances: many(instances),
-  axiomClasses: many(axiomClasses),
   constraintsAsSource: many(constraints, {
     relationName: 'constraintSourceClass',
   }),
@@ -309,57 +308,8 @@ export const edgesRelations = relations(edges, ({ one }) => ({
   }),
 }));
 
-// ─── axioms ────────────────────────────────────────────────
-export const axioms = pgTable(
-  'axioms',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    description: text('description').notNull(),
-    ruleLogic: jsonb('rule_logic').notNull().default({}),
-    severity: text('severity').notNull().default('warning'),
-    createdAt: timestamp('created_at', { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
-  (t) => [
-    check(
-      'chk_severity',
-      sql`${t.severity} IN ('info', 'warning', 'error')`,
-    ),
-  ],
-);
-
-export const axiomsRelations = relations(axioms, ({ many }) => ({
-  axiomClasses: many(axiomClasses),
-}));
-
-// ─── axiom_classes (M:N) ───────────────────────────────────
-export const axiomClasses = pgTable(
-  'axiom_classes',
-  {
-    axiomId: uuid('axiom_id')
-      .notNull()
-      .references(() => axioms.id, { onDelete: 'cascade' }),
-    classId: uuid('class_id')
-      .notNull()
-      .references(() => classes.id, { onDelete: 'cascade' }),
-  },
-  (t) => [
-    primaryKey({ columns: [t.axiomId, t.classId] }),
-    index('idx_ac_class').on(t.classId),
-  ],
-);
-
-export const axiomClassesRelations = relations(axiomClasses, ({ one }) => ({
-  axiom: one(axioms, {
-    fields: [axiomClasses.axiomId],
-    references: [axioms.id],
-  }),
-  class: one(classes, {
-    fields: [axiomClasses.classId],
-    references: [classes.id],
-  }),
-}));
+// ─── (axioms/axiom_classes 제거됨 — PRD-L M1) ──────────────
+// 자유서술 규칙은 constraints.kind='memo' 로 흡수(20260707000001_l_m1_unified_rules).
 
 // ─── branches (PRD-J M1: 온톨로지 GitFlow) ─────────────────
 // 브랜치 = 분기 시점 그래프 스냅샷(base_snapshot) + 이후 커밋 체인.
@@ -505,13 +455,15 @@ export const commitDetailsRelations = relations(commitDetails, ({ one }) => ({
   }),
 }));
 
-// ─── constraints (v3) ─────────────────────────────────────
-// 제약 조건 유형: cardinality, disjoint, domain_range, property_value
+// ─── constraints (v3 → PRD-L M1: 단일 "규칙" 정본) ─────────
+// kind='enforced': 타입 규칙(cardinality, disjoint, domain_range, property_value) — 검증 대상.
+// kind='memo': 자유서술 설명 메모(비강제) — constraintType NULL, description 만.
 export const constraints = pgTable(
   'constraints',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    constraintType: text('constraint_type').notNull(),
+    kind: text('kind').notNull().default('enforced'),
+    constraintType: text('constraint_type'),
     description: text('description').notNull().default(''),
     sourceClassId: uuid('source_class_id').references(() => classes.id, {
       onDelete: 'cascade',
@@ -538,8 +490,12 @@ export const constraints = pgTable(
   },
   (t) => [
     check(
+      'chk_constraint_kind',
+      sql`${t.kind} IN ('enforced', 'memo')`,
+    ),
+    check(
       'chk_constraint_type',
-      sql`${t.constraintType} IN ('cardinality', 'disjoint', 'domain_range', 'property_value')`,
+      sql`(${t.kind} = 'enforced' AND ${t.constraintType} IN ('cardinality', 'disjoint', 'domain_range', 'property_value')) OR (${t.kind} = 'memo' AND ${t.constraintType} IS NULL)`,
     ),
     check(
       'chk_constraint_severity',
@@ -645,7 +601,7 @@ export const attributions = pgTable(
     ),
     check(
       'chk_attr_target_table',
-      sql`${t.targetTable} IN ('classes', 'instances', 'properties', 'edges', 'relation_types', 'axioms', 'constraints')`,
+      sql`${t.targetTable} IN ('classes', 'instances', 'properties', 'edges', 'relation_types', 'constraints')`,
     ),
     check(
       'chk_attr_confidence',

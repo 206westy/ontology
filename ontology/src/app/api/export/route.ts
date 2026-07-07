@@ -33,8 +33,6 @@ export async function GET(request: NextRequest) {
       allInstanceValues,
       allRelationTypes,
       allEdges,
-      allAxioms,
-      allAxiomClasses,
       allConstraints,
     ] = await Promise.all([
       // PRD-Perf M0-1: embedding 은 라운드트립 계약에서 소비되지 않음 — export 에서 제외.
@@ -54,8 +52,6 @@ export async function GET(request: NextRequest) {
         orderBy: (r, { asc }) => [asc(r.name)],
       }),
       db.query.edges.findMany(),
-      db.query.axioms.findMany(),
-      db.query.axiomClasses.findMany(),
       db.query.constraints.findMany(),
     ]);
 
@@ -78,8 +74,6 @@ export async function GET(request: NextRequest) {
         exportedAt: new Date().toISOString(),
         ontology: {
           ...ontologyData,
-          axioms: allAxioms,
-          axiomClasses: allAxiomClasses,
           constraints: allConstraints,
         },
         stats: {
@@ -88,7 +82,6 @@ export async function GET(request: NextRequest) {
           instances: allInstances.length,
           relationTypes: allRelationTypes.length,
           edges: allEdges.length,
-          axioms: allAxioms.length,
           constraints: allConstraints.length,
         },
       };

@@ -30,7 +30,6 @@ export const useOntologyStore = create<OntologyStore>()(
         properties: state.properties,
         relationTypes: state.relationTypes,
         edges: state.edges,
-        axioms: state.axioms,
         instanceValues: state.instanceValues,
         pendingChanges: state.pendingChanges,
       }),

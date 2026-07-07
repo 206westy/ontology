@@ -164,7 +164,6 @@ const attributionTargetTableEnum = z.enum([
   'properties',
   'edges',
   'relation_types',
-  'axioms',
   'constraints',
 ]);
 
@@ -237,27 +236,8 @@ export const createEdgeSchema = z
 
 export type CreateEdgeInput = z.infer<typeof createEdgeSchema>;
 
-// ─── Axioms ────────────────────────────────────────────────
+// ─── Severity (규칙/커밋 공용) ─────────────────────────────
 const severityEnum = z.enum(['info', 'warning', 'error']);
-
-export const createAxiomSchema = z.object({
-  id: z.string().uuid().optional(),
-  description: z.string().min(1),
-  ruleLogic: z.record(z.string(), z.unknown()).optional().default({}),
-  severity: severityEnum.optional().default('warning'),
-  classIds: z.array(z.string().uuid()).optional().default([]),
-});
-
-export type CreateAxiomInput = z.infer<typeof createAxiomSchema>;
-
-export const updateAxiomSchema = z.object({
-  description: z.string().min(1).optional(),
-  ruleLogic: z.record(z.string(), z.unknown()).optional(),
-  severity: severityEnum.optional(),
-  classIds: z.array(z.string().uuid()).optional(),
-});
-
-export type UpdateAxiomInput = z.infer<typeof updateAxiomSchema>;
 
 // ─── Commits ───────────────────────────────────────────────
 const operationEnum = z.enum(['ADD', 'MOD', 'DEL']);
@@ -280,7 +260,7 @@ export const createCommitSchema = z.object({
 
 export type CreateCommitInput = z.input<typeof createCommitSchema>;
 
-// ─── Constraints (v3) ─────────────────────────────────────
+// ─── Constraints (v3 → PRD-L M1: 단일 "규칙") ──────────────
 const constraintTypeEnum = z.enum([
   'cardinality',
   'disjoint',
@@ -288,22 +268,36 @@ const constraintTypeEnum = z.enum([
   'property_value',
 ]);
 
-export const createConstraintSchema = z.object({
-  id: z.string().uuid().optional(),
-  constraintType: constraintTypeEnum,
-  description: z.string().optional().default(''),
-  sourceClassId: z.string().uuid().nullable().optional(),
-  targetClassId: z.string().uuid().nullable().optional(),
-  relationTypeId: z.string().uuid().nullable().optional(),
-  propertyId: z.string().uuid().nullable().optional(),
-  config: z.record(z.string(), z.unknown()).optional().default({}),
-  severity: severityEnum.optional().default('error'),
-  isActive: z.boolean().optional().default(true),
-  // PRD-E P2-7: 거버넌스 제안 승인 시 출처 기록(HITL).
-  sourceType: z.string().nullable().optional(),
-  confidence: z.number().nullable().optional(),
-  evidence: z.string().nullable().optional(),
-});
+// PRD-L M1: enforced=타입 규칙(검증 대상) / memo=자유서술 설명 메모(비강제).
+export const constraintKindEnum = z.enum(['enforced', 'memo']);
+
+export const createConstraintSchema = z
+  .object({
+    id: z.string().uuid().optional(),
+    kind: constraintKindEnum.optional().default('enforced'),
+    constraintType: constraintTypeEnum.nullable().optional(),
+    description: z.string().optional().default(''),
+    sourceClassId: z.string().uuid().nullable().optional(),
+    targetClassId: z.string().uuid().nullable().optional(),
+    relationTypeId: z.string().uuid().nullable().optional(),
+    propertyId: z.string().uuid().nullable().optional(),
+    config: z.record(z.string(), z.unknown()).optional().default({}),
+    severity: severityEnum.optional().default('error'),
+    isActive: z.boolean().optional().default(true),
+    // PRD-E P2-7: 거버넌스 제안 승인 시 출처 기록(HITL).
+    sourceType: z.string().nullable().optional(),
+    confidence: z.number().nullable().optional(),
+    evidence: z.string().nullable().optional(),
+  })
+  // PRD-L M1: enforced 는 constraintType 필수, memo 는 constraintType 없음(강제 NULL).
+  .refine(
+    (v) => (v.kind === 'memo' ? v.constraintType == null : v.constraintType != null),
+    {
+      message:
+        "kind='enforced' requires constraintType; kind='memo' must omit it",
+      path: ['constraintType'],
+    },
+  );
 
 export type CreateConstraintInput = z.infer<typeof createConstraintSchema>;
 
@@ -328,7 +322,6 @@ const batchEntityType = z.enum([
   'property',
   'edge',
   'relation_type',
-  'axiom',
   'instance_value',
 ]);
 
@@ -412,6 +405,8 @@ export const dedupResolveResponseSchema = z.object({
 export type DedupResolveResponse = z.infer<typeof dedupResolveResponseSchema>;
 
 // ─── Governance suggestions (PRD-E P2-7, HITL) ────────────
+// PRD-L M1: 'axiom' 값은 wire 스키마 호환을 위해 유지하되 의미는 "설명 메모(memo)
+// 규칙 제안"이다 — 승인 시 constraints(kind='memo')로 기록된다.
 export const governanceKindEnum = z.enum([
   'constraint_cardinality',
   'constraint_disjoint',
@@ -436,6 +431,7 @@ export const governanceProposalSchema = z.object({
   maxCardinality: z.number().nullable(),
   enumValues: z.array(z.string()).nullable(),
   disjointWith: z.string().nullable(),
+  // 필드명은 wire 호환을 위해 유지 — 의미는 "memo 규칙의 근거 설명(한 줄 규칙 표현)".
   axiomLogic: z.string().nullable(),
   evidence: z.string(),
   confidence: z.number().min(0).max(1),
@@ -696,6 +692,8 @@ export const text2CypherRequestSchema = z.object({
 export type Text2CypherRequestInput = z.infer<typeof text2CypherRequestSchema>;
 
 // ─── Import / Export (v3) ─────────────────────────────────
+// PRD-L M1: axioms/axiomClasses 키는 스키마에서 제거됐다. zod 는 알 수 없는 키를
+// 무시하므로 과거 export 페이로드에 axioms 가 남아 있어도 에러 없이 통과한다(하위호환).
 export const importRequestSchema = z.object({
   version: z.string().default('1.0'),
   ontology: z.object({
@@ -705,8 +703,6 @@ export const importRequestSchema = z.object({
     instanceValues: z.array(z.record(z.string(), z.unknown())).default([]),
     relationTypes: z.array(z.record(z.string(), z.unknown())).default([]),
     edges: z.array(z.record(z.string(), z.unknown())).default([]),
-    axioms: z.array(z.record(z.string(), z.unknown())).default([]),
-    axiomClasses: z.array(z.record(z.string(), z.unknown())).default([]),
     constraints: z.array(z.record(z.string(), z.unknown())).default([]),
   }),
   strategy: z.enum(['replace', 'merge']).default('replace'),

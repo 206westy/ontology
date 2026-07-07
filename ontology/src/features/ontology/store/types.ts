@@ -7,7 +7,6 @@ import type {
   OntologyProperty,
   RelationType,
   OntologyEdge,
-  OntologyAxiom,
   InstanceValue,
   Change,
   PopoverState,
@@ -42,7 +41,6 @@ export interface EntitySlice {
   properties: OntologyProperty[];
   relationTypes: RelationType[];
   edges: OntologyEdge[];
-  axioms: OntologyAxiom[];
   instanceValues: InstanceValue[];
   // PRD-B B-1/B-3: 구획 목록 (렌더러/전환기용)
   partitions: Partition[];
@@ -63,9 +61,6 @@ export interface EntitySlice {
   addRelationType: (data: Partial<RelationType> & { name: string }) => string;
   addEdge: (data: Partial<OntologyEdge> & { sourceId: string; targetId: string; relationTypeId: string }) => string;
   removeEdge: (id: string) => void;
-
-  addAxiom: (data: Partial<OntologyAxiom> & { description: string }) => string;
-  removeAxiom: (id: string) => void;
 
   deleteSelectedNode: () => void;
   deleteNodeById: (id: string, type: 'class' | 'instance') => void;
@@ -88,7 +83,6 @@ export interface EntitySlice {
     properties: OntologyProperty[];
     relationTypes: RelationType[];
     edges: OntologyEdge[];
-    axioms: OntologyAxiom[];
     instanceValues: InstanceValue[];
     partitions?: Partition[];
   }) => void;

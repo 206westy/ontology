@@ -4,7 +4,7 @@ export { useInstances, useAllInstances, useCreateInstance } from './useInstances
 export { useEdges, useCreateEdge, useDeleteEdge } from './useEdges';
 export { useRelationTypes, useCreateRelationType } from './useRelationTypes';
 export { useCommits, useCreateCommit } from './useCommits';
-export { useAxioms, useCreateAxiom } from './useAxioms';
+export { useRules, useCreateMemoRule, useDeleteRule } from './useRules';
 export { useLoadOntology } from './useLoadOntology';
 export { useOntologyStore, useTemporalStore } from './useOntologyStore';
 export { useKeyboardShortcuts } from './useKeyboardShortcuts';

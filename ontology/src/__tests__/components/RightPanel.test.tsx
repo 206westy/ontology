@@ -95,6 +95,13 @@ vi.mock('@/components/ui/tabs', () => {
   return { Tabs: TabsMock, TabsList: TabsListMock, TabsTrigger: TabsTriggerMock, TabsContent: TabsContentMock };
 });
 
+// PRD-L M1: 규칙(constraints)은 react-query 훅으로 읽는다 — 단위 테스트에선 모킹.
+vi.mock('@/features/ontology/hooks/useRules', () => ({
+  useRules: () => ({ data: [], isLoading: false }),
+  useCreateMemoRule: () => ({ mutate: vi.fn() }),
+  useDeleteRule: () => ({ mutate: vi.fn() }),
+}));
+
 import RightPanel from '@/features/ontology/components/RightPanel';
 
 function resetStore() {
@@ -104,7 +111,6 @@ function resetStore() {
     properties: [],
     relationTypes: [],
     edges: [],
-    axioms: [],
     instanceValues: [],
     selectedNodeId: null,
     selectedNodeType: null,

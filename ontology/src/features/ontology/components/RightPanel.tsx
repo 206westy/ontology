@@ -7,7 +7,6 @@ import {
   Plus,
   ArrowRight,
   ArrowLeft,
-  AlertTriangle,
   Circle,
   Pencil,
   Check,
@@ -25,8 +24,9 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useOntologyStore } from '../hooks/useOntologyStore';
+import { useRules, useCreateMemoRule, useDeleteRule } from '../hooks/useRules';
 import { toast } from 'sonner';
-import type { DataType } from '../lib/types';
+import type { DataType, OntologyConstraint } from '../lib/types';
 import { getInheritedProperties, type InheritedProperty } from '../lib/property-inheritance';
 import AIAssistantTab from './AIAssistantTab';
 import { usePropertyAutocomplete } from '../hooks/useAutocomplete';
@@ -578,8 +578,9 @@ function AddInstanceInline({ classId, onDone }: { classId: string; onDone: () =>
   );
 }
 
+// PRD-L M1: 인라인 추가는 "설명 메모" 규칙(constraints kind='memo')을 만든다.
 function AddConstraintInline({ classId, onDone }: { classId: string; onDone: () => void }) {
-  const addAxiom = useOntologyStore((s) => s.addAxiom);
+  const createMemoRule = useCreateMemoRule();
   const [description, setDescription] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -589,7 +590,10 @@ function AddConstraintInline({ classId, onDone }: { classId: string; onDone: () 
 
   const handleAdd = () => {
     if (!description.trim()) return;
-    addAxiom({ description: description.trim(), classIds: [classId] });
+    createMemoRule.mutate(
+      { description: description.trim(), sourceClassId: classId },
+      { onError: () => toast.error('설명 메모 저장에 실패했습니다') },
+    );
     setDescription('');
     inputRef.current?.focus();
   };
@@ -774,8 +778,11 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
   const storeProperties = useOntologyStore((s) => s.properties);
   const storeInstanceValues = useOntologyStore((s) => s.instanceValues);
   const storeEdges = useOntologyStore((s) => s.edges);
-  const storeAxioms = useOntologyStore((s) => s.axioms);
   const storeRelationTypes = useOntologyStore((s) => s.relationTypes);
+
+  // PRD-L M1: 규칙(constraints)은 store 가 아니라 react-query 정본에서 읽는다.
+  const rulesQuery = useRules();
+  const deleteRule = useDeleteRule();
 
   const nodeDetail = useMemo(() => {
     const id = selectedNodeId;
@@ -809,20 +816,25 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
         : [],
       nodeInstances: selectedClass ? storeInstances.filter((i) => i.classId === id) : [],
       nodeEdges: storeEdges.filter((e) => e.sourceId === id || e.targetId === id),
-      nodeAxioms: selectedClass ? storeAxioms.filter((a) => a.classIds.includes(id)) : [],
       allProperties: storeProperties,
       relationTypes: storeRelationTypes,
       classes: storeClasses,
       instances: storeInstances,
     };
-  }, [selectedNodeId, selectedNodeType, storeClasses, storeInstances, storeProperties, storeInstanceValues, storeEdges, storeAxioms, storeRelationTypes]);
+  }, [selectedNodeId, selectedNodeType, storeClasses, storeInstances, storeProperties, storeInstanceValues, storeEdges, storeRelationTypes]);
+
+  // 선택 클래스에 걸린 규칙(모든 kind) — 강제 규칙과 설명 메모를 한 목록으로 보여준다.
+  const nodeRules = useMemo<OntologyConstraint[]>(() => {
+    if (!selectedNodeId || selectedNodeType !== 'class') return [];
+    return ((rulesQuery.data ?? []) as OntologyConstraint[]).filter(
+      (r) => r.sourceClassId === selectedNodeId,
+    );
+  }, [rulesQuery.data, selectedNodeId, selectedNodeType]);
 
   const addProperty = useOntologyStore((s) => s.addProperty);
-  const addAxiom = useOntologyStore((s) => s.addAxiom);
   const removeProperty = useOntologyStore((s) => s.removeProperty);
   const removeInstance = useOntologyStore((s) => s.removeInstance);
   const removeEdge = useOntologyStore((s) => s.removeEdge);
-  const removeAxiom = useOntologyStore((s) => s.removeAxiom);
   const openPopover = useOntologyStore((s) => s.openPopover);
   const updateInstance = useOntologyStore((s) => s.updateInstance);
   const setInstanceValue = useOntologyStore((s) => s.setInstanceValue);
@@ -878,7 +890,6 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
     instanceValues,
     nodeInstances,
     nodeEdges,
-    nodeAxioms,
     allProperties,
     relationTypes,
     classes,
@@ -1188,18 +1199,36 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
                 <CollapsibleSection
                   title="제약조건"
                   hint="이 유형이 지켜야 할 규칙 (예: 나이는 0 이상)"
-                  count={nodeAxioms.length}
+                  count={nodeRules.length}
                   defaultOpen={false}
                   onAdd={() => setShowAddConstraint(true)}
                   addLabel="제약조건 추가"
                 >
-                  {nodeAxioms.map((axiom) => (
-                    <div key={axiom.id} className="flex items-start gap-1.5 py-1.5 px-1.5 rounded hover:bg-muted/40 transition-colors -mx-1 group">
-                      <AlertTriangle className="w-3 h-3 text-amber-500 shrink-0 mt-0.5" />
-                      <span className="text-xs text-foreground leading-relaxed flex-1">{axiom.description}</span>
+                  {nodeRules.map((rule) => (
+                    <div key={rule.id} className="flex items-start gap-1.5 py-1.5 px-1.5 rounded hover:bg-muted/40 transition-colors -mx-1 group">
+                      {/* PRD-I 배지 taxonomy 스타일 재사용 — 12px(text-xs) 유지(PRD-K 스케일) */}
+                      <span
+                        className={`inline-flex shrink-0 items-center rounded border px-1.5 py-0 text-xs leading-relaxed ${
+                          rule.kind === 'enforced'
+                            ? 'border-info/50 text-info'
+                            : 'border-border text-muted-foreground'
+                        }`}
+                        title={
+                          rule.kind === 'enforced'
+                            ? '검증 실행 시 실제로 검사됩니다'
+                            : '참고용 메모 — 검증에서 검사되지 않습니다'
+                        }
+                      >
+                        {rule.kind === 'enforced' ? '강제됨' : '설명 메모'}
+                      </span>
+                      <span className="text-xs text-foreground leading-relaxed flex-1">{rule.description}</span>
                       <button
                         className="-my-1 flex h-6 w-6 shrink-0 items-center justify-center rounded opacity-60 transition-opacity text-muted-foreground hover:text-destructive group-hover:opacity-100"
-                        onClick={() => removeAxiom(axiom.id)}
+                        onClick={() =>
+                          deleteRule.mutate(rule.id, {
+                            onError: () => toast.error('규칙 삭제에 실패했습니다'),
+                          })
+                        }
                       >
                         <Trash2 className="w-3 h-3" />
                       </button>
@@ -1211,7 +1240,7 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
                       onDone={() => setShowAddConstraint(false)}
                     />
                   )}
-                  {nodeAxioms.length === 0 && !showAddConstraint && (
+                  {nodeRules.length === 0 && !showAddConstraint && (
                     <p className="text-xs text-muted-foreground py-1">제약조건이 없습니다</p>
                   )}
                 </CollapsibleSection>

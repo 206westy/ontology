@@ -6,7 +6,6 @@ import type {
   OntologyProperty,
   RelationType,
   OntologyEdge,
-  OntologyAxiom,
   InstanceValue,
   Change,
   ChangeOperation,
@@ -66,7 +65,6 @@ export const createEntitySlice: SliceCreator<EntitySlice> = (set, get) => ({
   properties: [],
   relationTypes: [],
   edges: [],
-  axioms: [],
   instanceValues: [],
   partitions: [],
 
@@ -227,7 +225,6 @@ export const createEntitySlice: SliceCreator<EntitySlice> = (set, get) => ({
         const affectedNodeIds = new Set([id, ...instanceIds]);
         const deletedProperties = state.properties.filter((p) => p.classId === id);
         const deletedEdges = state.edges.filter((e) => affectedNodeIds.has(e.sourceId) || affectedNodeIds.has(e.targetId));
-        const deletedAxioms = state.axioms.filter((a) => a.classIds.includes(id));
 
         const cascadeChanges: Change[] = [
           createChange('DEL', 'classes', id, cls.name,
@@ -238,8 +235,6 @@ export const createEntitySlice: SliceCreator<EntitySlice> = (set, get) => ({
             p as unknown as Record<string, unknown>)),
           ...deletedEdges.map((e) => createChange('DEL', 'edges', e.id, state.relationTypes.find((r) => r.id === e.relationTypeId)?.name ?? 'relation',
             { ...e, relationTypeName: state.relationTypes.find((r) => r.id === e.relationTypeId)?.name } as unknown as Record<string, unknown>)),
-          ...deletedAxioms.map((a) => createChange('DEL', 'axioms', a.id, a.description,
-            a as unknown as Record<string, unknown>)),
         ];
 
         return {
@@ -249,7 +244,6 @@ export const createEntitySlice: SliceCreator<EntitySlice> = (set, get) => ({
           instances: state.instances.filter((i) => i.classId !== id),
           properties: state.properties.filter((p) => p.classId !== id),
           edges: state.edges.filter((e) => !affectedNodeIds.has(e.sourceId) && !affectedNodeIds.has(e.targetId)),
-          axioms: state.axioms.filter((a) => !a.classIds.includes(id)),
           instanceValues: state.instanceValues.filter((iv) => !instanceIds.includes(iv.instanceId)),
           selectedNodeId: state.selectedNodeId === id ? null : state.selectedNodeId,
           selectedNodeType: state.selectedNodeId === id ? null : state.selectedNodeType,
@@ -294,8 +288,6 @@ export const createEntitySlice: SliceCreator<EntitySlice> = (set, get) => ({
         ...state.edges.map((e) => createChange('DEL', 'edges', e.id,
           state.relationTypes.find((r) => r.id === e.relationTypeId)?.name ?? 'relation',
           { ...e, relationTypeName: state.relationTypes.find((r) => r.id === e.relationTypeId)?.name } as unknown as Record<string, unknown>)),
-        ...state.axioms.map((a) => createChange('DEL', 'axioms', a.id, a.description,
-          a as unknown as Record<string, unknown>)),
         ...state.instanceValues.map((iv) => createChange('DEL', 'instance_values', iv.id, iv.value,
           iv as unknown as Record<string, unknown>)),
         ...state.properties.map((p) => createChange('DEL', 'properties', p.id, p.name,
@@ -313,7 +305,6 @@ export const createEntitySlice: SliceCreator<EntitySlice> = (set, get) => ({
         instances: [],
         properties: [],
         edges: [],
-        axioms: [],
         instanceValues: [],
         relationTypes: [],
         selectedNodeId: null,
@@ -420,39 +411,6 @@ export const createEntitySlice: SliceCreator<EntitySlice> = (set, get) => ({
           ...state.pendingChanges,
           createChange('DEL', 'edges', id, state.relationTypes.find((r) => r.id === existing?.relationTypeId)?.name ?? 'relation',
             existing ? { ...existing, relationTypeName: state.relationTypes.find((r) => r.id === existing.relationTypeId)?.name } as unknown as Record<string, unknown> : undefined),
-        ],
-      };
-    }),
-
-  addAxiom: (data) => {
-    const id = data.id ?? generateId();
-    const newAxiom: OntologyAxiom = {
-      id,
-      description: data.description,
-      ruleLogic: data.ruleLogic ?? null,
-      severity: data.severity ?? 'warning',
-      classIds: data.classIds ?? [],
-      createdAt: new Date().toISOString(),
-    };
-    set((state) => ({
-      axioms: [...state.axioms, newAxiom],
-      pendingChanges: [
-        ...state.pendingChanges,
-        createChange('ADD', 'axioms', newAxiom.id, newAxiom.description, undefined, newAxiom as unknown as Record<string, unknown>),
-      ],
-    }));
-    return id;
-  },
-
-  removeAxiom: (id) =>
-    set((state) => {
-      const existing = state.axioms.find((a) => a.id === id);
-      return {
-        axioms: state.axioms.filter((a) => a.id !== id),
-        pendingChanges: [
-          ...state.pendingChanges,
-          createChange('DEL', 'axioms', id, existing?.description ?? '',
-            existing as unknown as Record<string, unknown>),
         ],
       };
     }),
@@ -827,22 +785,12 @@ export const createEntitySlice: SliceCreator<EntitySlice> = (set, get) => ({
       }
     }
 
-    // Remove merged from axiom class lists
-    let axioms = [...state.axioms];
-    for (const a of state.axioms.filter((a) => a.classIds.includes(mergedId))) {
-      const newIds = a.classIds.filter((cid) => cid !== mergedId);
-      const updated = { ...a, classIds: newIds };
-      axioms = axioms.map((x) => x.id === a.id ? updated : x);
-      changes.push(createChange('MOD', 'axioms', a.id, a.description,
-        a as unknown as Record<string, unknown>, updated as unknown as Record<string, unknown>));
-    }
-
     // Finally delete merged class
     classes = classes.filter((c) => c.id !== mergedId);
     changes.push(createChange('DEL', 'classes', mergedId, merged.name, merged as unknown as Record<string, unknown>));
 
     set({
-      classes, instances, properties, edges, instanceValues, axioms,
+      classes, instances, properties, edges, instanceValues,
       selectedNodeId: state.selectedNodeId === mergedId ? survivorId : state.selectedNodeId,
       selectedNodeType: state.selectedNodeId === mergedId ? 'class' : state.selectedNodeType,
       pendingChanges: [...state.pendingChanges, ...changes],

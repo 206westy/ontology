@@ -6,7 +6,6 @@ import { useAllInstances } from './useInstances';
 import { useAllProperties } from './useProperties';
 import { useEdges } from './useEdges';
 import { useRelationTypes } from './useRelationTypes';
-import { useAxioms } from './useAxioms';
 import { useInstanceValues } from './useInstanceValues';
 import { usePartitions } from './usePartitions';
 import { useOntologyStore } from './useOntologyStore';
@@ -17,13 +16,12 @@ import type {
   OntologyProperty,
   RelationType,
   OntologyEdge,
-  OntologyAxiom,
   InstanceValue,
   Partition,
 } from '../lib/types';
 
 // PRD-Perf M3-3: 2단계 프로그레시브 로딩.
-// 1단계(스키마: 클래스·속성·엣지·관계유형·공리·구획)가 도착하면 즉시 렌더하고,
+// 1단계(스키마: 클래스·속성·엣지·관계유형·구획)가 도착하면 즉시 렌더하고,
 // 2단계(인스턴스·인스턴스값 — 데이터의 대부분)는 도착하는 대로 병합한다.
 // 첫 페인트가 인스턴스 수와 디커플되며, 가장 느린 쿼리 하나가 전체를 막지 않는다.
 export function useLoadOntology() {
@@ -37,7 +35,6 @@ export function useLoadOntology() {
   const propertiesQuery = useAllProperties();
   const edgesQuery = useEdges();
   const relationTypesQuery = useRelationTypes();
-  const axiomsQuery = useAxioms();
   const instanceValuesQuery = useInstanceValues();
   const partitionsQuery = usePartitions();
 
@@ -46,7 +43,6 @@ export function useLoadOntology() {
     propertiesQuery.isSuccess &&
     edgesQuery.isSuccess &&
     relationTypesQuery.isSuccess &&
-    axiomsQuery.isSuccess &&
     partitionsQuery.isSuccess;
 
   const instancesLoaded = instancesQuery.isSuccess && instanceValuesQuery.isSuccess;
@@ -59,7 +55,6 @@ export function useLoadOntology() {
     propertiesQuery.isLoading ||
     edgesQuery.isLoading ||
     relationTypesQuery.isLoading ||
-    axiomsQuery.isLoading ||
     partitionsQuery.isLoading;
 
   const isError =
@@ -68,7 +63,6 @@ export function useLoadOntology() {
     propertiesQuery.isError ||
     edgesQuery.isError ||
     relationTypesQuery.isError ||
-    axiomsQuery.isError ||
     instanceValuesQuery.isError ||
     partitionsQuery.isError;
 
@@ -78,7 +72,6 @@ export function useLoadOntology() {
         propertiesQuery.dataUpdatedAt,
         edgesQuery.dataUpdatedAt,
         relationTypesQuery.dataUpdatedAt,
-        axiomsQuery.dataUpdatedAt,
         partitionsQuery.dataUpdatedAt,
       )
     : 0;
@@ -106,7 +99,6 @@ export function useLoadOntology() {
       properties: (propertiesQuery.data as OntologyProperty[]) ?? [],
       relationTypes: (relationTypesQuery.data as RelationType[]) ?? [],
       edges: (edgesQuery.data as OntologyEdge[]) ?? [],
-      axioms: (axiomsQuery.data as OntologyAxiom[]) ?? [],
       instanceValues: (instanceValuesQuery.data as InstanceValue[]) ?? [],
       partitions: (partitionsQuery.data as Partition[]) ?? [],
     });
@@ -119,7 +111,6 @@ export function useLoadOntology() {
     propertiesQuery.data,
     edgesQuery.data,
     relationTypesQuery.data,
-    axiomsQuery.data,
     instanceValuesQuery.data,
     partitionsQuery.data,
     loadOntology,

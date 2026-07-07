@@ -20,7 +20,7 @@ const SYSTEM_PROMPT = `너는 온톨로지 거버넌스 보조기다. 도메인 
 - property_required: 누락이 드문(항상 채워지는) 프로퍼티 → targetClass + property.
 - property_enum: 값이 정해진 집합에서 나오는 프로퍼티 → targetClass + property + enumValues.
 - edge_cardinality: 관계 다중성 추정 → relationType + min/maxCardinality.
-- axiom: 정량 규칙 → axiomLogic(한 줄 규칙 표현).
+- axiom: 자유서술 규칙(설명 메모) 제안 → axiomLogic(한 줄 규칙 표현). 승인 시 constraints(kind='memo')로 기록된다.
 
 엄격 규칙:
 - 근거 없는 제안 금지. 추측·환각 금지. 애매하면 제안하지 않는다(빈 배열 허용).

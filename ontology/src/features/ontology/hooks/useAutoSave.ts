@@ -31,7 +31,6 @@ function buildAutoSaveMessage(
     properties: '프로퍼티',
     edges: '관계',
     relation_types: '관계 타입',
-    axioms: '공리',
     instance_values: '인스턴스 값',
   };
   const opLabels: Record<string, string> = {

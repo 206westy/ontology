@@ -1,6 +1,8 @@
 // Shared enrichment types for the A-3 (gap detection) → A-4 (sourcing) → A-5 (HITL)
 // pipeline. Kept framework-free so both API routes and UI can import them.
 
+// PRD-L M1: 'missing_axiom' 은 내부 신호 라벨(엔티티 아님) — 의미는 "빠진 규칙
+// (memo/enforced) 신호"다. wire 호환을 위해 문자열 값은 유지한다.
 export type GapKind =
   | 'no_definition'
   | 'isolated'
@@ -29,7 +31,7 @@ export type EnrichSourceType =
 // A concrete enrichment proposal produced by A-4 sourcing for a given gap.
 export interface EnrichProposal {
   kind: GapKind;
-  // Human-readable proposed value (a definition, an axiom expression, a numeric
+  // Human-readable proposed value (a definition, a rule expression, a numeric
   // value, a property suggestion, …).
   value: string;
   sourceType: EnrichSourceType;
@@ -49,7 +51,7 @@ export const GAP_KIND_LABELS: Record<GapKind, string> = {
   no_definition: '정의 없음',
   isolated: '고립 노드',
   missing_property: '프로퍼티 누락',
-  missing_axiom: '정량 axiom 누락',
+  missing_axiom: '정량 규칙 누락',
   undefined_concept: '미정의 개념',
   low_confidence: '타입 확신 낮음',
 };

@@ -6,7 +6,7 @@ import {
   createInstanceSchema,
   createEdgeSchema,
   createRelationTypeSchema,
-  createAxiomSchema,
+  createConstraintSchema,
   createCommitSchema,
   parsedRelationSchema,
   parsedEntityPropertySchema,
@@ -196,25 +196,46 @@ describe('parsedEntityPropertySchema (PR1: 동작 모드 enum 속성)', () => {
   });
 });
 
-describe('createAxiomSchema', () => {
-  it('should accept valid axiom with defaults', () => {
-    const result = createAxiomSchema.safeParse({ description: 'Must have name' });
+// PRD-L M1: 단일 "규칙" 모델 — kind ↔ constraintType 정합(refine) 검증.
+describe('createConstraintSchema (PRD-L M1 kind refine)', () => {
+  it('should default kind to enforced and require constraintType', () => {
+    const result = createConstraintSchema.safeParse({
+      constraintType: 'cardinality',
+      description: '최소 1개 관계',
+    });
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.severity).toBe('warning');
-      expect(result.data.classIds).toEqual([]);
+      expect(result.data.kind).toBe('enforced');
+      expect(result.data.constraintType).toBe('cardinality');
     }
   });
 
-  it('should reject empty description', () => {
-    const result = createAxiomSchema.safeParse({ description: '' });
+  it("should reject kind='enforced' without constraintType", () => {
+    const result = createConstraintSchema.safeParse({
+      kind: 'enforced',
+      description: '타입 없는 강제 규칙',
+    });
     expect(result.success).toBe(false);
   });
 
-  it('should reject invalid severity', () => {
-    const result = createAxiomSchema.safeParse({
-      description: 'Test',
-      severity: 'critical',
+  it("should accept kind='memo' with description only (constraintType null)", () => {
+    const result = createConstraintSchema.safeParse({
+      kind: 'memo',
+      constraintType: null,
+      description: '참고용 설명 메모',
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.kind).toBe('memo');
+      expect(result.data.constraintType).toBeNull();
+    }
+  });
+
+  it("should reject kind='memo' with a constraintType", () => {
+    const result = createConstraintSchema.safeParse({
+      kind: 'memo',
+      constraintType: 'cardinality',
+      description: '메모인데 타입이 있음',
     });
     expect(result.success).toBe(false);
   });

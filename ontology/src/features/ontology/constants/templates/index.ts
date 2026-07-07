@@ -215,8 +215,6 @@ export function buildImportPayload(templateId: string) {
       instanceValues: [],
       relationTypes: relationTypesPayload,
       edges: edgesPayload,
-      axioms: [],
-      axiomClasses: [],
       constraints: [],
     },
     strategy: 'replace' as const,

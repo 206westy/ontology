@@ -91,7 +91,6 @@ function resetStore() {
     properties: [],
     relationTypes: [],
     edges: [],
-    axioms: [],
     instanceValues: [],
     selectedNodeId: null,
     selectedNodeType: null,

@@ -7,13 +7,13 @@ import {
   instanceValues,
   edges,
   relationTypes,
-  axioms,
-  axiomClasses,
   constraints,
 } from '@/lib/drizzle/schema';
 import { importRequestSchema } from '@/features/ontology/lib/schemas';
 import { handleApiError } from '@/lib/api-error';
 
+// PRD-L M1: 과거 export 페이로드의 axioms/axiomClasses 키는 스키마 검증에서
+// 무시되어(zod 알 수 없는 키 strip) 에러 없이 통과한다 — 하위호환.
 interface OntologyPayload {
   classes: Array<Record<string, unknown>>;
   properties: Array<Record<string, unknown>>;
@@ -21,8 +21,6 @@ interface OntologyPayload {
   instanceValues: Array<Record<string, unknown>>;
   relationTypes: Array<Record<string, unknown>>;
   edges: Array<Record<string, unknown>>;
-  axioms: Array<Record<string, unknown>>;
-  axiomClasses: Array<Record<string, unknown>>;
   constraints: Array<Record<string, unknown>>;
 }
 
@@ -33,8 +31,6 @@ interface ImportStats {
   instanceValues: number;
   relationTypes: number;
   edges: number;
-  axioms: number;
-  axiomClasses: number;
   constraints: number;
 }
 
@@ -52,7 +48,7 @@ function detectFormat(contentType: string | null): 'json' | 'jsonld' | 'turtle' 
 
 /**
  * Convert RDF-based import data (from jsonld/turtle) into the full ontology payload
- * by filling in empty arrays for entities not represented in RDF (axioms, etc.)
+ * by filling in empty arrays for entities not represented in RDF (constraints)
  */
 function normalizeRdfPayload(
   rdfResult: {
@@ -66,8 +62,6 @@ function normalizeRdfPayload(
 ): OntologyPayload {
   return {
     ...rdfResult,
-    axioms: [],
-    axiomClasses: [],
     constraints: [],
   };
 }
@@ -85,16 +79,12 @@ async function insertOntology(
     instanceValues: 0,
     relationTypes: 0,
     edges: 0,
-    axioms: 0,
-    axiomClasses: 0,
     constraints: 0,
   };
 
   await db.transaction(async (tx) => {
     // If strategy is 'replace', delete everything first (reverse dependency order)
     if (strategy === 'replace') {
-      await tx.delete(axiomClasses);
-      await tx.delete(axioms);
       await tx.delete(constraints);
       await tx.delete(edges);
       await tx.delete(instanceValues);
@@ -192,33 +182,13 @@ async function insertOntology(
       }
     }
 
-    if (ontology.axioms.length > 0) {
-      for (const axiom of ontology.axioms) {
-        await tx.insert(axioms).values({
-          id: axiom.id as string,
-          description: axiom.description as string,
-          ruleLogic: axiom.ruleLogic ?? {},
-          severity: (axiom.severity as string) ?? 'warning',
-        });
-        stats.axioms++;
-      }
-    }
-
-    if (ontology.axiomClasses.length > 0) {
-      for (const ac of ontology.axiomClasses) {
-        await tx.insert(axiomClasses).values({
-          axiomId: ac.axiomId as string,
-          classId: ac.classId as string,
-        });
-        stats.axiomClasses++;
-      }
-    }
-
     if (ontology.constraints.length > 0) {
       for (const c of ontology.constraints) {
         await tx.insert(constraints).values({
           id: c.id as string,
-          constraintType: c.constraintType as string,
+          // PRD-L M1: kind 미지정 과거 페이로드는 enforced 로 간주(기존 의미 보존).
+          kind: (c.kind as string) ?? 'enforced',
+          constraintType: (c.constraintType as string) ?? null,
           description: (c.description as string) ?? '',
           sourceClassId: (c.sourceClassId as string) ?? null,
           targetClassId: (c.targetClassId as string) ?? null,
@@ -314,8 +284,6 @@ export async function POST(request: NextRequest) {
       instanceValues: ontology.instanceValues,
       relationTypes: ontology.relationTypes,
       edges: ontology.edges,
-      axioms: ontology.axioms,
-      axiomClasses: ontology.axiomClasses,
       constraints: ontology.constraints,
     };
 

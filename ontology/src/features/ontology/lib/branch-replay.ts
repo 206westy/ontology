@@ -4,7 +4,6 @@ import type {
   OntologyProperty,
   RelationType,
   OntologyEdge,
-  OntologyAxiom,
   InstanceValue,
   CommitDetail,
   ChangeOperation,
@@ -20,6 +19,8 @@ import type {
 
 export const BRANCH_SNAPSHOT_SCHEMA_VERSION = 1;
 
+// PRD-L M1 하위호환: 과거 스냅샷 JSON 에 axioms 키가 남아 있을 수 있다.
+// 타입에서 제거됐지만 알 수 없는 키는 그냥 무시되어 에러 없이 통과한다.
 export interface BranchSnapshot {
   schemaVersion?: number;
   classes: OntologyClass[];
@@ -28,7 +29,6 @@ export interface BranchSnapshot {
   instanceValues: InstanceValue[];
   relationTypes: RelationType[];
   edges: OntologyEdge[];
-  axioms: OntologyAxiom[];
 }
 
 export interface BranchWorkingState {
@@ -38,7 +38,6 @@ export interface BranchWorkingState {
   instanceValues: InstanceValue[];
   relationTypes: RelationType[];
   edges: OntologyEdge[];
-  axioms: OntologyAxiom[];
 }
 
 export type ReplayDetail = Pick<
@@ -48,6 +47,7 @@ export type ReplayDetail = Pick<
 
 type EntityKey = keyof BranchWorkingState;
 
+// PRD-L M1: 과거 커밋의 axioms detail 은 매핑이 없어 재생에서 조용히 스킵된다(하위호환).
 const TABLE_TO_KEY: Record<string, EntityKey> = {
   classes: 'classes',
   properties: 'properties',
@@ -55,7 +55,6 @@ const TABLE_TO_KEY: Record<string, EntityKey> = {
   instance_values: 'instanceValues',
   relation_types: 'relationTypes',
   edges: 'edges',
-  axioms: 'axioms',
 };
 
 function applyOne<T extends { id: string }>(
@@ -92,7 +91,6 @@ export function materializeBranchState(
     instanceValues: snapshot.instanceValues ?? [],
     relationTypes: snapshot.relationTypes ?? [],
     edges: snapshot.edges ?? [],
-    axioms: snapshot.axioms ?? [],
   };
 
   for (const detail of detailsInOrder) {

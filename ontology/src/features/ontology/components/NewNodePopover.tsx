@@ -302,7 +302,6 @@ export default function NewNodePopover() {
   const addInstance = useOntologyStore((s) => s.addInstance);
   const currentPartitionId = useOntologyStore((s) => s.currentPartitionId);
   const setInstanceValue = useOntologyStore((s) => s.setInstanceValue);
-  const addAxiom = useOntologyStore((s) => s.addAxiom);
 
   const classes = useOntologyStore((s) => s.classes);
   const relationTypes = useOntologyStore((s) => s.relationTypes);
@@ -866,7 +865,7 @@ export default function NewNodePopover() {
     }
   };
 
-  // 거버넌스 제안 승인 → constraints/axioms 테이블 기록 + 출처.
+  // 거버넌스 제안 승인 → constraints 테이블 기록 + 출처 (PRD-L M1: 단일 규칙 모델).
   const applyGovernance = async (p: GovernanceProposal, idx: number) => {
     setApplyingGov((prev) => new Set(prev).add(idx));
     try {
@@ -881,12 +880,21 @@ export default function NewNodePopover() {
       };
 
       if (p.kind === 'axiom') {
-        const cid = classId(p.targetClass);
-        addAxiom({
-          description: p.title,
-          ruleLogic: p.axiomLogic ? { expr: p.axiomLogic } : {},
-          classIds: cid ? [cid] : [],
+        // 'axiom' 제안 = 설명 메모 규칙 제안 — constraints(kind='memo')로 기록.
+        await constraintsApi.create({
+          kind: 'memo',
+          constraintType: null,
+          description: p.axiomLogic ? `${p.title} — ${p.axiomLogic}` : p.title,
+          sourceClassId: classId(p.targetClass),
+          targetClassId: null,
+          relationTypeId: null,
+          propertyId: null,
+          config: {},
           severity: 'warning',
+          isActive: true,
+          sourceType: 'inferred',
+          confidence: p.confidence,
+          evidence: p.evidence,
         });
       } else {
         const typeMap: Record<string, 'cardinality' | 'disjoint' | 'domain_range' | 'property_value'> = {
@@ -905,6 +913,7 @@ export default function NewNodePopover() {
         if (p.kind === 'property_required') config.required = true;
         if (p.disjointWith) config.disjointWith = p.disjointWith;
         await constraintsApi.create({
+          kind: 'enforced',
           constraintType: typeMap[p.kind],
           description: p.title,
           sourceClassId: classId(p.targetClass),

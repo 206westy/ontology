@@ -62,7 +62,8 @@ const TABLE_LABELS: Record<string, string> = {
   properties: '프로퍼티',
   edges: '관계',
   relation_types: '관계 유형',
-  axioms: '공리',
+  // 과거 브랜치 커밋의 axioms detail 표시용(하위호환) — 현행은 constraints 단일 규칙.
+  axioms: '규칙(설명 메모)',
   instance_values: '인스턴스 값',
 };
 

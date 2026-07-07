@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useOntologyStore } from './useOntologyStore';
-import { classesApi, propertiesApi, instancesApi, edgesApi, relationTypesApi, axiomsApi, instanceValuesApi, batchApi } from '../api';
+import { classesApi, propertiesApi, instancesApi, edgesApi, relationTypesApi, instanceValuesApi, batchApi } from '../api';
 import type { BatchOperation } from '../lib/schemas';
 import { toast } from 'sonner';
 
@@ -84,7 +84,6 @@ const SYNC_PRIORITY: Record<string, number> = {
   instances: 1,
   edges: 2,
   instance_values: 2,
-  axioms: 2,
 };
 
 type PendingChange = { id: string; operation: string; targetTable: string; targetId: string; targetName: string };
@@ -222,22 +221,6 @@ function buildAddOperation(
         },
       };
     }
-    case 'axioms': {
-      const axiom = state.axioms.find((a) => a.id === targetId);
-      if (!axiom) return null;
-      return {
-        type: 'axiom',
-        action: 'create',
-        id: targetId,
-        data: {
-          id: targetId,
-          description: axiom.description,
-          ruleLogic: axiom.ruleLogic ?? {},
-          severity: axiom.severity,
-          classIds: axiom.classIds,
-        },
-      };
-    }
     case 'relation_types': {
       const rt = state.relationTypes.find((r) => r.id === targetId);
       if (!rt) return null;
@@ -307,17 +290,6 @@ async function syncChange(
         });
         break;
       }
-      case 'axioms': {
-        const axiom = state.axioms.find((a) => a.id === targetId);
-        if (!axiom) return;
-        await axiomsApi.update(targetId, {
-          description: axiom.description,
-          ruleLogic: axiom.ruleLogic ?? {},
-          severity: axiom.severity as 'info' | 'warning' | 'error',
-          classIds: axiom.classIds,
-        });
-        break;
-      }
       case 'relation_types': {
         const rt = state.relationTypes.find((r) => r.id === targetId);
         if (!rt) return;
@@ -362,10 +334,6 @@ async function syncChange(
       }
       case 'properties': {
         await propertiesApi.delete(targetId).catch(ignoreNotFound);
-        break;
-      }
-      case 'axioms': {
-        await axiomsApi.delete(targetId).catch(ignoreNotFound);
         break;
       }
       case 'relation_types': {

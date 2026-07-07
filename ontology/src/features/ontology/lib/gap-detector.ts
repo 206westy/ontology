@@ -2,7 +2,8 @@ import type { Gap } from './enrich-types';
 
 // Deterministic gap signals (A-3) — no LLM, fast. Operates on a name-based
 // subgraph (freshly-extracted nodes plus any adjacent existing nodes), since the
-// preview runs before anything is persisted. Qualitative signals (missing_axiom,
+// preview runs before anything is persisted. Qualitative signals (missing_axiom
+// = "빠진 규칙(memo/enforced) 신호" — PRD-L M1 이후에도 내부 라벨은 유지 —,
 // low_confidence, selective no_definition) are added by the LLM pass in the route.
 
 export interface DetectNode {

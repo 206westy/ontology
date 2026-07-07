@@ -11,7 +11,6 @@ vi.mock('@/features/ontology/api', () => ({
   propertiesApi: { list: vi.fn().mockResolvedValue([]) },
   edgesApi: { list: vi.fn().mockResolvedValue([]) },
   relationTypesApi: { list: vi.fn().mockResolvedValue([]) },
-  axiomsApi: { list: vi.fn().mockResolvedValue([]) },
   instanceValuesApi: {
     list: vi.fn().mockResolvedValue([
       { id: 'iv-1', instanceId: 'inst-1', propertyId: 'prop-1', value: '25' },

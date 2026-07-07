@@ -217,10 +217,8 @@ const CREATE_ORDER: Record<string, number> = {
   instances: 3,
   instance_values: 4,
   edges: 5,
-  axioms: 6,
 };
 const DELETE_ORDER: Record<string, number> = {
-  axioms: 0,
   edges: 1,
   instance_values: 2,
   instances: 3,

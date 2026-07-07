@@ -105,7 +105,7 @@ export async function POST(request: Request) {
 const KIND_GUIDANCE: Record<string, string> = {
   no_definition: 'a concise definition of the concept',
   undefined_concept: 'a concise definition of the concept',
-  missing_axiom: 'a quantitative axiom — a threshold, bound, or direction constraint (e.g. "RF < X is preferred")',
+  missing_axiom: 'a quantitative rule — a threshold, bound, or direction constraint (e.g. "RF < X is preferred")',
   missing_property: 'one or more properties (name: dataType) the concept should have',
   low_confidence: 'a more confident type/category for the concept',
   isolated: 'a plausible grounded relation to another concept',

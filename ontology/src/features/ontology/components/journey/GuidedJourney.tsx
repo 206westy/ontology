@@ -440,7 +440,8 @@ export default function GuidedJourney() {
     [createBridge],
   );
 
-  // PRD-I (M3): 거버넌스 승인 → 팝오버 applyGovernance 와 동일하게 axiom/constraint 반영.
+  // PRD-I (M3): 거버넌스 승인 → 팝오버 applyGovernance 와 동일하게 constraints 반영
+  // (PRD-L M1: 'axiom' kind = 설명 메모 규칙 → kind='memo').
   // 실패는 조용히 흡수(fire-and-forget) — 여정 진행은 카드가 스스로 다음 스텝으로 넘긴다.
   const handleReviewApproveGovernance = useCallback((p: GovernanceProposal) => {
     const store = useOntologyStore.getState();
@@ -455,13 +456,25 @@ export default function GuidedJourney() {
     };
 
     if (p.kind === 'axiom') {
-      const cid = classId(p.targetClass);
-      store.addAxiom({
-        description: p.title,
-        ruleLogic: p.axiomLogic ? { expr: p.axiomLogic } : {},
-        classIds: cid ? [cid] : [],
-        severity: 'warning',
-      });
+      void constraintsApi
+        .create({
+          kind: 'memo',
+          constraintType: null,
+          description: p.axiomLogic ? `${p.title} — ${p.axiomLogic}` : p.title,
+          sourceClassId: classId(p.targetClass),
+          targetClassId: null,
+          relationTypeId: null,
+          propertyId: null,
+          config: {},
+          severity: 'warning',
+          isActive: true,
+          sourceType: 'inferred',
+          confidence: p.confidence,
+          evidence: p.evidence,
+        })
+        .catch(() => {
+          // 반영 실패는 조용히 흡수 — 검수 흐름은 계속.
+        });
       return;
     }
     const typeMap: Record<string, 'cardinality' | 'disjoint' | 'domain_range' | 'property_value'> = {
@@ -481,6 +494,7 @@ export default function GuidedJourney() {
     if (p.disjointWith) config.disjointWith = p.disjointWith;
     void constraintsApi
       .create({
+        kind: 'enforced',
         constraintType: typeMap[p.kind],
         description: p.title,
         sourceClassId: classId(p.targetClass),

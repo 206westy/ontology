@@ -50,7 +50,7 @@ import { Separator } from '@/components/ui/separator';
 import { useOntologyStore } from '../hooks/useOntologyStore';
 import { constraintsApi, validateApi } from '../api';
 import { toast } from 'sonner';
-import type { ConstraintType, OntologyConstraint } from '../lib/types';
+import type { ConstraintKind, ConstraintType, OntologyConstraint } from '../lib/types';
 
 type ConstraintTypeInfo = {
   value: ConstraintType;
@@ -92,9 +92,29 @@ const SEVERITY_OPTIONS = [
   { value: 'info', label: '참고', icon: Info, color: 'text-blue-500' },
 ] as const;
 
-function getConstraintIcon(type: ConstraintType) {
+function getConstraintIcon(type: ConstraintType | null) {
   const info = CONSTRAINT_TYPES.find((t) => t.value === type);
   return info?.icon ?? Shield;
+}
+
+// PRD-L M1: kind 배지 — 강제 규칙과 설명 메모를 한 목록에서 구분한다.
+// 배지 taxonomy 스타일(semantic 토큰) 재사용, 12px(text-xs) 유지(PRD-K 스케일).
+function RuleKindBadge({ kind }: { kind: ConstraintKind }) {
+  const isEnforced = kind === 'enforced';
+  return (
+    <span
+      className={`inline-flex shrink-0 items-center rounded border px-1.5 py-0 text-xs ${
+        isEnforced ? 'border-info/50 text-info' : 'border-border text-muted-foreground'
+      }`}
+      title={
+        isEnforced
+          ? '검증 실행 시 실제로 검사됩니다'
+          : '참고용 메모 — 검증에서 검사되지 않습니다'
+      }
+    >
+      {isEnforced ? '강제됨' : '설명 메모'}
+    </span>
+  );
 }
 
 function getSeverityIcon(severity: string) {
@@ -111,6 +131,7 @@ interface ConstraintWithRelations extends OntologyConstraint {
 }
 
 interface AddConstraintFormState {
+  kind: ConstraintKind;
   constraintType: ConstraintType;
   description: string;
   sourceClassId: string;
@@ -126,6 +147,7 @@ interface AddConstraintFormState {
 }
 
 const INITIAL_FORM: AddConstraintFormState = {
+  kind: 'enforced',
   constraintType: 'cardinality',
   description: '',
   sourceClassId: '',
@@ -209,18 +231,35 @@ export default function ConstraintsPanel() {
 
     setSubmitting(true);
     try {
-      await constraintsApi.create({
-        constraintType: form.constraintType,
-        description: form.description.trim(),
-        sourceClassId: form.sourceClassId || null,
-        targetClassId: form.targetClassId || null,
-        relationTypeId: form.relationTypeId || null,
-        propertyId: form.propertyId || null,
-        config: buildConfig(form),
-        severity: form.severity as 'error' | 'warning' | 'info',
-        isActive: true,
-      });
-      toast.success('제약 조건이 추가되었습니다');
+      // PRD-L M1: 설명 메모는 constraintType 없이 description 만 기록한다(비강제).
+      if (form.kind === 'memo') {
+        await constraintsApi.create({
+          kind: 'memo',
+          constraintType: null,
+          description: form.description.trim(),
+          sourceClassId: form.sourceClassId || null,
+          targetClassId: null,
+          relationTypeId: null,
+          propertyId: null,
+          config: {},
+          severity: 'info',
+          isActive: true,
+        });
+      } else {
+        await constraintsApi.create({
+          kind: 'enforced',
+          constraintType: form.constraintType,
+          description: form.description.trim(),
+          sourceClassId: form.sourceClassId || null,
+          targetClassId: form.targetClassId || null,
+          relationTypeId: form.relationTypeId || null,
+          propertyId: form.propertyId || null,
+          config: buildConfig(form),
+          severity: form.severity as 'error' | 'warning' | 'info',
+          isActive: true,
+        });
+      }
+      toast.success(form.kind === 'memo' ? '설명 메모가 추가되었습니다' : '제약 조건이 추가되었습니다');
       setShowAddDialog(false);
       setForm(INITIAL_FORM);
       await fetchConstraints();
@@ -356,6 +395,7 @@ export default function ConstraintsPanel() {
         ) : (
           <div className="px-2 py-1 space-y-1">
             {constraints.map((constraint) => {
+              const isMemo = constraint.kind === 'memo';
               const TypeIcon = getConstraintIcon(constraint.constraintType);
               const { Icon: SevIcon, color: sevColor } = getSeverityIcon(constraint.severity);
               return (
@@ -369,13 +409,16 @@ export default function ConstraintsPanel() {
                     <TypeIcon className="w-3.5 h-3.5 text-primary mt-0.5 shrink-0" />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 mb-1">
-                        <Badge
-                          variant="secondary"
-                          className="h-4 text-[9px] px-1.5 font-normal shrink-0"
-                        >
-                          {CONSTRAINT_TYPES.find((t) => t.value === constraint.constraintType)?.label}
-                        </Badge>
-                        <SevIcon className={`w-3 h-3 shrink-0 ${sevColor}`} />
+                        <RuleKindBadge kind={constraint.kind} />
+                        {!isMemo && (
+                          <Badge
+                            variant="secondary"
+                            className="h-4 text-[9px] px-1.5 font-normal shrink-0"
+                          >
+                            {CONSTRAINT_TYPES.find((t) => t.value === constraint.constraintType)?.label}
+                          </Badge>
+                        )}
+                        {!isMemo && <SevIcon className={`w-3 h-3 shrink-0 ${sevColor}`} />}
                         {!constraint.isActive && (
                           <Badge variant="outline" className="h-4 text-[9px] px-1 font-normal text-muted-foreground">
                             비활성
@@ -385,23 +428,24 @@ export default function ConstraintsPanel() {
                       <p className="text-[11px] text-foreground leading-relaxed break-words">
                         {constraint.description || '(설명 없음)'}
                       </p>
+                      {/* 설명 메모는 description 만 — 타입/카디널리티 배지는 표시하지 않는다 */}
                       <div className="flex flex-wrap gap-1 mt-1.5">
                         {constraint.sourceClass && (
                           <Badge variant="outline" className="h-4 text-[9px] px-1.5 font-normal">
                             소스: {constraint.sourceClass.name}
                           </Badge>
                         )}
-                        {constraint.targetClass && (
+                        {!isMemo && constraint.targetClass && (
                           <Badge variant="outline" className="h-4 text-[9px] px-1.5 font-normal">
                             타겟: {constraint.targetClass.name}
                           </Badge>
                         )}
-                        {constraint.relationType && (
+                        {!isMemo && constraint.relationType && (
                           <Badge variant="outline" className="h-4 text-[9px] px-1.5 font-normal text-cyan-700 border-cyan-200">
                             관계: {constraint.relationType.name}
                           </Badge>
                         )}
-                        {constraint.property && (
+                        {!isMemo && constraint.property && (
                           <Badge variant="outline" className="h-4 text-[9px] px-1.5 font-normal text-violet-700 border-violet-200">
                             속성: {constraint.property.name}
                           </Badge>
@@ -450,40 +494,65 @@ export default function ConstraintsPanel() {
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
         <DialogContent className="sm:max-w-[480px]">
           <DialogHeader>
-            <DialogTitle className="text-base">제약 조건 추가</DialogTitle>
+            <DialogTitle className="text-base">규칙 추가</DialogTitle>
             <DialogDescription className="text-xs">
-              온톨로지에 적용할 제약 조건을 설정합니다.
+              온톨로지에 적용할 규칙을 설정합니다.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-2">
-            {/* Constraint Type */}
+            {/* PRD-L M1: 규칙 종류 — 유형 규칙(강제) / 설명 메모(비강제) */}
             <div className="space-y-1.5">
-              <Label className="text-xs">제약 유형</Label>
+              <Label className="text-xs">규칙 종류</Label>
               <Select
-                value={form.constraintType}
+                value={form.kind}
                 onValueChange={(v) =>
-                  setForm((f) => ({ ...f, constraintType: v as ConstraintType }))
+                  setForm((f) => ({ ...f, kind: v as ConstraintKind }))
                 }
               >
                 <SelectTrigger className="h-9 text-xs">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {CONSTRAINT_TYPES.map((ct) => {
-                    const Icon = ct.icon;
-                    return (
-                      <SelectItem key={ct.value} value={ct.value}>
-                        <span className="flex items-center gap-2">
-                          <Icon className="w-3.5 h-3.5" />
-                          {ct.label} — {ct.description}
-                        </span>
-                      </SelectItem>
-                    );
-                  })}
+                  <SelectItem value="enforced">
+                    유형 규칙 — 검증 실행 시 실제로 검사됩니다
+                  </SelectItem>
+                  <SelectItem value="memo">
+                    설명 메모 — 참고용 메모, 검증에서 검사되지 않습니다
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Constraint Type (enforced only) */}
+            {form.kind === 'enforced' && (
+              <div className="space-y-1.5">
+                <Label className="text-xs">제약 유형</Label>
+                <Select
+                  value={form.constraintType}
+                  onValueChange={(v) =>
+                    setForm((f) => ({ ...f, constraintType: v as ConstraintType }))
+                  }
+                >
+                  <SelectTrigger className="h-9 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CONSTRAINT_TYPES.map((ct) => {
+                      const Icon = ct.icon;
+                      return (
+                        <SelectItem key={ct.value} value={ct.value}>
+                          <span className="flex items-center gap-2">
+                            <Icon className="w-3.5 h-3.5" />
+                            {ct.label} — {ct.description}
+                          </span>
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             {/* Description */}
             <div className="space-y-1.5">
@@ -491,63 +560,71 @@ export default function ConstraintsPanel() {
               <Input
                 value={form.description}
                 onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-                placeholder="이 제약 조건에 대한 설명..."
+                placeholder={
+                  form.kind === 'memo'
+                    ? '자유서술 설명 메모...'
+                    : '이 제약 조건에 대한 설명...'
+                }
                 className="h-9 text-xs"
               />
             </div>
 
-            {/* Severity */}
-            <div className="space-y-1.5">
-              <Label className="text-xs">심각도</Label>
-              <Select
-                value={form.severity}
-                onValueChange={(v) => setForm((f) => ({ ...f, severity: v }))}
-              >
-                <SelectTrigger className="h-9 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {SEVERITY_OPTIONS.map((s) => (
-                    <SelectItem key={s.value} value={s.value}>
-                      <span className="flex items-center gap-2">
-                        <s.icon className={`w-3.5 h-3.5 ${s.color}`} />
-                        {s.label}
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Severity (enforced only) */}
+            {form.kind === 'enforced' && (
+              <div className="space-y-1.5">
+                <Label className="text-xs">심각도</Label>
+                <Select
+                  value={form.severity}
+                  onValueChange={(v) => setForm((f) => ({ ...f, severity: v }))}
+                >
+                  <SelectTrigger className="h-9 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SEVERITY_OPTIONS.map((s) => (
+                      <SelectItem key={s.value} value={s.value}>
+                        <span className="flex items-center gap-2">
+                          <s.icon className={`w-3.5 h-3.5 ${s.color}`} />
+                          {s.label}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
-            {/* Source Class */}
-            <div className="space-y-1.5">
-              <Label className="text-xs">소스 클래스</Label>
-              <Select
-                value={form.sourceClassId || '_none'}
-                onValueChange={(v) =>
-                  setForm((f) => ({
-                    ...f,
-                    sourceClassId: v === '_none' ? '' : v,
-                    propertyId: '',
-                  }))
-                }
-              >
-                <SelectTrigger className="h-9 text-xs">
-                  <SelectValue placeholder="선택 (선택사항)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="_none">(없음)</SelectItem>
-                  {classes.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Source Class (enforced only — 메모는 description 하나만 입력) */}
+            {form.kind === 'enforced' && (
+              <div className="space-y-1.5">
+                <Label className="text-xs">소스 클래스</Label>
+                <Select
+                  value={form.sourceClassId || '_none'}
+                  onValueChange={(v) =>
+                    setForm((f) => ({
+                      ...f,
+                      sourceClassId: v === '_none' ? '' : v,
+                      propertyId: '',
+                    }))
+                  }
+                >
+                  <SelectTrigger className="h-9 text-xs">
+                    <SelectValue placeholder="선택 (선택사항)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="_none">(없음)</SelectItem>
+                    {classes.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             {/* Target Class (for disjoint and domain_range) */}
-            {(form.constraintType === 'disjoint' || form.constraintType === 'domain_range') && (
+            {form.kind === 'enforced' && (form.constraintType === 'disjoint' || form.constraintType === 'domain_range') && (
               <div className="space-y-1.5">
                 <Label className="text-xs">타겟 클래스</Label>
                 <Select
@@ -572,7 +649,7 @@ export default function ConstraintsPanel() {
             )}
 
             {/* Relation Type (for cardinality and domain_range) */}
-            {(form.constraintType === 'cardinality' || form.constraintType === 'domain_range') && (
+            {form.kind === 'enforced' && (form.constraintType === 'cardinality' || form.constraintType === 'domain_range') && (
               <div className="space-y-1.5">
                 <Label className="text-xs">관계 타입</Label>
                 <Select
@@ -597,7 +674,7 @@ export default function ConstraintsPanel() {
             )}
 
             {/* Property (for property_value) */}
-            {form.constraintType === 'property_value' && (
+            {form.kind === 'enforced' && form.constraintType === 'property_value' && (
               <div className="space-y-1.5">
                 <Label className="text-xs">프로퍼티</Label>
                 <Select
@@ -622,7 +699,7 @@ export default function ConstraintsPanel() {
             )}
 
             {/* Cardinality Config */}
-            {form.constraintType === 'cardinality' && (
+            {form.kind === 'enforced' && form.constraintType === 'cardinality' && (
               <div className="space-y-1.5">
                 <Label className="text-xs">카디널리티 범위</Label>
                 <div className="flex items-center gap-2">
@@ -652,7 +729,7 @@ export default function ConstraintsPanel() {
             )}
 
             {/* Property Value Config */}
-            {form.constraintType === 'property_value' && (
+            {form.kind === 'enforced' && form.constraintType === 'property_value' && (
               <div className="space-y-3">
                 <div className="space-y-1.5">
                   <Label className="text-xs">값 범위</Label>

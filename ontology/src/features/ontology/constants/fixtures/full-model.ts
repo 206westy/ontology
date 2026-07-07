@@ -3,7 +3,7 @@ import type { ModelSnapshot } from '@/lib/neo4j/reconcile';
 
 // PRD-E P1-4: 6요소(어트리뷰션 포함) 전부를 담은 무손실 라운드트립 시드 픽스처.
 // 1)클래스 2)프로퍼티(enum) 3)인스턴스+값 4)관계타입(domain/range) 5)엣지(cardinality)
-// 6)어트리뷰션 + 공리 + 제약.
+// 6)어트리뷰션 + 규칙(constraints).
 
 const PARTITION = '00000000-0000-0000-0000-000000000001';
 export const FULL_MODEL_IDS = {
@@ -15,7 +15,6 @@ export const FULL_MODEL_IDS = {
   valTemp: 'dddddddd-0000-0000-0000-000000000001',
   relUses: 'eeeeeeee-0000-0000-0000-000000000001',
   edgeUses: 'ffffffff-0000-0000-0000-000000000001',
-  axiom: '11111111-0000-0000-0000-000000000001',
   constraint: '22222222-0000-0000-0000-000000000001',
 } as const;
 
@@ -121,17 +120,6 @@ export const FULL_MODEL_DETAILS: CommitDetail[] = [
       isBridge: false,
       minCardinality: 1,
       maxCardinality: 5,
-    },
-  },
-  // 6-보강) 공리 + 제약 (거버넌스 — Supabase 전용)
-  {
-    operation: 'ADD',
-    targetTable: 'axioms',
-    targetId: ID.axiom,
-    afterSnapshot: {
-      description: 'Chuck 온도는 0 이상',
-      ruleLogic: { op: '>=', field: 'processTemp', value: 0 },
-      severity: 'warning',
     },
   },
 ];

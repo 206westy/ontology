@@ -31,7 +31,6 @@ async function buildMainSnapshot(db: Awaited<ReturnType<typeof getDb>>) {
     allInstanceValues,
     allRelationTypes,
     allEdges,
-    allAxioms,
   ] = await Promise.all([
     db.query.classes.findMany(),
     db.query.properties.findMany(),
@@ -39,7 +38,6 @@ async function buildMainSnapshot(db: Awaited<ReturnType<typeof getDb>>) {
     db.query.instanceValues.findMany(),
     db.query.relationTypes.findMany(),
     db.query.edges.findMany(),
-    db.query.axioms.findMany(),
   ]);
 
   return {
@@ -50,7 +48,6 @@ async function buildMainSnapshot(db: Awaited<ReturnType<typeof getDb>>) {
     instanceValues: allInstanceValues,
     relationTypes: allRelationTypes,
     edges: allEdges,
-    axioms: allAxioms,
   };
 }
 

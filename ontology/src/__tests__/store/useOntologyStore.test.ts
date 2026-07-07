@@ -8,7 +8,6 @@ function resetStore() {
     properties: [],
     relationTypes: [],
     edges: [],
-    axioms: [],
     instanceValues: [],
     selectedNodeId: null,
     selectedNodeType: null,
@@ -244,29 +243,6 @@ describe('useOntologyStore', () => {
     });
   });
 
-  // ─── addAxiom ─────────────────────────────────────────────
-  describe('addAxiom', () => {
-    it('should add an axiom with defaults', () => {
-      const id = useOntologyStore.getState().addAxiom({ description: 'must have name' });
-      const axiom = useOntologyStore.getState().axioms[0];
-
-      expect(axiom.id).toBe(id);
-      expect(axiom.description).toBe('must have name');
-      expect(axiom.severity).toBe('warning');
-      expect(axiom.classIds).toEqual([]);
-    });
-
-    it('should link axiom to classIds', () => {
-      const classId = useOntologyStore.getState().addClass({ name: 'Person' });
-      useOntologyStore.getState().addAxiom({
-        description: 'Person must have age',
-        classIds: [classId],
-      });
-
-      expect(useOntologyStore.getState().axioms[0].classIds).toContain(classId);
-    });
-  });
-
   // ─── selectNode / clearSelection ──────────────────────────
   describe('selectNode / clearSelection', () => {
     it('should select and clear a node', () => {
@@ -282,7 +258,7 @@ describe('useOntologyStore', () => {
 
   // ─── deleteSelectedNode (cascade) ─────────────────────────
   describe('deleteSelectedNode', () => {
-    it('should cascade-delete a class with its instances, properties, edges, axioms', () => {
+    it('should cascade-delete a class with its instances, properties, edges', () => {
       const classId = useOntologyStore.getState().addClass({ name: 'Vehicle' });
       useOntologyStore.getState().addProperty({ name: 'speed', classId });
       const instId = useOntologyStore.getState().addInstance({ name: 'Tesla', classId });
@@ -291,10 +267,6 @@ describe('useOntologyStore', () => {
         sourceId: classId,
         targetId: instId,
         relationTypeId: relTypeId,
-      });
-      useOntologyStore.getState().addAxiom({
-        description: 'Vehicle must have speed',
-        classIds: [classId],
       });
 
       useOntologyStore.getState().selectNode(classId, 'class');
@@ -305,7 +277,6 @@ describe('useOntologyStore', () => {
       expect(state.properties).toHaveLength(0);
       expect(state.instances).toHaveLength(0);
       expect(state.edges).toHaveLength(0);
-      expect(state.axioms).toHaveLength(0);
       expect(state.selectedNodeId).toBeNull();
     });
 
@@ -423,7 +394,6 @@ describe('useOntologyStore', () => {
         properties: [],
         relationTypes: [],
         edges: [],
-        axioms: [],
         instanceValues: [],
       });
 

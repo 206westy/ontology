@@ -7,8 +7,6 @@ import {
   instanceValues,
   edges,
   relationTypes,
-  axioms,
-  axiomClasses,
   attributions,
 } from '@/lib/drizzle/schema';
 import { batchRequestSchema, type BatchOperation } from '@/features/ontology/lib/schemas';
@@ -25,12 +23,10 @@ const CREATE_ORDER = [
   'instance',
   'instance_value',
   'edge',
-  'axiom',
 ] as const;
 
 // 삭제는 의존 역순(자식 먼저).
 const DELETE_ORDER: Record<string, number> = {
-  axiom: 0,
   edge: 1,
   instance_value: 2,
   instance: 3,
@@ -235,29 +231,6 @@ async function applyCreates(
         const a = attributionFor('edges', id, op.data as Record<string, unknown>);
         if (a) attrRows.push(a);
       });
-    } else if (type === 'axiom') {
-      const rows = await tx
-        .insert(axioms)
-        .values(
-          ops.map((op) => {
-            const d = op.data as Record<string, unknown>;
-            return {
-              ...(d.id ? { id: str(d.id) } : {}),
-              description: str(d.description),
-              ruleLogic: d.ruleLogic ?? {},
-              severity: (d.severity as string | undefined) ?? 'warning',
-            };
-          }),
-        )
-        .returning({ id: axioms.id });
-      const junction: Array<{ axiomId: string; classId: string }> = [];
-      ops.forEach((op, i) => {
-        const id = rows[i].id;
-        results.push({ index: op.__idx, type, action: 'create', success: true, id });
-        const classIds = (op.data as Record<string, unknown>).classIds as string[] | undefined;
-        if (classIds) for (const classId of classIds) junction.push({ axiomId: id, classId });
-      });
-      if (junction.length > 0) await tx.insert(axiomClasses).values(junction);
     }
   }
 
@@ -303,8 +276,6 @@ async function applyMutation(
       await tx.update(properties).set(fields as any).where(eq(properties.id, op.id));
     } else if (op.type === 'instance') {
       await tx.update(instances).set({ ...fields, updatedAt: sql`now()` } as any).where(eq(instances.id, op.id));
-    } else if (op.type === 'axiom') {
-      await tx.update(axioms).set(fields as any).where(eq(axioms.id, op.id));
     }
   } else if (op.action === 'delete' && op.id) {
     if (op.type === 'class') await tx.delete(classes).where(eq(classes.id, op.id));
@@ -313,7 +284,6 @@ async function applyMutation(
     else if (op.type === 'instance') await tx.delete(instances).where(eq(instances.id, op.id));
     else if (op.type === 'instance_value') await tx.delete(instanceValues).where(eq(instanceValues.id, op.id));
     else if (op.type === 'edge') await tx.delete(edges).where(eq(edges.id, op.id));
-    else if (op.type === 'axiom') await tx.delete(axioms).where(eq(axioms.id, op.id));
   }
 
   results.push({ index: op.__idx, type: op.type, action: op.action, success: true, id: resultId });

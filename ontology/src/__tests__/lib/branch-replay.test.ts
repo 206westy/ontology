@@ -34,7 +34,6 @@ const emptySnapshot = (over?: Partial<BranchSnapshot>): BranchSnapshot => ({
   instanceValues: [],
   relationTypes: [],
   edges: [],
-  axioms: [],
   ...over,
 });
 

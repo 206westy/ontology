@@ -10,8 +10,6 @@ import {
   instanceValues,
   relationTypes,
   edges,
-  axioms,
-  axiomClasses,
 } from '@/lib/drizzle/schema';
 import {
   computeNetDelta,
@@ -213,26 +211,9 @@ async function upsertOne(tx: Tx, change: NetChange): Promise<void> {
       await tx.insert(edges).values(row).onConflictDoUpdate({ target: edges.id, set });
       break;
     }
-    case 'axioms': {
-      const row = {
-        id,
-        description: s(d.description ?? ''),
-        ruleLogic: d.ruleLogic ?? {},
-        severity: (d.severity as string | undefined) ?? 'warning',
-      };
-      const { id: _i, ...set } = row;
-      await tx.insert(axioms).values(row).onConflictDoUpdate({ target: axioms.id, set });
-      const classIds = d.classIds as string[] | undefined;
-      if (classIds && classIds.length > 0) {
-        await tx.delete(axiomClasses).where(eq(axiomClasses.axiomId, id));
-        await tx
-          .insert(axiomClasses)
-          .values(classIds.map((classId) => ({ axiomId: id, classId })));
-      }
-      break;
-    }
     default:
-      // 스토어 밖 테이블은 병합 대상이 아니다(방어).
+      // 스토어 밖 테이블(과거 브랜치의 axioms detail 포함 — PRD-L M1 하위호환)은
+      // 병합 대상이 아니다(방어적 스킵, 에러 없음).
       break;
   }
 }
@@ -257,9 +238,6 @@ async function deleteOne(tx: Tx, change: NetChange): Promise<void> {
       break;
     case 'edges':
       await tx.delete(edges).where(eq(edges.id, id));
-      break;
-    case 'axioms':
-      await tx.delete(axioms).where(eq(axioms.id, id));
       break;
     default:
       break;

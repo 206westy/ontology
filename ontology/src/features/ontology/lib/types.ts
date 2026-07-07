@@ -67,7 +67,6 @@ export type AttributionTargetTable =
   | 'properties'
   | 'edges'
   | 'relation_types'
-  | 'axioms'
   | 'constraints';
 
 export interface Attribution {
@@ -123,15 +122,6 @@ export interface OntologyEdge {
   evidence?: string | null;
   // PRD-F P4-1: category 판정 확신도. 저신뢰는 traversal 비우선(값 자체는 보존).
   categoryConfidence?: number | null;
-}
-
-export interface OntologyAxiom {
-  id: string;
-  description: string;
-  ruleLogic: Record<string, unknown> | null;
-  severity: string;
-  classIds: string[];
-  createdAt: string;
 }
 
 export interface Commit {
@@ -222,12 +212,17 @@ export interface ValidationResult {
   infos: ValidationIssue[];
 }
 
-// v3: Constraint
+// v3 → PRD-L M1: 단일 "규칙" 모델.
+// kind='enforced': 타입 규칙(검증 엔진 대상) — constraintType 필수.
+// kind='memo': 자유서술 설명 메모(비강제) — constraintType NULL, description 만.
 export type ConstraintType = 'cardinality' | 'disjoint' | 'domain_range' | 'property_value';
+
+export type ConstraintKind = 'enforced' | 'memo';
 
 export interface OntologyConstraint {
   id: string;
-  constraintType: ConstraintType;
+  kind: ConstraintKind;
+  constraintType: ConstraintType | null;
   description: string;
   sourceClassId: string | null;
   targetClassId: string | null;

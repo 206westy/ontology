@@ -58,7 +58,6 @@ export const SAMPLE_ONTOLOGY = {
   properties: SAMPLE_PROPERTIES,
   relationTypes: SAMPLE_RELATION_TYPES,
   edges: SAMPLE_EDGES,
-  axioms: [],
   instanceValues: [],
 };
 

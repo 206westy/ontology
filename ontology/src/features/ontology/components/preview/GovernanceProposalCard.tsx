@@ -13,7 +13,8 @@ const KIND_LABELS: Record<GovernanceKind, string> = {
   property_required: '필수 속성',
   property_enum: 'enum 후보',
   edge_cardinality: '관계 다중성',
-  axiom: '공리',
+  // PRD-L M1: 'axiom' kind = 설명 메모 규칙 제안(승인 시 constraints kind='memo').
+  axiom: '설명 메모',
 };
 
 interface GovernanceProposalCardProps {

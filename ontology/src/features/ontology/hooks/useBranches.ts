@@ -17,14 +17,13 @@ import type { ReplayDetail } from '../lib/branch-replay';
 
 export const BRANCHES_KEY = ['branches'] as const;
 
-// main 재적재를 위해 무효화할 엔티티 쿼리 키(useLoadOntology 가 구독하는 8종).
+// main 재적재를 위해 무효화할 엔티티 쿼리 키(useLoadOntology 가 구독하는 7종).
 const ENTITY_QUERY_KEYS = [
   ['classes'],
   ['instances'],
   ['properties'],
   ['edges'],
   ['relationTypes'],
-  ['axioms'],
   ['instance-values'],
   ['partitions'],
 ] as const;
@@ -86,7 +85,6 @@ export function useBranchActions() {
         properties: state.properties,
         relationTypes: state.relationTypes,
         edges: state.edges,
-        axioms: state.axioms,
         instanceValues: state.instanceValues,
       });
       setCurrentBranch({ id: branch.id, name: branch.name });

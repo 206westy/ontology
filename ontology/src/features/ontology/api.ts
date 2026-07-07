@@ -36,8 +36,6 @@ import type {
   CreateEdgeInput,
   CreateRelationTypeInput,
   UpdateRelationTypeInput,
-  CreateAxiomInput,
-  UpdateAxiomInput,
   CreateCommitInput,
   CreateInstanceValueInput,
   CreateConstraintInput,
@@ -274,27 +272,6 @@ export const relationTypesApi = {
     }).then((r) => handleResponse(r)),
   delete: (id: string) =>
     fetch(`/api/relation-types/${id}`, { method: 'DELETE' }).then((r) =>
-      handleResponse(r),
-    ),
-};
-
-// ─── Axioms ────────────────────────────────────────────────
-export const axiomsApi = {
-  list: () => fetch('/api/axioms').then((r) => handleResponse(r)),
-  create: (data: CreateAxiomInput) =>
-    fetch('/api/axioms', {
-      method: 'POST',
-      headers: jsonHeaders,
-      body: JSON.stringify(data),
-    }).then((r) => handleResponse(r)),
-  update: (id: string, data: UpdateAxiomInput) =>
-    fetch(`/api/axioms/${id}`, {
-      method: 'PATCH',
-      headers: jsonHeaders,
-      body: JSON.stringify(data),
-    }).then((r) => handleResponse(r)),
-  delete: (id: string) =>
-    fetch(`/api/axioms/${id}`, { method: 'DELETE' }).then((r) =>
       handleResponse(r),
     ),
 };
