@@ -882,4 +882,19 @@ export const createEntitySlice: SliceCreator<EntitySlice> = (set, get) => ({
       highlightNodeIds: [],
     });
   },
+
+  // PRD-Perf M3-3: 인스턴스 지연 로드 2단계 — 서버 인스턴스/값만 채워 넣는다.
+  // loadOntology 와 달리 pendingChanges·선택·필터를 리셋하지 않으며,
+  // 로드 창 사이에 사용자가 방금 추가한 로컬 전용 항목은 보존(유니온)한다.
+  mergeInstancesData: ({ instances, instanceValues }) =>
+    set((state) => {
+      const serverInstanceIds = new Set(instances.map((i) => i.id));
+      const localOnlyInstances = state.instances.filter((i) => !serverInstanceIds.has(i.id));
+      const serverValueIds = new Set(instanceValues.map((v) => v.id));
+      const localOnlyValues = state.instanceValues.filter((v) => !serverValueIds.has(v.id));
+      return {
+        instances: [...instances, ...localOnlyInstances],
+        instanceValues: [...instanceValues, ...localOnlyValues],
+      };
+    }),
 });

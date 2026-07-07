@@ -92,6 +92,13 @@ export interface EntitySlice {
     instanceValues: InstanceValue[];
     partitions?: Partition[];
   }) => void;
+
+  // PRD-Perf M3-3: 인스턴스 지연 로드 2단계 병합 — loadOntology 와 달리
+  // pendingChanges/선택/필터를 건드리지 않고 인스턴스 데이터만 채운다.
+  mergeInstancesData: (data: {
+    instances: OntologyInstance[];
+    instanceValues: InstanceValue[];
+  }) => void;
 }
 
 // ── UI Slice ──────────────────────────────────────────────────

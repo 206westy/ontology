@@ -53,6 +53,21 @@ export function clearChangesWithoutHistory(): void {
   }
 }
 
+// PRD-Perf M3-3: 지연 도착한 인스턴스 데이터 병합은 하이드레이션이지 사용자 편집이
+// 아니다 — undo 스냅샷 없이 반영한다("스키마만 있던 상태"로 undo 되는 사고 방지).
+export function mergeInstancesDataWithoutHistory(data: {
+  instances: Parameters<OntologyStore['mergeInstancesData']>[0]['instances'];
+  instanceValues: Parameters<OntologyStore['mergeInstancesData']>[0]['instanceValues'];
+}): void {
+  const temporal = useOntologyStore.temporal.getState();
+  temporal.pause();
+  try {
+    useOntologyStore.getState().mergeInstancesData(data);
+  } finally {
+    temporal.resume();
+  }
+}
+
 // PRD-Perf M1-2: 드래그로 인한 위치 영속은 시각 배치일 뿐 undo 대상이 아니다.
 // clearChangesWithoutHistory 와 같은 pause/resume 패턴으로 스냅샷 없이 기록한다.
 // (pendingChanges 에는 그대로 쌓여 autosave 가 위치를 영속한다 — 동작 불변.)
