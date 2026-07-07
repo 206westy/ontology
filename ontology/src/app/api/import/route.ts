@@ -11,6 +11,7 @@ import {
 } from '@/lib/drizzle/schema';
 import { importRequestSchema } from '@/features/ontology/lib/schemas';
 import { handleApiError } from '@/lib/api-error';
+import { recordRelationTerm } from '@/lib/relation-glossary';
 
 // PRD-L M1: 과거 export 페이로드의 axioms/axiomClasses 키는 스키마 검증에서
 // 무시되어(zod 알 수 없는 키 strip) 에러 없이 통과한다 — 하위호환.
@@ -202,6 +203,16 @@ async function insertOntology(
       }
     }
   });
+
+  // PRD-L M6 (L7): 임포트로 유입된 관계유형 이름도 어휘집에 사후 기록(비치명).
+  for (const rt of ontology.relationTypes) {
+    const name = (rt.name as string) ?? '';
+    await recordRelationTerm(db, {
+      name,
+      layer: rt.layer === 'kinetic' ? 'kinetic' : 'semantic',
+      sourceRef: 'import',
+    });
+  }
 
   return stats;
 }

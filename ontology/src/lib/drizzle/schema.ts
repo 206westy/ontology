@@ -678,3 +678,37 @@ export const termGlossary = pgTable(
     ),
   ],
 );
+
+// ─── relation_glossary (PRD-L M6/L7: 성장형 관계 어휘집 — 사후 정합 전용) ──
+// AI 가 자유 추출한 관계 이름을 사후에 자생적으로 축적한다. 추출 프롬프트에 재주입 금지.
+// 원본 term 은 절대 덮어쓰지 않고, 정규화 핸들(normalized_term·layer·meaning·similar_to)만 덧셈.
+// 애매하면 새 항목이 기본값 — 임베딩 유사 항목은 similar_to 후보 링크만(자동 병합 아님).
+export const relationGlossary = pgTable(
+  'relation_glossary',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    term: text('term').notNull(),
+    normalizedTerm: text('normalized_term').notNull().unique(),
+    layer: text('layer').notNull().default('semantic'),
+    meaning: text('meaning').notNull().default(''),
+    similarTo: uuid('similar_to').references((): any => relationGlossary.id, {
+      onDelete: 'set null',
+    }),
+    occurrenceCount: integer('occurrence_count').notNull().default(1),
+    sourceRef: text('source_ref'),
+    embedding: vector('embedding', { dimensions: 1536 }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index('idx_relation_glossary_layer').on(t.layer),
+    check(
+      'chk_relation_glossary_layer',
+      sql`${t.layer} IN ('semantic', 'kinetic')`,
+    ),
+  ],
+);

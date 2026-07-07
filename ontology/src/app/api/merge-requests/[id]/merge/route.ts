@@ -11,6 +11,7 @@ import {
   latestMainCommitId,
 } from '@/lib/merge-executor';
 import { applyResolutions } from '@/features/ontology/lib/merge-diff';
+import { recordRelationTerm } from '@/lib/relation-glossary';
 
 // PRD-J M3: 병합 실행.
 // 1) 3-way 계획 계산 → 2) 해소 반영, 미해소 충돌 있으면 409 →
@@ -139,6 +140,19 @@ export async function POST(
         })
         .where(eq(mergeRequests.id, id));
     });
+
+    // PRD-L M6 (L7): 브랜치→main 병합으로 유입된 관계유형 이름을 어휘집에 사후 기록(비치명).
+    // 격리된 브랜치에서 만들어진 관계 이름이 main 에 도달하는 지점이므로 여기서 축적한다.
+    for (const change of effective) {
+      if (change.targetTable !== 'relation_types' || change.operation === 'DEL') continue;
+      const after = (change.afterSnapshot ?? {}) as Record<string, unknown>;
+      const name = (after.name as string) ?? '';
+      await recordRelationTerm(db, {
+        name,
+        layer: after.layer === 'kinetic' ? 'kinetic' : 'semantic',
+        sourceRef: 'merge',
+      });
+    }
 
     return NextResponse.json({
       success: true,
