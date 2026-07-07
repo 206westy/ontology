@@ -20,6 +20,7 @@ import {
   GitPullRequest,
   Activity,
   Wand2,
+  ChevronDown,
 } from 'lucide-react';
 import FilterPanel from './FilterPanel';
 import PartitionSwitcher from './PartitionSwitcher';
@@ -33,6 +34,12 @@ import { UserMenu } from '@/features/auth/components/UserMenu';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useOntologyStore, useTemporalStore } from '../hooks/useOntologyStore';
 import { validateApi, importExportApi } from '../api';
 import type { ValidationResult } from '../lib/types';
@@ -114,14 +121,14 @@ export default function Toolbar() {
   return (
     <div className="h-[46px] min-h-[46px] flex items-center px-4 gap-2 border-b border-border bg-card/80 backdrop-blur-sm" data-testid="toolbar">
       <span className="text-sm font-semibold tracking-tight gradient-brand-text">PSK PEE Ontology</span>
-      <Badge variant="secondary" className="h-5 text-[10px] px-1.5 font-mono">
+      <Badge variant="secondary" className="h-5 text-[11px] px-1.5 font-mono">
         v0.1 draft
       </Badge>
 
-      <Separator orientation="vertical" className="h-5 mx-1" />
+      <Separator orientation="vertical" className="h-5 mx-1.5" />
 
-      {/* Selection / Pan tools */}
-      <div className="flex items-center gap-0.5">
+      {/* PRD-K M5 (B9): 툴바 4그룹 — ① 보기(도구·줌·필터) */}
+      <div className="flex items-center gap-0.5" data-testid="toolbar-group-view">
         <Button
           variant={toolMode === 'select' ? 'secondary' : 'ghost'}
           size="sm"
@@ -140,12 +147,22 @@ export default function Toolbar() {
         >
           <Hand className="w-3.5 h-3.5" />
         </Button>
+        <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="확대" onClick={() => triggerZoom('in')}>
+          <ZoomIn className="w-3.5 h-3.5" />
+        </Button>
+        <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="축소" onClick={() => triggerZoom('out')}>
+          <ZoomOut className="w-3.5 h-3.5" />
+        </Button>
+        <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="전체 보기" onClick={() => triggerZoom('fit')}>
+          <Maximize2 className="w-3.5 h-3.5" />
+        </Button>
+        <FilterPanel />
       </div>
 
-      <Separator orientation="vertical" className="h-5 mx-1" />
+      <Separator orientation="vertical" className="h-5 mx-1.5" />
 
-      {/* Read / Edit mode (그래프=표현 / 편집=드래그 연결·계층 생성) */}
-      <div className="flex items-center gap-0.5">
+      {/* ② 편집(모드 전환·실행 취소/다시 실행) */}
+      <div className="flex items-center gap-0.5" data-testid="toolbar-group-edit">
         <Button
           variant={editMode === 'read' ? 'secondary' : 'ghost'}
           size="sm"
@@ -164,27 +181,7 @@ export default function Toolbar() {
         >
           <Pencil className="w-3.5 h-3.5" />
         </Button>
-      </div>
-
-      <Separator orientation="vertical" className="h-5 mx-1" />
-
-      {/* Zoom tools */}
-      <div className="flex items-center gap-0.5">
-        <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="확대" onClick={() => triggerZoom('in')}>
-          <ZoomIn className="w-3.5 h-3.5" />
-        </Button>
-        <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="축소" onClick={() => triggerZoom('out')}>
-          <ZoomOut className="w-3.5 h-3.5" />
-        </Button>
-        <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="전체 보기" onClick={() => triggerZoom('fit')}>
-          <Maximize2 className="w-3.5 h-3.5" />
-        </Button>
-      </div>
-
-      <Separator orientation="vertical" className="h-5 mx-1" />
-
-      {/* Undo / Redo */}
-      <div className="flex items-center gap-0.5">
+        {/* PRD-K M5: undo/redo 단일 진입점 — CommitBar 되돌리기는 '전체 취소'로 역할 분리 */}
         <Button
           variant="ghost"
           size="sm"
@@ -207,12 +204,7 @@ export default function Toolbar() {
         </Button>
       </div>
 
-      <Separator orientation="vertical" className="h-5 mx-1" />
-
-      {/* Filter (P1-4) */}
-      <FilterPanel />
-
-      <Separator orientation="vertical" className="h-5 mx-1" />
+      <Separator orientation="vertical" className="h-5 mx-1.5" />
 
       {/* Partition switcher (PRD-B B-3) */}
       <PartitionSwitcher />
@@ -220,75 +212,86 @@ export default function Toolbar() {
       {/* Branch switcher (PRD-J M2) — 구획=도메인 분리, 브랜치=작업 격리 */}
       <BranchSwitcher />
 
-      {/* Merge requests (PRD-J M3) */}
-      <Button
-        variant="ghost"
-        size="sm"
-        className="h-7 text-xs gap-1"
-        onClick={() => setShowMergeRequests(true)}
-        title="병합 요청 — 브랜치 변경을 검토하고 main으로 병합"
-        data-testid="mr-open-btn"
-      >
-        <GitPullRequest className="w-3.5 h-3.5" />
-        병합
-      </Button>
-
       <div className="flex-1" />
 
-      {/* Right side actions */}
-      {/* PRD-I (M2): 어디서든 가이드 여정(패턴 발견→검수)을 여는 단일 진입점 */}
-      <Button
-        variant="ghost"
-        size="sm"
-        className="h-7 text-xs gap-1"
-        onClick={() => openGuided()}
-        title="가이드 여정 (패턴으로 시작)"
-      >
-        <Wand2 className="w-3.5 h-3.5" />
-        가이드
-      </Button>
+      {/* ③ AI(가이드 여정·어시스턴트) */}
+      <div className="flex items-center gap-0.5" data-testid="toolbar-group-ai">
+        {/* PRD-I (M2): 어디서든 가이드 여정(패턴 발견→검수)을 여는 단일 진입점 */}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 text-xs gap-1"
+          onClick={() => openGuided()}
+          title="가이드 여정 (패턴으로 시작)"
+        >
+          <Wand2 className="w-3.5 h-3.5" />
+          가이드
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 text-xs gap-1 text-[hsl(var(--ai-primary))] hover:text-[hsl(var(--ai-primary))]"
+          title="AI 어시스턴트"
+          style={{ boxShadow: 'var(--elevation-ai)' }}
+        >
+          <Sparkles className="w-3.5 h-3.5" />
+        </Button>
+      </div>
 
-      <Separator orientation="vertical" className="h-5 mx-1" />
+      <Separator orientation="vertical" className="h-5 mx-1.5" />
 
-      {/* S5: 상시 구조 건강도 점수 (라이브) */}
-      <HealthScoreBadge />
+      {/* ④ 품질(검증 + 저빈도 관리 액션은 드롭다운으로 접기 — PRD-K M5 B9) */}
+      <div className="flex items-center gap-0.5" data-testid="toolbar-group-quality">
+        {/* S5: 상시 구조 건강도 점수 (라이브) */}
+        <HealthScoreBadge />
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 text-xs gap-1"
+          onClick={handleValidate}
+          disabled={validating}
+          title="스키마 검증"
+        >
+          {validating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ShieldCheck className="w-3.5 h-3.5" />}
+          검증
+        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs gap-1"
+              title="품질 도구 — 건강도·중복 검사·병합 요청"
+              data-testid="quality-menu-btn"
+            >
+              품질
+              <ChevronDown className="w-3 h-3" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-44">
+            <DropdownMenuItem onSelect={() => setShowHealth(true)} className="text-xs gap-2">
+              <Activity className="w-3.5 h-3.5" />
+              건강도
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => setShowEntityResolution(true)} className="text-xs gap-2">
+              <GitMerge className="w-3.5 h-3.5" />
+              중복 검사 / 병합
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={() => setShowMergeRequests(true)}
+              className="text-xs gap-2"
+              data-testid="mr-open-btn"
+            >
+              <GitPullRequest className="w-3.5 h-3.5" />
+              병합 요청 (브랜치)
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
 
-      <Button
-        variant="ghost"
-        size="sm"
-        className="h-7 text-xs gap-1"
-        onClick={() => setShowHealth(true)}
-        title="온톨로지 건강도"
-      >
-        <Activity className="w-3.5 h-3.5" />
-        건강도
-      </Button>
+      <Separator orientation="vertical" className="h-5 mx-1.5" />
 
-      <Button
-        variant="ghost"
-        size="sm"
-        className="h-7 text-xs gap-1"
-        onClick={() => setShowEntityResolution(true)}
-        title="중복 검사 / 병합"
-      >
-        <GitMerge className="w-3.5 h-3.5" />
-        중복 검사
-      </Button>
-
-      <Button
-        variant="ghost"
-        size="sm"
-        className="h-7 text-xs gap-1"
-        onClick={handleValidate}
-        disabled={validating}
-        title="스키마 검증"
-      >
-        {validating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ShieldCheck className="w-3.5 h-3.5" />}
-        검증
-      </Button>
-
-      <Separator orientation="vertical" className="h-5 mx-1" />
-
+      {/* 파일 입출력 */}
       <Button
         variant="ghost"
         size="sm"
@@ -309,17 +312,7 @@ export default function Toolbar() {
         가져오기
       </Button>
 
-      <Button
-        variant="ghost"
-        size="sm"
-        className="h-7 text-xs gap-1 text-[hsl(var(--ai-primary))] hover:text-[hsl(var(--ai-primary))]"
-        title="AI 어시스턴트"
-        style={{ boxShadow: 'var(--elevation-ai)' }}
-      >
-        <Sparkles className="w-3.5 h-3.5" />
-      </Button>
-
-      <Separator orientation="vertical" className="h-5 mx-1" />
+      <Separator orientation="vertical" className="h-5 mx-1.5" />
 
       {/* 사용자 메뉴 (로그아웃) */}
       <UserMenu />

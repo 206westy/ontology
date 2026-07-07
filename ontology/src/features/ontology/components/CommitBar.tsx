@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { motion } from 'motion/react';
 import { useQuery } from '@tanstack/react-query';
-import { Undo2, List, ArrowUpCircle, GitCommitHorizontal, Loader2, History } from 'lucide-react';
+import { Undo2, List, ArrowUpCircle, GitCommitHorizontal, Loader2, History, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -12,6 +12,16 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useOntologyStore, useTemporalStore, clearChangesWithoutHistory } from '../hooks/useOntologyStore';
 import { commitsApi, embeddingsApi } from '../api';
@@ -37,6 +47,8 @@ export default function CommitBar() {
   const [showChanges, setShowChanges] = useState(false);
   const [showNeoPush, setShowNeoPush] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  // PRD-K M5: undo/redo 는 툴바로 일원화 — 여기 버튼은 "변경 전체 취소(확인 필요)"로 역할 분리.
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
   const {
     enabled: autoSaveEnabled,
     toggle: toggleAutoSave,
@@ -75,6 +87,19 @@ export default function CommitBar() {
         : hasChanges
           ? 'unsaved'
           : 'idle';
+
+  // PRD-K M5: 보류 중인 변경을 히스토리를 따라 전부 되감는다(확인 후 실행).
+  const handleDiscardAll = () => {
+    const initialCount = useOntologyStore.getState().pendingChanges.length;
+    let guard = useOntologyStore.temporal.getState().pastStates.length;
+    while (useOntologyStore.getState().pendingChanges.length > 0 && guard-- > 0) {
+      undo();
+    }
+    setShowDiscardConfirm(false);
+    toast.success(`변경 ${initialCount}건을 취소했습니다`, {
+      description: '툴바의 다시 실행(Ctrl+Shift+Z)으로 복구할 수 있습니다.',
+    });
+  };
 
   const handleCommit = async () => {
     setIsCommitting(true);
@@ -130,7 +155,7 @@ export default function CommitBar() {
           title={
             currentBranch
               ? `'${currentBranch.name}' 브랜치에서 작업 중입니다. 저장은 브랜치 커밋으로 기록되고, main 병합 후에만 운영(Neo4j)에 발행할 수 있습니다.`
-              : '지금 편집 내용은 스테이징(초안)에 있습니다. ‘저장’은 스테이징 보관, ‘반영’은 운영(Neo4j)으로 발행입니다.'
+              : '지금 편집 내용은 스테이징(초안)에 있습니다. ‘저장’은 스테이징 보관, ‘발행’은 운영(Neo4j)으로 내보내기입니다.'
           }
           data-testid="staging-badge"
         >
@@ -140,8 +165,17 @@ export default function CommitBar() {
           onOpenChanges={() => setShowChanges(true)}
           onPublish={() => setShowNeoPush(true)}
         />
-        <span className="text-xs text-foreground">
-          변경사항{' '}
+        {/* PRD-K M5 (B8): 스테이징/저장/발행 3층 상태를 툴팁이 아닌 평문으로 상시 표기 */}
+        <span
+          className="text-xs text-foreground"
+          data-testid="status-sentence"
+          title="편집 → 초안(스테이징) 저장 → 운영(Neo4j) 발행 순서로 반영됩니다. 발행은 자동이 아니라 ‘발행’ 버튼을 눌러야 합니다."
+        >
+          지금:{' '}
+          <span className="font-medium">
+            {currentBranch ? `'${currentBranch.name}' 브랜치 편집 중` : '초안 편집 중'}
+          </span>
+          {' · 변경 '}
           {/* PRD-K M3 (A5): 확정 직후 카운트 증가를 시각적으로 확인시키는 펄스 */}
           <motion.span
             key={pendingChanges.length}
@@ -153,17 +187,15 @@ export default function CommitBar() {
           >
             {pendingChanges.length}
           </motion.span>
-          건
+          {'건 · '}
+          <span className={unpushedCount > 0 || hasChanges ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'}>
+            {unpushedCount > 0
+              ? `발행 안 됨 ${unpushedCount}건`
+              : hasChanges
+                ? '발행 안 됨'
+                : '모두 발행됨'}
+          </span>
         </span>
-        {unpushedCount > 0 && (
-          <Badge
-            variant="outline"
-            className="h-5 text-[11px] px-1.5 shrink-0 text-amber-600 border-amber-500/40"
-            title="스테이징에는 저장됐지만 아직 Neo4j(운영 반영본)로 발행되지 않은 커밋입니다. ‘반영’을 눌러 반영본을 채우세요. (자동 발행 아님)"
-          >
-            미반영 {unpushedCount}건
-          </Badge>
-        )}
         {hasChanges && (
           <span className="text-[11px] font-mono flex items-center gap-1.5">
             {opCounts.ADD > 0 && (
@@ -180,16 +212,18 @@ export default function CommitBar() {
       </div>
 
       <div className="flex items-center gap-1.5">
+        {/* PRD-K M5: 단건 undo 는 툴바(Ctrl+Z)로 일원화 — 여기는 전체 취소(확인 필요) */}
         <Button
           variant="ghost"
           size="sm"
           className="h-8 text-xs px-2 gap-1"
           disabled={!hasChanges}
-          onClick={() => undo()}
-          title="마지막 변경 되돌리기 (Ctrl+Z)"
+          onClick={() => setShowDiscardConfirm(true)}
+          title="보류 중인 변경을 모두 취소합니다 (단건 되돌리기는 툴바의 실행 취소 Ctrl+Z)"
+          data-testid="discard-all-btn"
         >
           <Undo2 className="w-3 h-3" />
-          되돌리기
+          전체 취소
         </Button>
         <Button
           variant="ghost"
@@ -211,7 +245,35 @@ export default function CommitBar() {
           <History className="w-3 h-3" />
           히스토리
         </Button>
-        {!autoSaveEnabled && (
+        {/* PRD-K M5 (B4): 자동저장 On 이어도 저장 상태·수동 트리거는 사라지지 않는다 */}
+        {autoSaveEnabled ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 text-xs px-2.5 gap-1 text-muted-foreground"
+            disabled={isCommitting || autoSaveStatus === 'saving' || !hasChanges}
+            onClick={handleCommit}
+            data-testid="autosave-status-btn"
+            title="자동 저장이 켜져 있습니다. 대기 중인 변경이 있으면 클릭해 지금 즉시 저장할 수 있습니다."
+          >
+            {isCommitting || autoSaveStatus === 'saving' ? (
+              <>
+                <Loader2 className="w-3 h-3 animate-spin" />
+                저장 중...
+              </>
+            ) : hasChanges ? (
+              <>
+                <GitCommitHorizontal className="w-3 h-3" />
+                지금 저장
+              </>
+            ) : (
+              <>
+                <Check className="w-3 h-3 text-success" />
+                모두 저장됨
+              </>
+            )}
+          </Button>
+        ) : (
           <Button
             variant="outline"
             size="sm"
@@ -219,7 +281,7 @@ export default function CommitBar() {
             disabled={!hasChanges || isCommitting}
             onClick={handleCommit}
             data-testid="commit-btn"
-            title="스테이징에 저장 — Supabase에 변경 이력으로 보관합니다(아직 운영 반영은 아님)."
+            title="스테이징에 저장 — Supabase에 변경 이력으로 보관합니다(아직 운영 발행은 아님)."
           >
             {isCommitting ? (
               <Loader2 className="w-3 h-3 animate-spin" />
@@ -238,11 +300,11 @@ export default function CommitBar() {
           title={
             currentBranch
               ? '브랜치에서는 발행할 수 없습니다. main 으로 병합한 뒤 발행하세요.'
-              : '운영(반영본)에 발행 — Neo4j 그래프로 내보냅니다. 자동 발행이 아니므로 직접 눌러야 반영됩니다.'
+              : '운영 그래프(Neo4j)로 발행합니다. 자동 발행이 아니므로 직접 눌러야 반영됩니다.'
           }
         >
           <ArrowUpCircle className="w-3 h-3" />
-          반영{!hasChanges && unpushedCount > 0 ? ` (미반영 ${unpushedCount})` : ''}
+          발행{!hasChanges && unpushedCount > 0 ? ` (미발행 ${unpushedCount})` : ''}
         </Button>
       </div>
 
@@ -276,6 +338,28 @@ export default function CommitBar() {
           </ScrollArea>
         </SheetContent>
       </Sheet>
+
+      {/* PRD-K M5: 전체 취소 확인 — 실수 방지 */}
+      <AlertDialog open={showDiscardConfirm} onOpenChange={setShowDiscardConfirm}>
+        <AlertDialogContent data-testid="discard-confirm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>변경 {pendingChanges.length}건을 모두 취소할까요?</AlertDialogTitle>
+            <AlertDialogDescription>
+              저장(커밋)하지 않은 편집이 모두 편집 전 상태로 되돌아갑니다. 취소 후에도 툴바의
+              다시 실행(Ctrl+Shift+Z)으로 복구할 수 있습니다.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>계속 편집</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={handleDiscardAll}
+            >
+              전체 취소
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Neo4j push confirmation sheet */}
       <NeoConfirmSheet open={showNeoPush} onOpenChange={setShowNeoPush} />

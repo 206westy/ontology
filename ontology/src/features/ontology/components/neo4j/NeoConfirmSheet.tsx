@@ -220,12 +220,28 @@ export default function NeoConfirmSheet({ open, onOpenChange }: NeoConfirmSheetP
     onOpenChange(false);
   }, [onOpenChange]);
 
+  // PRD-K M5: "반영/푸시" 혼용을 "발행"으로 통일.
   const phaseTitle = {
-    loading: 'Neo4j 푸시 준비 중...',
-    confirm: 'Neo4j 푸시',
-    pushing: 'Neo4j 푸시 중...',
-    result: pushResult?.success ? '푸시 완료' : '푸시 부분 실패',
+    loading: '발행 준비 중...',
+    confirm: '운영 그래프에 발행',
+    pushing: '발행 중...',
+    result: pushResult?.success ? '발행 완료' : '발행 부분 실패',
   }[phase];
+
+  // PRD-K M5: 발행 전 사전 요약 한 줄 — 무엇이 운영 그래프로 나가는지 평문으로.
+  const publishSentence = (() => {
+    const parts = [
+      { label: '클래스', c: summary.classes },
+      { label: '관계', c: summary.relations },
+      { label: '인스턴스', c: summary.instances },
+      { label: '속성', c: summary.properties },
+      { label: '연결', c: summary.edges },
+    ]
+      .map(({ label, c }) => ({ label, total: c.add + c.mod + c.del }))
+      .filter((p) => p.total > 0)
+      .map((p) => `${p.label} ${p.total}`);
+    return parts.length > 0 ? `${parts.join(' · ')}을(를) 운영 그래프(Neo4j)에 발행합니다.` : null;
+  })();
 
   return (
     <Sheet open={open} onOpenChange={handleOpenChange}>
@@ -273,6 +289,17 @@ export default function NeoConfirmSheet({ open, onOpenChange }: NeoConfirmSheetP
                 transition={{ duration: 0.15 }}
                 className="space-y-4"
               >
+                {publishSentence && (
+                  <p
+                    className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-foreground"
+                    data-testid="publish-summary-sentence"
+                  >
+                    {publishSentence}{' '}
+                    <span className="text-muted-foreground">
+                      발행 후에도 스테이징 이력은 그대로 남습니다.
+                    </span>
+                  </p>
+                )}
                 <PushSummary summary={summary} />
 
                 {licenseWarning && (
@@ -301,7 +328,7 @@ export default function NeoConfirmSheet({ open, onOpenChange }: NeoConfirmSheetP
                     className="h-8 text-xs gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
                     onClick={handlePush}
                   >
-                    푸시 실행
+                    발행 실행
                   </Button>
                 </div>
               </motion.div>

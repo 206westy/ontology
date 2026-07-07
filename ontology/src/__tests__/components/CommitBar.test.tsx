@@ -96,7 +96,7 @@ describe('CommitBar', () => {
   it('should show 0 changes when no pending changes', () => {
     renderBar();
     // PRD-K M3: 카운트가 펄스 애니메이션용 별도 요소로 분리됨
-    expect(screen.getByText(/변경사항/)).toBeInTheDocument();
+    expect(screen.getByTestId('status-sentence')).toBeInTheDocument();
     expect(screen.getByTestId('pending-count')).toHaveTextContent('0');
   });
 
@@ -118,9 +118,9 @@ describe('CommitBar', () => {
   it('should disable buttons when no changes', () => {
     renderBar();
 
-    const undoBtn = screen.getByText('되돌리기').closest('button');
+    const undoBtn = screen.getByText('전체 취소').closest('button');
     const changeListBtn = screen.getByText('변경 내역').closest('button');
-    const pushBtn = screen.getByText('반영').closest('button');
+    const pushBtn = screen.getByTestId('neo4j-push-btn');
 
     expect(undoBtn).toBeDisabled();
     expect(changeListBtn).toBeDisabled();
@@ -132,9 +132,9 @@ describe('CommitBar', () => {
 
     renderBar();
 
-    const undoBtn = screen.getByText('되돌리기').closest('button');
+    const undoBtn = screen.getByText('전체 취소').closest('button');
     const changeListBtn = screen.getByText('변경 내역').closest('button');
-    const pushBtn = screen.getByText('반영').closest('button');
+    const pushBtn = screen.getByTestId('neo4j-push-btn');
 
     expect(undoBtn).not.toBeDisabled();
     expect(changeListBtn).not.toBeDisabled();
@@ -195,7 +195,7 @@ describe('CommitBar', () => {
   it('should have push button that does not clear changes directly', () => {
     useOntologyStore.getState().addClass({ name: 'Test' });
     renderBar();
-    const pushBtn = screen.getByText('반영').closest('button');
+    const pushBtn = screen.getByTestId('neo4j-push-btn');
     expect(pushBtn).not.toBeDisabled();
     const changesBefore = useOntologyStore.getState().pendingChanges.length;
     pushBtn!.click();
