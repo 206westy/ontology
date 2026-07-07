@@ -53,7 +53,7 @@ interface CollapsibleSectionProps {
   title: string;
   count: number;
   defaultOpen?: boolean;
-  onAdd?: () => void;
+  onAdd?: (e: React.MouseEvent<HTMLButtonElement>) => void;
   addLabel?: string;
   hint?: string;
   children: React.ReactNode;
@@ -89,10 +89,10 @@ function CollapsibleSection({ title, count, defaultOpen = true, onAdd, addLabel 
           {children}
           {onAdd && (
             <button
-              className="flex items-center gap-1 text-xs text-primary/70 hover:text-primary mt-1.5 transition-colors"
+              className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 mt-1.5 py-1 transition-colors"
               onClick={(e) => {
                 e.stopPropagation();
-                onAdd();
+                onAdd(e);
               }}
             >
               <Plus className="w-3 h-3" />
@@ -105,22 +105,49 @@ function CollapsibleSection({ title, count, defaultOpen = true, onAdd, addLabel 
   );
 }
 
+// PRD-K M4: blur 저장 성공을 필드 옆 체크 아이콘(1.5초)으로 즉시 확인시키는 훅.
+const FIELD_SAVED_FLASH_MS = 1500;
+
+function useSavedFlash(onSaved?: () => void) {
+  const [savedFlash, setSavedFlash] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    },
+    [],
+  );
+
+  const markSaved = useCallback(() => {
+    setSavedFlash(true);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => setSavedFlash(false), FIELD_SAVED_FLASH_MS);
+    onSaved?.();
+  }, [onSaved]);
+
+  return { savedFlash, markSaved };
+}
+
 function InlineEditableText({
   value,
   placeholder,
   onSave,
+  onSaved,
   multiline = false,
   className = '',
 }: {
   value: string;
   placeholder: string;
   onSave: (val: string) => void;
+  onSaved?: () => void;
   multiline?: boolean;
   className?: string;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
   const inputRef = useRef<HTMLTextAreaElement | HTMLInputElement>(null);
+  const { savedFlash, markSaved } = useSavedFlash(onSaved);
 
   useEffect(() => {
     setDraft(value);
@@ -138,6 +165,7 @@ function InlineEditableText({
   const handleSave = () => {
     if (draft !== value) {
       onSave(draft);
+      markSaved();
     }
     setEditing(false);
   };
@@ -193,7 +221,11 @@ function InlineEditableText({
       <span className={`text-xs ${value ? 'text-foreground' : 'text-muted-foreground italic'}`}>
         {value || placeholder}
       </span>
-      <Pencil className="w-2.5 h-2.5 text-muted-foreground opacity-60 group-hover:opacity-100 inline ml-1.5 transition-opacity" />
+      {savedFlash ? (
+        <Check className="w-3 h-3 text-success inline ml-1.5" data-testid="field-saved-check" />
+      ) : (
+        <Pencil className="w-2.5 h-2.5 text-muted-foreground opacity-60 group-hover:opacity-100 inline ml-1.5 transition-opacity" />
+      )}
     </div>
   );
 }
@@ -275,42 +307,76 @@ function InheritedPropertyRow({
   );
 }
 
-function EmptyState() {
+// PRD-K M4 (B5): 노드 미선택 시 빈 상태 안내 — 탭 구성 자체는 선택 여부와 무관하게 고정.
+function SelectNodePlaceholder({ message }: { message: string }) {
+  return (
+    <div className="flex-1 flex items-center justify-center px-6 h-full">
+      <div className="text-center">
+        <div className="w-12 h-12 rounded-full bg-muted/50 flex items-center justify-center mx-auto mb-3">
+          <Circle className="w-5 h-5 text-muted-foreground" />
+        </div>
+        <p className="text-xs text-muted-foreground">{message}</p>
+      </div>
+    </div>
+  );
+}
+
+// PRD-K M4 (B5): 선택이 없어도 본 패널과 동일한 6탭 — 같은 위치=같은 기능(근육기억 보존).
+// 선택 의존 탭(상세·관계·AI·근거)은 dim 처리 + "노드를 선택하세요" 빈 상태를 보여준다.
+function EmptyState({
+  activeTab,
+  onTabChange,
+}: {
+  activeTab: string;
+  onTabChange: (tab: string) => void;
+}) {
   return (
     <aside className="w-full h-full flex flex-col bg-card overflow-hidden">
       <div className="flex items-center px-4 h-[52px] shrink-0">
         <span className="text-sm font-semibold tracking-tight">속성 패널</span>
       </div>
       <Separator />
-      <Tabs defaultValue="empty" className="flex-1 flex flex-col min-h-0">
+      <Tabs value={activeTab} onValueChange={onTabChange} className="flex-1 flex flex-col min-h-0">
         <TabsList className="w-full justify-start rounded-none border-b bg-transparent h-9 px-4 shrink-0">
-          <TabsTrigger value="empty" className="text-xs h-8 px-3 data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none">
+          <TabsTrigger value="detail" className="text-xs h-8 px-3 opacity-60 data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none">
             상세
           </TabsTrigger>
-          <TabsTrigger value="cypher" className="text-xs h-8 px-3 data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none gap-1">
-            <Terminal className="w-3 h-3" />
-            Cypher
+          <TabsTrigger value="relations" className="text-xs h-8 px-3 opacity-60 data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none">
+            관계
           </TabsTrigger>
           <TabsTrigger value="constraints" className="text-xs h-8 px-3 data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none gap-1">
             <Shield className="w-3 h-3" />
             제약
           </TabsTrigger>
+          <TabsTrigger value="ai" className="text-xs h-8 px-3 opacity-60 data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none">
+            AI
+          </TabsTrigger>
+          <TabsTrigger value="cypher" className="text-xs h-8 px-3 data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none gap-1">
+            <Terminal className="w-3 h-3" />
+            Cypher
+          </TabsTrigger>
+          <TabsTrigger value="evidence" className="text-xs h-8 px-3 opacity-60 data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none gap-1">
+            <FileSearch className="w-3 h-3" />
+            근거
+          </TabsTrigger>
         </TabsList>
-        <TabsContent value="empty" className="flex-1 mt-0 min-h-0">
-          <div className="flex-1 flex items-center justify-center px-6 h-full">
-            <div className="text-center">
-              <div className="w-12 h-12 rounded-full bg-muted/50 flex items-center justify-center mx-auto mb-3">
-                <Circle className="w-5 h-5 text-muted-foreground" />
-              </div>
-              <p className="text-xs text-muted-foreground">노드를 선택하면 정보가 표시됩니다</p>
-            </div>
-          </div>
+        <TabsContent value="detail" className="flex-1 mt-0 min-h-0">
+          <SelectNodePlaceholder message="노드를 선택하면 정보가 표시됩니다" />
+        </TabsContent>
+        <TabsContent value="relations" className="flex-1 mt-0 min-h-0">
+          <SelectNodePlaceholder message="노드를 선택하면 관계가 표시됩니다" />
+        </TabsContent>
+        <TabsContent value="constraints" className="flex-1 mt-0 min-h-0 flex flex-col">
+          <ConstraintsPanel />
+        </TabsContent>
+        <TabsContent value="ai" className="flex-1 mt-0 min-h-0">
+          <SelectNodePlaceholder message="노드를 선택하면 AI 도구를 쓸 수 있습니다" />
         </TabsContent>
         <TabsContent value="cypher" className="flex-1 mt-0 min-h-0 flex flex-col">
           <Text2CypherTab />
         </TabsContent>
-        <TabsContent value="constraints" className="flex-1 mt-0 min-h-0 flex flex-col">
-          <ConstraintsPanel />
+        <TabsContent value="evidence" className="flex-1 mt-0 min-h-0">
+          <SelectNodePlaceholder message="노드를 선택하면 근거가 표시됩니다" />
         </TabsContent>
       </Tabs>
     </aside>
@@ -575,10 +641,12 @@ function InstanceValueRow({
   enumValues: string[] | null;
   value: string;
   onSave: (val: string) => void;
+  onSaved?: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
   const inputRef = useRef<HTMLInputElement>(null);
+  const { savedFlash, markSaved } = useSavedFlash(onSaved);
 
   useEffect(() => {
     setDraft(value);
@@ -593,9 +661,10 @@ function InstanceValueRow({
   const handleSave = useCallback(() => {
     if (draft !== value) {
       onSave(draft);
+      markSaved();
     }
     setEditing(false);
-  }, [draft, value, onSave]);
+  }, [draft, value, onSave, markSaved]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') handleSave();
@@ -612,7 +681,10 @@ function InstanceValueRow({
           className={`w-8 h-4 rounded-full relative transition-colors ${
             value === 'true' ? 'bg-primary' : 'bg-muted-foreground/30'
           }`}
-          onClick={() => onSave(value === 'true' ? 'false' : 'true')}
+          onClick={() => {
+            onSave(value === 'true' ? 'false' : 'true');
+            markSaved();
+          }}
         >
           <span
             className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow-sm transition-transform ${
@@ -627,7 +699,10 @@ function InstanceValueRow({
       return (
         <select
           value={value}
-          onChange={(e) => onSave(e.target.value)}
+          onChange={(e) => {
+            onSave(e.target.value);
+            markSaved();
+          }}
           className="h-6 text-xs bg-transparent border border-border rounded px-1.5 outline-none min-w-[80px] max-w-[140px]"
         >
           <option value="">--</option>
@@ -672,6 +747,7 @@ function InstanceValueRow({
       {isRequired && (
         <span className="text-[11px] text-amber-500 shrink-0">*</span>
       )}
+      {savedFlash && <Check className="w-3 h-3 text-success shrink-0" data-testid="field-saved-check" />}
       <span className="flex-1" />
       {renderEditor()}
     </div>
@@ -757,6 +833,9 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
   const [showAddConstraint, setShowAddConstraint] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
+  // PRD-K M4 (B3): 패널 안 저장 상태 — 필드 저장 시 갱신, 헤더에 "초안에 저장됨 ✓" 상시 표시.
+  const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
+  const notifyFieldSaved = useCallback(() => setLastSavedAt(Date.now()), []);
 
   // These useMemo hooks MUST be before the early return to maintain consistent hook order
   const inheritedProperties = useMemo(() => {
@@ -783,7 +862,8 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
       .filter((ip) => !ip.isOverridden);
   }, [nodeDetail]);
 
-  if (!selectedNodeId || !nodeDetail) return <EmptyState />;
+  if (!selectedNodeId || !nodeDetail)
+    return <EmptyState activeTab={activeTab} onTabChange={setActiveTab} />;
 
   const {
     selectedClass,
@@ -824,6 +904,7 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
       } else if (selectedInstance) {
         updateInstance(selectedInstance.id, { name: nameDraft.trim() });
       }
+      notifyFieldSaved();
     }
     setEditingName(false);
   };
@@ -886,6 +967,17 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
         >
           {selectedNodeType === 'class' ? 'CLASS' : 'INSTANCE'}
         </Badge>
+        {/* PRD-K M4 (B3): 화면 반대편 CommitBar 를 보지 않고도 패널 안에서 저장 상태 확인 */}
+        {lastSavedAt !== null && (
+          <span
+            className="flex items-center gap-0.5 text-[11px] text-muted-foreground shrink-0"
+            data-testid="panel-saved-status"
+            title="편집 내용이 초안(스테이징)에 저장되었습니다"
+          >
+            <Check className="w-3 h-3 text-success" />
+            초안에 저장됨
+          </span>
+        )}
         {selectedNodeId && (
           <Button
             variant="ghost"
@@ -949,6 +1041,7 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
                   value={nodeDescription}
                   placeholder="클릭하여 설명을 추가하세요..."
                   onSave={(val) => updateClass(selectedClass.id, { description: val })}
+                  onSaved={notifyFieldSaved}
                   multiline
                   className="leading-relaxed"
                 />
@@ -1165,11 +1258,23 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
                           <Circle className="w-2 h-2 text-green-400 shrink-0" strokeWidth={2} />
                           <span className="text-xs text-foreground truncate">{inst.name}</span>
                         </button>
-                        {nodeProperties.slice(0, 2).map((prop) => (
-                          <span key={prop.id} className="text-xs text-muted-foreground w-16 text-right truncate">
-                            —
-                          </span>
-                        ))}
+                        {/* PRD-K M4 (B7): '—' 하드코딩 대신 실제 값 미리보기 */}
+                        {nodeProperties.slice(0, 2).map((prop) => {
+                          const preview = storeInstanceValues.find(
+                            (iv) => iv.instanceId === inst.id && iv.propertyId === prop.id,
+                          )?.value;
+                          return (
+                            <span
+                              key={prop.id}
+                              className={`text-xs w-16 text-right truncate ${
+                                preview ? 'text-foreground' : 'text-muted-foreground'
+                              }`}
+                              title={preview || undefined}
+                            >
+                              {preview || '—'}
+                            </span>
+                          );
+                        })}
                         <button
                           className="ml-1 -my-1 flex h-6 w-6 shrink-0 items-center justify-center rounded opacity-60 transition-opacity text-muted-foreground hover:text-destructive group-hover:opacity-100"
                           onClick={() => removeInstance(inst.id)}
@@ -1210,6 +1315,7 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
                             enumValues={prop.enumValues}
                             value={currentValue}
                             onSave={(val) => setInstanceValue(selectedInstance.id, prop.id, val)}
+                            onSaved={notifyFieldSaved}
                           />
                         );
                       })}
@@ -1229,6 +1335,7 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
                             enumValues={ip.enumValues}
                             value={currentValue}
                             onSave={(val) => setInstanceValue(selectedInstance.id, ip.id, val)}
+                            onSaved={notifyFieldSaved}
                           />
                         );
                       })}
@@ -1254,11 +1361,13 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
               hint="다른 노드와 어떻게 연결되는지 (예: 회사 →고용→ 사람)"
               count={nodeEdges.length}
               defaultOpen
-              onAdd={() => {
+              onAdd={(e) => {
                 if (!selectedNodeId) return;
+                // PRD-K M4 (B12): 화면 정중앙이 아니라 트리거 버튼 인근에 열어 컨텍스트 유지.
+                const rect = e.currentTarget.getBoundingClientRect();
                 openPopover({
                   type: 'relation',
-                  position: { x: window.innerWidth / 2, y: window.innerHeight / 2 },
+                  position: { x: rect.left, y: rect.bottom + 8 },
                   sourceId: selectedNodeId,
                 });
               }}
