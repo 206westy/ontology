@@ -53,6 +53,22 @@ export function clearChangesWithoutHistory(): void {
   }
 }
 
+// PRD-Perf M1-2: 드래그로 인한 위치 영속은 시각 배치일 뿐 undo 대상이 아니다.
+// clearChangesWithoutHistory 와 같은 pause/resume 패턴으로 스냅샷 없이 기록한다.
+// (pendingChanges 에는 그대로 쌓여 autosave 가 위치를 영속한다 — 동작 불변.)
+export function updateClassPositionWithoutHistory(
+  id: string,
+  position: { positionX: number; positionY: number },
+): void {
+  const temporal = useOntologyStore.temporal.getState();
+  temporal.pause();
+  try {
+    useOntologyStore.getState().updateClass(id, position);
+  } finally {
+    temporal.resume();
+  }
+}
+
 type TemporalState = ReturnType<typeof useOntologyStore.temporal.getState>;
 
 export const useTemporalStore = <T>(selector: (state: TemporalState) => T): T => {

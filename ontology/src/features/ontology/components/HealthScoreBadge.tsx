@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useDeferredValue, useMemo } from 'react';
 import { Gauge } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useOntologyStore } from '../hooks/useOntologyStore';
@@ -17,9 +17,11 @@ function scoreColor(score: number): string {
 }
 
 export default function HealthScoreBadge() {
-  const classes = useOntologyStore((s) => s.classes);
-  const instances = useOntologyStore((s) => s.instances);
-  const edges = useOntologyStore((s) => s.edges);
+  // PRD-Perf M1-3: 전체 그래프 순회가 편집/드래그 프레임을 막지 않도록
+  // 입력을 지연값으로 — 값은 동일하고 갱신만 유휴 시점으로 미뤄진다.
+  const classes = useDeferredValue(useOntologyStore((s) => s.classes));
+  const instances = useDeferredValue(useOntologyStore((s) => s.instances));
+  const edges = useDeferredValue(useOntologyStore((s) => s.edges));
 
   const report = useMemo(
     () => computeHealth({ classes, instances, edges }),

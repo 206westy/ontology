@@ -8,7 +8,9 @@ import { debounce } from 'es-toolkit';
 import { match } from 'ts-pattern';
 
 import { useOntologyStore } from './useOntologyStore';
+import { updateClassPositionWithoutHistory } from '../store';
 import { resolveThemeColors } from '../constants/colors';
+import type { OntologyClass, OntologyInstance, OntologyEdge, RelationType } from '../lib/types';
 import { buildStylesheet } from '../lib/cytoscape-style';
 import { buildElements, syncCytoscape } from '../lib/to-cytoscape-elements';
 import { registerCytoscapeExtensions, runFcose, runDagre, runIncrementalFcose, buildColaOptions, seedNodesNearNeighbors } from '../lib/fcose-layout';
@@ -21,6 +23,23 @@ const ZOOM_DOT_THRESHOLD = 0.45;
 // 한 클래스의 인스턴스가 이 수를 넘으면 기본 접힘(개수 배지만). 더블클릭으로 펼침.
 // display:none 이므로 접힌 인스턴스는 렌더·물리(cola)에서 함께 제외돼 대량에서도 끊기지 않는다.
 const INSTANCE_COLLAPSE_THRESHOLD = 20;
+
+// PRD-Perf M1-2: 드래그 위치 영속(positionX/Y·updatedAt만 변경)인지 판별.
+// 위치만 바뀐 경우 cy 가 드래그의 원천이므로 전체 재빌드가 불필요하다.
+function isPositionOnlyChange(prev: OntologyClass[], next: OntologyClass[]): boolean {
+  if (prev === next || prev.length !== next.length) return false;
+  for (let i = 0; i < next.length; i++) {
+    const a = prev[i];
+    const b = next[i];
+    if (a === b) continue;
+    if (a.id !== b.id) return false;
+    for (const key of Object.keys(b) as (keyof OntologyClass)[]) {
+      if (key === 'positionX' || key === 'positionY' || key === 'updatedAt') continue;
+      if (a[key] !== b[key]) return false;
+    }
+  }
+  return true;
+}
 
 export interface UseCytoscapeResult {
   setContainer: (el: HTMLDivElement | null) => void;
@@ -44,6 +63,13 @@ export function useCytoscape(): UseCytoscapeResult {
   // cola 지속 물리 — 인터랙션 시 깨우고(run) 멈추면 재움(stop)
   const colaRef = useRef<Layouts | null>(null);
   const colaSleepRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // PRD-Perf M1-2: 직전 동기화 입력 — 위치-전용 변경(드래그 영속) 감지용.
+  const prevSyncRef = useRef<{
+    classes: OntologyClass[];
+    instances: OntologyInstance[];
+    edges: OntologyEdge[];
+    relationTypes: RelationType[];
+  } | null>(null);
 
   const [zoomLevel, setZoomLevel] = useState(100);
   const [contextMenuTarget, setContextMenuTarget] = useState<ContextMenuTarget | null>(null);
@@ -239,7 +265,8 @@ export function useCytoscape(): UseCytoscapeResult {
     cy.on('dragfree', 'node', (e: EventObject) => {
       const node = e.target as NodeSingular;
       if (node.data('kind') === 'class') {
-        useOntologyStore.getState().updateClass(node.id(), { positionX: node.position('x'), positionY: node.position('y') });
+        // PRD-Perf M1-2: 위치 영속은 undo 히스토리 스냅샷 없이 기록.
+        updateClassPositionWithoutHistory(node.id(), { positionX: node.position('x'), positionY: node.position('y') });
       }
       if (useOntologyStore.getState().editMode === 'edit' && node.data('kind') === 'class') {
         maybeOpenHierarchy(cy, node);
@@ -307,6 +334,29 @@ export function useCytoscape(): UseCytoscapeResult {
   useEffect(() => {
     const cy = cyRef.current;
     if (!cy) return;
+
+    // PRD-Perf M1-2: 드래그 위치 영속만 바뀐 경우 — cy 가 이미 그 좌표의 원천이므로
+    // 전체 재빌드(buildElements+sync+resize+cola)를 생략하고 좌표 정합만 확인한다.
+    const prevSync = prevSyncRef.current;
+    prevSyncRef.current = { classes, instances, edges, relationTypes };
+    if (
+      prevSync &&
+      initializedRef.current &&
+      prevSync.instances === instances &&
+      prevSync.edges === edges &&
+      prevSync.relationTypes === relationTypes &&
+      isPositionOnlyChange(prevSync.classes, classes)
+    ) {
+      classes.forEach((c, i) => {
+        if (c === prevSync.classes[i]) return;
+        const n = cy.getElementById(c.id);
+        if (n.nonempty() && (n.position('x') !== c.positionX || n.position('y') !== c.positionY)) {
+          n.position({ x: c.positionX, y: c.positionY });
+        }
+      });
+      return;
+    }
+
     const elements = buildElements({ classes, instances, edges, relationTypes });
     // 클래스 저장 위치를 신규 노드에 부여(기존 노드는 syncCytoscape가 위치 보존)
     elements.forEach((el) => {

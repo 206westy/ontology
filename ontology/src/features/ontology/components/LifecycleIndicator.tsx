@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useDeferredValue, useMemo } from 'react';
 import {
   FileEdit,
   CheckCircle2,
@@ -74,10 +74,11 @@ export default function LifecycleIndicator({ onOpenChanges, onPublish }: Lifecyc
   const pendingChanges = useOntologyStore((s) => s.pendingChanges);
   const lastCommittedAt = useOntologyStore((s) => s.lastCommittedAt);
   const lastPublishedAt = useOntologyStore((s) => s.lastPublishedAt);
-  const classes = useOntologyStore((s) => s.classes);
-  const instances = useOntologyStore((s) => s.instances);
-  const edges = useOntologyStore((s) => s.edges);
-  const relationTypes = useOntologyStore((s) => s.relationTypes);
+  // PRD-Perf M1-3: 연결성/CQ 전체 순회가 편집 프레임을 막지 않도록 입력을 지연값으로.
+  const classes = useDeferredValue(useOntologyStore((s) => s.classes));
+  const instances = useDeferredValue(useOntologyStore((s) => s.instances));
+  const edges = useDeferredValue(useOntologyStore((s) => s.edges));
+  const relationTypes = useDeferredValue(useOntologyStore((s) => s.relationTypes));
   const activePatternCq = useOntologyStore((s) => s.activePatternCq);
 
   const state = deriveLifecycleState({

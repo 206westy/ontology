@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { useOntologyStore } from '@/features/ontology/hooks/useOntologyStore';
 
 // Mock motion/react
@@ -54,7 +54,7 @@ describe('ExplorerPanel', () => {
     expect(screen.getByText('Plant')).toBeInTheDocument();
   });
 
-  it('should filter tree items by search query', () => {
+  it('should filter tree items by search query', async () => {
     useOntologyStore.getState().addClass({ id: 'c1', name: 'Animal' });
     useOntologyStore.getState().addClass({ id: 'c2', name: 'Plant' });
 
@@ -63,11 +63,14 @@ describe('ExplorerPanel', () => {
     const searchInput = screen.getByPlaceholderText('검색... (Ctrl+F)');
     fireEvent.change(searchInput, { target: { value: 'Ani' } });
 
+    // PRD-Perf M1-4: 트리 필터는 150ms 디바운스 뒤 적용된다.
+    await waitFor(() => {
+      expect(screen.queryByText('Plant')).not.toBeInTheDocument();
+    });
     expect(screen.getByText('Animal')).toBeInTheDocument();
-    expect(screen.queryByText('Plant')).not.toBeInTheDocument();
   });
 
-  it('should show "검색 결과가 없습니다" when search has no results', () => {
+  it('should show "검색 결과가 없습니다" when search has no results', async () => {
     useOntologyStore.getState().addClass({ id: 'c1', name: 'Animal' });
 
     render(<ExplorerPanel />);
@@ -75,7 +78,10 @@ describe('ExplorerPanel', () => {
     const searchInput = screen.getByPlaceholderText('검색... (Ctrl+F)');
     fireEvent.change(searchInput, { target: { value: 'zzzzz' } });
 
-    expect(screen.getByText('검색 결과가 없습니다')).toBeInTheDocument();
+    // PRD-Perf M1-4: 트리 필터는 150ms 디바운스 뒤 적용된다.
+    await waitFor(() => {
+      expect(screen.getByText('검색 결과가 없습니다')).toBeInTheDocument();
+    });
   });
 
   it('should show instance count for classes', () => {

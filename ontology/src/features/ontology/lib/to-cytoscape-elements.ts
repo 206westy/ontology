@@ -230,10 +230,16 @@ export function syncCytoscape(cy: Core, next: ElementDefinition[]): string[] {
     });
 
     // 기존 요소 data + 구조 클래스 갱신 (label·size·colorKey·empty·hasa↔relation 등)
+    // PRD-Perf M1-5: 실제로 값이 바뀐 키만 갱신 — 미변경 요소 전체로 스타일
+    // 무효화가 번지던 것을 차단(노드 1개 추가가 전 요소 재계산을 유발하지 않게).
     cy.elements().forEach((el) => {
       const def = byId.get(el.id());
       if (!def) return;
-      el.data(def.data);
+      const current = el.data() as Record<string, unknown>;
+      const nextData = def.data as unknown as Record<string, unknown>;
+      Object.keys(nextData).forEach((key) => {
+        if (current[key] !== nextData[key]) el.data(key, nextData[key]);
+      });
       applyStructuralClasses(el, def.classes);
     });
 

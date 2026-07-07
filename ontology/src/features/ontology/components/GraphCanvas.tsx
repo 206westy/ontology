@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import EmptyState from './EmptyState';
 import EntityResolutionSheet from './EntityResolutionSheet';
 import GraphContextMenu, { type ContextMenuPosition } from './GraphContextMenu';
@@ -75,23 +75,29 @@ export default function GraphCanvas() {
     setClearAllOpen(false);
   }, []);
 
+  // 현재 워크스페이스(구획)만 비어있는지 판정 — 전체 그래프엔 노드가 있으나
+  // 지금 보는 구획엔 없어 캔버스가 텅 빈 경우("여기가 비었나/고장났나" 혼란 방지).
+  // 인스턴스는 부모 클래스의 구획을 상속하므로 classId→class.partition 으로 판정한다.
+  // PRD-Perf M1-5: 셀렉터 다수 구독으로 자주 리렌더되는 컴포넌트 — 매 렌더
+  // Map/scan 재생성 대신 입력이 바뀔 때만 재계산한다.
+  const { workspaceEmpty, currentWorkspaceName } = useMemo(() => {
+    const classPartition = new Map(classes.map((c) => [c.id, c.partitionId]));
+    const inWorkspace = (pid?: string) =>
+      showAllPartitions || !pid || pid === currentPartitionId;
+    return {
+      workspaceEmpty:
+        !showAllPartitions &&
+        !classes.some((c) => inWorkspace(c.partitionId)) &&
+        !instances.some((i) => inWorkspace(classPartition.get(i.classId))),
+      currentWorkspaceName:
+        partitions.find((p) => p.id === currentPartitionId)?.name ?? '현재 워크스페이스',
+    };
+  }, [classes, instances, partitions, currentPartitionId, showAllPartitions]);
+
   const isEmpty = classes.length === 0 && instances.length === 0;
   if (isEmpty) {
     return <EmptyState onDoubleClick={onEmptyDoubleClick} />;
   }
-
-  // 현재 워크스페이스(구획)만 비어있는지 판정 — 전체 그래프엔 노드가 있으나
-  // 지금 보는 구획엔 없어 캔버스가 텅 빈 경우("여기가 비었나/고장났나" 혼란 방지).
-  // 인스턴스는 부모 클래스의 구획을 상속하므로 classId→class.partition 으로 판정한다.
-  const classPartition = new Map(classes.map((c) => [c.id, c.partitionId]));
-  const inWorkspace = (pid?: string) =>
-    showAllPartitions || !pid || pid === currentPartitionId;
-  const workspaceEmpty =
-    !showAllPartitions &&
-    !classes.some((c) => inWorkspace(c.partitionId)) &&
-    !instances.some((i) => inWorkspace(classPartition.get(i.classId)));
-  const currentWorkspaceName =
-    partitions.find((p) => p.id === currentPartitionId)?.name ?? '현재 워크스페이스';
 
   return (
     <div className="flex-1 relative" data-testid="graph-canvas">

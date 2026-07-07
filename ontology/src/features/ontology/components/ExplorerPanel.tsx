@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect, memo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useDebounce } from 'react-use';
 import { Search, ChevronRight, Plus, Circle } from 'lucide-react';
 import Image from 'next/image';
 import { Input } from '@/components/ui/input';
@@ -96,15 +97,16 @@ function filterTree(items: TreeItemData[], query: string): TreeItemData[] {
   return items.map(prune).filter(Boolean) as TreeItemData[];
 }
 
-function TreeItem({ item, searchQuery, onContextMenu }: { item: TreeItemData; searchQuery: string; onContextMenu?: (e: React.MouseEvent, item: TreeItemData) => void }) {
-  const selectedNodeId = useOntologyStore((s) => s.selectedNodeId);
+// PRD-Perf M1-1: 각 행이 selectedNodeId/expandedNodes 전체 대신 자신에 관한
+// 불리언만 구독한다 — 선택/토글 한 번에 전 행이 리렌더되던 스톰을 국소화.
+const TreeItem = memo(function TreeItem({ item, searchQuery, onContextMenu }: { item: TreeItemData; searchQuery: string; onContextMenu?: (e: React.MouseEvent, item: TreeItemData) => void }) {
+  const isSelected = useOntologyStore((s) => s.selectedNodeId === item.id);
   const selectNode = useOntologyStore((s) => s.selectNode);
   const focusNode = useOntologyStore((s) => s.focusNode);
-  const expandedNodes = useOntologyStore((s) => s.expandedNodes);
+  const isNodeExpanded = useOntologyStore((s) => s.expandedNodes.has(item.id));
   const toggleExpanded = useOntologyStore((s) => s.toggleExpanded);
 
-  const isSelected = selectedNodeId === item.id;
-  const isExpanded = expandedNodes.has(item.id) || !!searchQuery;
+  const isExpanded = isNodeExpanded || !!searchQuery;
   const hasChildren = item.children.length > 0;
   const isClass = item.type === 'class';
   const isEmpty = isClass && item.instanceCount === 0 && item.children.filter((c) => c.type === 'class').length === 0;
@@ -180,15 +182,15 @@ function TreeItem({ item, searchQuery, onContextMenu }: { item: TreeItemData; se
         )}
       </div>
 
-      {/* Children */}
+      {/* Children — PRD-Perf M1-6: height(reflow) 대신 컴포지터 친화 opacity/transform.
+          접힘 시 자식 언마운트(대형 트리 렌더 비용 절감)는 그대로 유지. */}
       <AnimatePresence>
         {isExpanded && hasChildren && (
           <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
-            className="overflow-hidden"
           >
             {item.children.map((child) => (
               <TreeItem key={child.id} item={child} searchQuery={searchQuery} onContextMenu={onContextMenu} />
@@ -198,10 +200,13 @@ function TreeItem({ item, searchQuery, onContextMenu }: { item: TreeItemData; se
       </AnimatePresence>
     </div>
   );
-}
+});
 
 export default function ExplorerPanel() {
   const [searchQuery, setSearchQuery] = useState('');
+  // PRD-Perf M1-4: 입력창은 즉시 반응하되, 트리 필터·리렌더는 디바운스된 값으로만.
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+  useDebounce(() => setDebouncedQuery(searchQuery), 150, [searchQuery]);
   const [contextTarget, setContextTarget] = useState<ExplorerContextTarget | null>(null);
   const classes = useOntologyStore((s) => s.classes);
   const instances = useOntologyStore((s) => s.instances);
@@ -244,7 +249,7 @@ export default function ExplorerPanel() {
   }, [classes, instances, currentPartitionId, showAllPartitions]);
 
   const tree = useMemo(() => buildTree(scoped.classes, scoped.instances), [scoped]);
-  const filteredTree = useMemo(() => filterTree(tree, searchQuery), [tree, searchQuery]);
+  const filteredTree = useMemo(() => filterTree(tree, debouncedQuery), [tree, debouncedQuery]);
 
   // Ctrl+F → focus search input
   useEffect(() => {
@@ -311,7 +316,7 @@ export default function ExplorerPanel() {
             </div>
           )}
           {filteredTree.map((item) => (
-            <TreeItem key={item.id} item={item} searchQuery={searchQuery} onContextMenu={handleTreeContextMenu} />
+            <TreeItem key={item.id} item={item} searchQuery={debouncedQuery} onContextMenu={handleTreeContextMenu} />
           ))}
         </div>
       </ScrollArea>
