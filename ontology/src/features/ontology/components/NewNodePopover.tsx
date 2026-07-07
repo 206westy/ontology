@@ -28,6 +28,11 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useOntologyStore } from '../hooks/useOntologyStore';
 import { NODE_COLORS } from '../constants/colors';
+import {
+  NodeKindToggle,
+  NODE_KIND_QUESTION,
+  NODE_KIND_DESCRIPTIONS,
+} from './NodeKindToggle';
 import { llmApi, enrichApi, dedupApi, constraintsApi, type LlmParseResult, type DetectSubgraphInput } from '../api';
 import { mapParseResult, findPossibleDuplicates, computeIslands, partitionRelationsByLayer } from '../lib/parse-mapping';
 import { stableEntityId, stableEdgeId } from '../lib/identity';
@@ -1567,12 +1572,15 @@ export default function NewNodePopover() {
                           <SelectItem value="instance">인스턴스</SelectItem>
                         </SelectContent>
                       </Select>
-                      {/* 비전문가용: 클래스 vs 인스턴스를 쉬운 말로 안내(결정 시점) */}
-                      <p className="text-[11px] text-muted-foreground/70 mt-1 leading-snug">
-                        {quickType === 'class'
-                          ? '유형·카테고리 — 비슷한 것들을 대표하는 묶음 (예: 환자, 장비)'
-                          : '실제 사례 — 클래스의 구체적 한 개 (예: 홍길동, 3호기)'}
-                      </p>
+                      {/* PRD-L M4: 비전문가용 안내를 NodeKindToggle 공통 문구로 수렴 */}
+                      <div className="mt-1 space-y-0.5">
+                        <p className="text-xs leading-snug text-muted-foreground/70">
+                          {NODE_KIND_QUESTION}
+                        </p>
+                        <p className="text-xs leading-snug text-muted-foreground/70">
+                          {NODE_KIND_DESCRIPTIONS[quickType]}
+                        </p>
+                      </div>
                     </div>
                     <div className="flex-1">
                       <label className="text-xs text-muted-foreground mb-1 block">
@@ -1928,14 +1936,13 @@ export default function NewNodePopover() {
                             )}
                             {!item.isExisting && item.originalIndex >= 0 && (
                               <>
-                                <button
-                                  type="button"
-                                  title="인스턴스(개체)로 전환"
-                                  onClick={() => convertToInstance(item.originalIndex)}
-                                  className="opacity-60 group-hover:opacity-100 transition-opacity text-[11px] text-muted-foreground hover:text-foreground ml-auto px-1.5 py-1 -my-1 border border-border rounded"
-                                >
-                                  → 인스턴스
-                                </button>
+                                {/* PRD-L M4: 원탭 전환을 NodeKindToggle(compact)로 수렴 */}
+                                <NodeKindToggle
+                                  kind="class"
+                                  compact
+                                  onToggle={() => convertToInstance(item.originalIndex)}
+                                  className="ml-auto"
+                                />
                                 <button
                                   className="-my-1 flex h-6 w-6 shrink-0 items-center justify-center rounded opacity-60 transition-opacity text-muted-foreground hover:text-destructive group-hover:opacity-100"
                                   onClick={() => removeItem('classes', item.originalIndex)}
@@ -1970,14 +1977,13 @@ export default function NewNodePopover() {
                                 ))}
                               </SelectContent>
                             </Select>
-                            <button
-                              type="button"
-                              title="클래스(범주)로 전환"
-                              onClick={() => convertToClass(item.originalIndex)}
-                              className="opacity-60 group-hover:opacity-100 transition-opacity text-[11px] text-muted-foreground hover:text-foreground ml-auto px-1.5 py-1 -my-1 border border-border rounded"
-                            >
-                              → 클래스
-                            </button>
+                            {/* PRD-L M4: 원탭 전환을 NodeKindToggle(compact)로 수렴 */}
+                            <NodeKindToggle
+                              kind="instance"
+                              compact
+                              onToggle={() => convertToClass(item.originalIndex)}
+                              className="ml-auto"
+                            />
                             <button
                               className="-my-1 flex h-6 w-6 shrink-0 items-center justify-center rounded opacity-60 transition-opacity text-muted-foreground hover:text-destructive group-hover:opacity-100"
                               onClick={() => removeItem('instances', item.originalIndex)}

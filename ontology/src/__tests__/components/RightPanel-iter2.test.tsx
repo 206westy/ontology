@@ -183,7 +183,8 @@ describe('RightPanel — Iteration 2', () => {
 
     render(<RightPanel />);
     expect(screen.getByText('Dog')).toBeInTheDocument();
-    expect(screen.getByText('INSTANCE')).toBeInTheDocument();
+    // PRD-L M4: 배지는 NodeKindToggle 공통 문구('인스턴스')로 수렴.
+    expect(screen.getByText('인스턴스')).toBeInTheDocument();
     // No description field for instance
     expect(screen.queryByText(/클릭하여 설명을 추가/)).not.toBeInTheDocument();
   });

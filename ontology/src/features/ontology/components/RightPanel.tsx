@@ -35,6 +35,7 @@ import Text2CypherTab from './Text2CypherTab';
 import ConstraintsPanel from './ConstraintsPanel';
 import EvidencePanel, { type EdgeEvidence } from './EvidencePanel';
 import { sourceTypeLabel } from '../lib/source-type-labels';
+import { NodeKindToggle } from './NodeKindToggle';
 
 const DATA_TYPES: DataType[] = ['string', 'integer', 'float', 'boolean', 'date', 'enum'];
 
@@ -967,17 +968,13 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
             {nodeName}
           </span>
         )}
-        <Badge
-          variant="outline"
-          className="text-[11px] h-5 shrink-0 uppercase"
-          title={
-            selectedNodeType === 'class'
-              ? '클래스 — 유형·카테고리(비슷한 것들을 대표하는 묶음)'
-              : '인스턴스 — 실제 사례(클래스의 구체적 한 개)'
-          }
-        >
-          {selectedNodeType === 'class' ? 'CLASS' : 'INSTANCE'}
-        </Badge>
+        {/* PRD-L M4: 배지+툴팁 문구를 NodeKindToggle 공통 어포던스로 수렴.
+            전환 로직은 신설하지 않음(속성/값/엣지 kind 정합 리스크) — 표시만 통일. */}
+        <NodeKindToggle
+          kind={selectedNodeType === 'class' ? 'class' : 'instance'}
+          compact
+          className="shrink-0"
+        />
         {/* PRD-K M4 (B3): 화면 반대편 CommitBar 를 보지 않고도 패널 안에서 저장 상태 확인 */}
         {lastSavedAt !== null && (
           <span

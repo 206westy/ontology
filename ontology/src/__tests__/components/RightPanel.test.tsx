@@ -141,7 +141,8 @@ describe('RightPanel', () => {
 
     render(<RightPanel />);
     expect(screen.getByText('Person')).toBeInTheDocument();
-    expect(screen.getByText('CLASS')).toBeInTheDocument();
+    // PRD-L M4: 배지는 NodeKindToggle 공통 문구('클래스'/'인스턴스')로 수렴.
+    expect(screen.getByText('클래스')).toBeInTheDocument();
   });
 
   it('should show INSTANCE badge when an instance is selected', () => {
@@ -151,7 +152,8 @@ describe('RightPanel', () => {
 
     render(<RightPanel />);
     expect(screen.getByText('Buddy')).toBeInTheDocument();
-    expect(screen.getByText('INSTANCE')).toBeInTheDocument();
+    // PRD-L M4: 배지는 NodeKindToggle 공통 문구('클래스'/'인스턴스')로 수렴.
+    expect(screen.getByText('인스턴스')).toBeInTheDocument();
   });
 
   it('should show properties for selected class', () => {
