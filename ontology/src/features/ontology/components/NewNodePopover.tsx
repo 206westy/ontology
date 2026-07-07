@@ -1117,12 +1117,12 @@ export default function NewNodePopover() {
           {rel.category && (
             <Badge
               variant="outline"
-              className={`text-[9px] h-4 px-1 shrink-0 ${CATEGORY_BADGE[rel.category] ?? ''}`}
+              className={`text-[11px] h-5 px-1.5 shrink-0 ${CATEGORY_BADGE[rel.category] ?? ''}`}
             >
               {CATEGORY_LABEL[rel.category] ?? rel.category}
             </Badge>
           )}
-          <span className="text-[11px]">
+          <span className="text-xs">
             <span className={existingClassNames.has(rel.sourceName) ? 'text-muted-foreground' : ''}>{rel.sourceName}</span>
             <span className="text-muted-foreground mx-1">&rarr;</span>
             <span className="font-medium">{rel.relationName}</span>
@@ -1130,7 +1130,7 @@ export default function NewNodePopover() {
             <span className={existingClassNames.has(rel.targetName) ? 'text-muted-foreground' : ''}>{rel.targetName}</span>
           </span>
           <button
-            className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive ml-auto"
+            className="ml-auto -my-1 flex h-6 w-6 shrink-0 items-center justify-center rounded opacity-60 transition-opacity text-muted-foreground hover:text-destructive group-hover:opacity-100"
             onClick={() => removeItem('relations', index)}
             aria-label={`관계 삭제: ${rel.sourceName} → ${rel.targetName}`}
           >
@@ -1139,7 +1139,7 @@ export default function NewNodePopover() {
         </div>
         {rel.evidence && (
           <p
-            className="text-[10px] text-muted-foreground/70 italic line-clamp-1 pl-[18px]"
+            className="text-[11px] text-muted-foreground/70 italic line-clamp-1 pl-[18px]"
             title={rel.evidence}
           >
             &ldquo;{rel.evidence}&rdquo;
@@ -1201,7 +1201,7 @@ export default function NewNodePopover() {
             <>
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-semibold">새 노드</h3>
-                <button onClick={resetAndClose} className="text-muted-foreground hover:text-foreground">
+                <button onClick={resetAndClose} className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:text-foreground">
                   <X className="w-4 h-4" />
                 </button>
               </div>
@@ -1232,10 +1232,10 @@ export default function NewNodePopover() {
                     className="mb-3 flex w-full items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-2.5 py-2 text-left transition-colors hover:bg-primary/10"
                   >
                     <Wand2 className="h-3.5 w-3.5 shrink-0 text-primary" />
-                    <span className="text-[11px] text-foreground">
+                    <span className="text-xs text-foreground">
                       이 분량은 가이드 여정이 편합니다
                     </span>
-                    <span className="ml-auto flex shrink-0 items-center gap-0.5 text-[11px] font-medium text-primary">
+                    <span className="ml-auto flex shrink-0 items-center gap-0.5 text-xs font-medium text-primary">
                       가이드로 전환
                       <ArrowRight className="h-3 w-3" />
                     </span>
@@ -1246,7 +1246,7 @@ export default function NewNodePopover() {
                 <TabsContent value="quick" className="space-y-2.5 mt-0">
                   <div>
                     <div className="flex items-center justify-between mb-1">
-                      <label className="text-[10px] text-muted-foreground block">{'\uC774\uB984'}</label>
+                      <label className="text-xs text-muted-foreground block">{'\uC774\uB984'}</label>
                       {quickType === 'class' && (
                         <AutocompleteSuggestions
                           suggestions={classAC.suggestions}
@@ -1289,13 +1289,13 @@ export default function NewNodePopover() {
                     />
                     {/* Local fuzzy matches */}
                     {quickName.trim() && localClassMatches.length > 0 && quickType === 'class' && (
-                      <div className="mt-1 text-[10px] text-muted-foreground">
+                      <div className="mt-1 text-xs text-muted-foreground">
                         {'\uC720\uC0AC: '}{localClassMatches.map((c) => c.name).join(', ')}
                       </div>
                     )}
                   </div>
                   <div>
-                    <label className="text-[10px] text-muted-foreground mb-1 block">설명</label>
+                    <label className="text-xs text-muted-foreground mb-1 block">설명</label>
                     <Textarea
                       value={quickDesc}
                       onChange={(e) => setQuickDesc(e.target.value)}
@@ -1305,7 +1305,7 @@ export default function NewNodePopover() {
                   </div>
                   <div className="flex gap-2">
                     <div className="flex-1">
-                      <label className="text-[10px] text-muted-foreground mb-1 block">타입</label>
+                      <label className="text-xs text-muted-foreground mb-1 block">타입</label>
                       <Select value={quickType} onValueChange={(v) => setQuickType(v as 'class' | 'instance')}>
                         <SelectTrigger className="h-8 text-xs">
                           <SelectValue />
@@ -1316,14 +1316,14 @@ export default function NewNodePopover() {
                         </SelectContent>
                       </Select>
                       {/* 비전문가용: 클래스 vs 인스턴스를 쉬운 말로 안내(결정 시점) */}
-                      <p className="text-[9px] text-muted-foreground/70 mt-1 leading-snug">
+                      <p className="text-[11px] text-muted-foreground/70 mt-1 leading-snug">
                         {quickType === 'class'
                           ? '유형·카테고리 — 비슷한 것들을 대표하는 묶음 (예: 환자, 장비)'
                           : '실제 사례 — 클래스의 구체적 한 개 (예: 홍길동, 3호기)'}
                       </p>
                     </div>
                     <div className="flex-1">
-                      <label className="text-[10px] text-muted-foreground mb-1 block">
+                      <label className="text-xs text-muted-foreground mb-1 block">
                         부모 클래스 {quickType === 'instance' && <span className="text-destructive">*</span>}
                       </label>
                       <Select value={quickParentId} onValueChange={setQuickParentId}>
@@ -1341,12 +1341,12 @@ export default function NewNodePopover() {
                     </div>
                   </div>
                   <div className="flex justify-end gap-2 pt-1">
-                    <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={resetAndClose}>
+                    <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={resetAndClose}>
                       취소
                     </Button>
                     <Button
                       size="sm"
-                      className="h-7 text-xs gap-1"
+                      className="h-8 text-xs gap-1"
                       onClick={handleQuickAdd}
                       disabled={!quickName.trim() || (quickType === 'instance' && !quickParentId)}
                     >
@@ -1366,26 +1366,26 @@ export default function NewNodePopover() {
                     autoFocus
                   />
 
-                  <p className="text-[10px] text-muted-foreground mb-3">
+                  <p className="text-xs text-muted-foreground mb-3">
                     형식 제한 없음 — LLM이 자동 구조화합니다
                   </p>
 
                   <div className="flex items-center gap-2 mb-3">
-                    <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-muted-foreground">
+                    <Button variant="ghost" size="sm" className="h-8 text-xs gap-1 text-muted-foreground">
                       <Paperclip className="w-3 h-3" />
                       파일
                     </Button>
-                    <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-muted-foreground">
+                    <Button variant="ghost" size="sm" className="h-8 text-xs gap-1 text-muted-foreground">
                       <ClipboardPaste className="w-3 h-3" />
                       붙여넣기
                     </Button>
                   </div>
 
                   <div className="flex justify-end gap-2">
-                    <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={resetAndClose}>
+                    <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={resetAndClose}>
                       취소
                     </Button>
-                    <Button size="sm" className="h-7 text-xs gap-1" onClick={() => handleGenerate()} disabled={!inputText.trim() || isLoading}>
+                    <Button size="sm" className="h-8 text-xs gap-1" onClick={() => handleGenerate()} disabled={!inputText.trim() || isLoading}>
                       {isLoading ? (
                         <>
                           <Loader2 className="w-3 h-3 animate-spin" />
@@ -1410,11 +1410,11 @@ export default function NewNodePopover() {
                     className="min-h-[140px] text-xs resize-none font-mono mb-2"
                     autoFocus
                   />
-                  <p className="text-[10px] text-muted-foreground mb-1">
+                  <p className="text-xs text-muted-foreground mb-1">
                     표를 붙여넣으면 AI가 컬럼·값·구조를 분석해 온톨로지로 만듭니다 — 첫 줄은 헤더(컬럼명).
                   </p>
                   <p
-                    className={`text-[10px] mb-3 tabular-nums ${
+                    className={`text-[11px] mb-3 tabular-nums ${
                       csvText.length > CSV_CHAR_LIMIT ? 'text-destructive' : 'text-muted-foreground/70'
                     }`}
                   >
@@ -1422,12 +1422,12 @@ export default function NewNodePopover() {
                     {csvText.length > CSV_CHAR_LIMIT && ' — 한도를 초과했습니다'}
                   </p>
                   <div className="flex justify-end gap-2">
-                    <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={resetAndClose}>
+                    <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={resetAndClose}>
                       취소
                     </Button>
                     <Button
                       size="sm"
-                      className="h-7 text-xs gap-1"
+                      className="h-8 text-xs gap-1"
                       onClick={() => handleGenerate({ source: csvText, kind: 'csv' })}
                       disabled={!csvText.trim() || csvText.length > CSV_CHAR_LIMIT || isLoading}
                     >
@@ -1473,7 +1473,7 @@ export default function NewNodePopover() {
                     }}
                   />
                 </div>
-                <span className="text-[10px] font-mono text-muted-foreground mt-1 block text-right">
+                <span className="text-[11px] font-mono text-muted-foreground mt-1 block text-right">
                   {loadingProgress}%
                 </span>
               </div>
@@ -1499,13 +1499,13 @@ export default function NewNodePopover() {
               </div>
 
               <div className="flex items-center justify-between">
-                <span className="text-[10px] text-muted-foreground">
+                <span className="text-xs text-muted-foreground">
                   입력: {inputText.length.toLocaleString()}자
                 </span>
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-7 text-xs"
+                  className="h-8 text-xs"
                   onClick={handleCancelLoading}
                 >
                   취소
@@ -1520,14 +1520,14 @@ export default function NewNodePopover() {
                 <div>
                   <h3 className="text-sm font-semibold">구조화 결과</h3>
                   {parsed && (
-                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                    <p className="text-xs text-muted-foreground mt-0.5">
                       새로운 클래스 {newCount.classes}개
                       {newCount.instances > 0 && <>, 인스턴스 {newCount.instances}개</>}
                       {parsed.relations.length > 0 && <>, 관계 {parsed.relations.length}개</>}
                     </p>
                   )}
                 </div>
-                <button onClick={resetAndClose} className="text-muted-foreground hover:text-foreground">
+                <button onClick={resetAndClose} className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:text-foreground">
                   <X className="w-4 h-4" />
                 </button>
               </div>
@@ -1535,14 +1535,14 @@ export default function NewNodePopover() {
               {/* H1: 조용히 누락되던 항목(임시 노드/관계 추출 실패 등)을 검토 단계에서 노출. */}
               {parsed && parsed.warnings.length > 0 && (
                 <div className="mb-3 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-2 dark:border-amber-700 dark:bg-amber-900/30">
-                  <p className="text-[11px] font-medium text-amber-700 dark:text-amber-400">
+                  <p className="text-xs font-medium text-amber-700 dark:text-amber-400">
                     확인 필요 {parsed.warnings.length}건
                   </p>
                   <ul className="mt-1 space-y-0.5">
                     {parsed.warnings.map((w, i) => (
                       <li
                         key={`${w.kind}-${i}`}
-                        className="text-[10px] text-amber-700/90 dark:text-amber-300/90"
+                        className="text-[11px] text-amber-700/90 dark:text-amber-300/90"
                       >
                         · {w.message}
                       </li>
@@ -1557,7 +1557,7 @@ export default function NewNodePopover() {
                 {/* Hierarchical tree */}
                 {treeItems.length > 0 && (
                   <div className="space-y-0.5 mb-3">
-                    <span className="text-[10px] font-semibold text-muted-foreground uppercase mb-1 block">
+                    <span className="text-xs font-semibold text-muted-foreground uppercase mb-1 block">
                       계층 구조
                     </span>
                     {treeItems.map((item, i) => {
@@ -1585,12 +1585,12 @@ export default function NewNodePopover() {
                             />
                             <Badge
                               variant={item.isExisting ? 'outline' : 'secondary'}
-                              className={`text-[10px] h-5 ${item.isExisting ? 'border-dashed text-muted-foreground' : ''}`}
+                              className={`text-[11px] h-5 ${item.isExisting ? 'border-dashed text-muted-foreground' : ''}`}
                             >
                               {item.isExisting ? '기존' : '+'} {item.name}
                             </Badge>
                             {item.isExisting && (
-                              <span className="text-[9px] text-muted-foreground italic">연결됨</span>
+                              <span className="text-[11px] text-muted-foreground italic">연결됨</span>
                             )}
                             {!item.isExisting && possibleDuplicates.has(item.name) && (
                               <button
@@ -1602,11 +1602,11 @@ export default function NewNodePopover() {
                                     description: `"${item.name}" ≈ "${possibleDuplicates.get(item.name)}" — ER 큐에서 확인하세요.`,
                                   });
                                 }}
-                                className="inline-flex"
+                                className="inline-flex items-center py-1 -my-1"
                               >
                                 <Badge
                                   variant="outline"
-                                  className="text-[9px] h-4 px-1 border-dashed border-amber-400 text-amber-600 gap-0.5"
+                                  className="text-[11px] h-5 px-1.5 border-dashed border-amber-400 text-amber-600 gap-0.5"
                                 >
                                   <AlertTriangle className="w-2.5 h-2.5" />
                                   중복 가능
@@ -1619,12 +1619,12 @@ export default function NewNodePopover() {
                                   type="button"
                                   title="인스턴스(개체)로 전환"
                                   onClick={() => convertToInstance(item.originalIndex)}
-                                  className="opacity-0 group-hover:opacity-100 transition-opacity text-[9px] text-muted-foreground hover:text-foreground ml-auto px-1 border border-border rounded"
+                                  className="opacity-60 group-hover:opacity-100 transition-opacity text-[11px] text-muted-foreground hover:text-foreground ml-auto px-1.5 py-1 -my-1 border border-border rounded"
                                 >
                                   → 인스턴스
                                 </button>
                                 <button
-                                  className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                                  className="-my-1 flex h-6 w-6 shrink-0 items-center justify-center rounded opacity-60 transition-opacity text-muted-foreground hover:text-destructive group-hover:opacity-100"
                                   onClick={() => removeItem('classes', item.originalIndex)}
                                 >
                                   <Trash2 className="w-3 h-3" />
@@ -1635,7 +1635,7 @@ export default function NewNodePopover() {
                         ) : (
                           <>
                             <span className="w-2 h-2 rounded-sm bg-emerald-400 shrink-0" />
-                            <Badge variant="secondary" className="text-[10px] h-5">
+                            <Badge variant="secondary" className="text-[11px] h-5">
                               + {item.name}
                             </Badge>
                             <Select
@@ -1643,7 +1643,7 @@ export default function NewNodePopover() {
                               onValueChange={(v) => setInstanceParent(item.originalIndex, v)}
                             >
                               <SelectTrigger
-                                className={`h-5 text-[9px] px-1.5 w-auto gap-1 ${
+                                className={`h-6 text-[11px] px-2 w-auto gap-1 ${
                                   item.className ? '' : 'border-amber-400 text-amber-600'
                                 }`}
                               >
@@ -1661,12 +1661,12 @@ export default function NewNodePopover() {
                               type="button"
                               title="클래스(범주)로 전환"
                               onClick={() => convertToClass(item.originalIndex)}
-                              className="opacity-0 group-hover:opacity-100 transition-opacity text-[9px] text-muted-foreground hover:text-foreground ml-auto px-1 border border-border rounded"
+                              className="opacity-60 group-hover:opacity-100 transition-opacity text-[11px] text-muted-foreground hover:text-foreground ml-auto px-1.5 py-1 -my-1 border border-border rounded"
                             >
                               → 클래스
                             </button>
                             <button
-                              className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                              className="-my-1 flex h-6 w-6 shrink-0 items-center justify-center rounded opacity-60 transition-opacity text-muted-foreground hover:text-destructive group-hover:opacity-100"
                               onClick={() => removeItem('instances', item.originalIndex)}
                             >
                               <Trash2 className="w-3 h-3" />
@@ -1682,7 +1682,7 @@ export default function NewNodePopover() {
                           {instValues.map((v, vi) => (
                             <span
                               key={vi}
-                              className="text-[9px] font-mono text-muted-foreground bg-muted/50 rounded px-1"
+                              className="text-[11px] font-mono text-muted-foreground bg-muted/50 rounded px-1"
                             >
                               {v.propertyName}: {v.value}
                             </span>
@@ -1698,17 +1698,17 @@ export default function NewNodePopover() {
                 {/* Properties */}
                 {parsed && parsed.properties.length > 0 && (
                   <div className="mb-3">
-                    <span className="text-[10px] font-semibold text-muted-foreground uppercase mb-1 block">
+                    <span className="text-xs font-semibold text-muted-foreground uppercase mb-1 block">
                       프로퍼티 {parsed.properties.length}개
                     </span>
                     {parsed.properties.map((prop, i) => (
                       <div key={i} className="flex items-center gap-2 py-0.5 group pl-1">
-                        <span className="text-[11px] font-mono">+ {prop.name}: {prop.dataType}</span>
+                        <span className="text-xs font-mono">+ {prop.name}: {prop.dataType}</span>
                         {prop.className && (
-                          <span className="text-[9px] text-muted-foreground">({prop.className})</span>
+                          <span className="text-[11px] text-muted-foreground">({prop.className})</span>
                         )}
                         <button
-                          className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive ml-auto"
+                          className="ml-auto -my-1 flex h-6 w-6 shrink-0 items-center justify-center rounded opacity-60 transition-opacity text-muted-foreground hover:text-destructive group-hover:opacity-100"
                           onClick={() => removeItem('properties', i)}
                         >
                           <Trash2 className="w-3 h-3" />
@@ -1721,7 +1721,7 @@ export default function NewNodePopover() {
                 {/* Relations — 액션 지향 관계 (PR1 목표①) */}
                 {parsed && relationGroups.actionable.length > 0 && (
                   <div>
-                    <span className="text-[10px] font-semibold text-muted-foreground uppercase mb-1 block">
+                    <span className="text-xs font-semibold text-muted-foreground uppercase mb-1 block">
                       관계 {relationGroups.actionable.length}개
                     </span>
                     {relationGroups.actionable.map(({ rel, index }) => renderRelationRow(rel, index))}
@@ -1734,7 +1734,7 @@ export default function NewNodePopover() {
                     <button
                       type="button"
                       onClick={() => setShowDescriptive((v) => !v)}
-                      className="flex items-center gap-1 text-[10px] font-semibold text-muted-foreground/70 uppercase mb-1 hover:text-foreground"
+                      className="flex items-center gap-1 text-xs font-semibold text-muted-foreground/70 uppercase mb-1 hover:text-foreground"
                     >
                       <ChevronRight className={`w-2.5 h-2.5 transition-transform ${showDescriptive ? 'rotate-90' : ''}`} />
                       서술 관계 {relationGroups.descriptive.length}개 (액션 아님)
@@ -1750,16 +1750,16 @@ export default function NewNodePopover() {
                   {/* S4: Critic 검수 — 모델 수호자 자문(읽기전용, 확정 차단 안 함) */}
                   {criticReport && (
                     <section>
-                      <span className="text-[10px] font-semibold text-muted-foreground uppercase mb-1.5 flex items-center gap-1.5">
+                      <span className="text-xs font-semibold text-muted-foreground uppercase mb-1.5 flex items-center gap-1.5">
                         검수
                         {visibleCriticIssues.length > 0 && (
-                          <Badge variant="outline" className="text-[9px] h-4 px-1 border-amber-400 text-amber-600">
+                          <Badge variant="outline" className="text-[11px] h-5 px-1.5 border-amber-400 text-amber-600">
                             {visibleCriticIssues.length}건
                           </Badge>
                         )}
                       </span>
                       {visibleCriticIssues.length === 0 ? (
-                        <p className="text-[10px] text-muted-foreground/70 pl-1">검수 통과 — 문제 없음</p>
+                        <p className="text-[11px] text-muted-foreground/70 pl-1">검수 통과 — 문제 없음</p>
                       ) : (
                         <div className="space-y-1">
                           {visibleCriticIssues.map((issue) => {
@@ -1769,24 +1769,24 @@ export default function NewNodePopover() {
                                 <div className="flex items-center gap-1.5">
                                   <Badge
                                     variant="outline"
-                                    className={`text-[9px] h-4 px-1 shrink-0 ${CRITIC_SEVERITY_BADGE[issue.severity]}`}
+                                    className={`text-[11px] h-5 px-1.5 shrink-0 ${CRITIC_SEVERITY_BADGE[issue.severity]}`}
                                   >
                                     {CRITIC_SEVERITY_LABEL[issue.severity]}
                                   </Badge>
-                                  <span className="text-[11px] truncate" title={issue.targetName}>
+                                  <span className="text-xs truncate" title={issue.targetName}>
                                     {issue.targetName}
                                   </span>
                                   <button
                                     type="button"
                                     onClick={() => setIgnoredCritic((prev) => new Set(prev).add(key))}
-                                    className="opacity-0 group-hover:opacity-100 transition-opacity text-[9px] text-muted-foreground hover:text-foreground ml-auto px-1 border border-border rounded shrink-0"
+                                    className="opacity-60 group-hover:opacity-100 transition-opacity text-[11px] text-muted-foreground hover:text-foreground ml-auto px-1.5 py-1 -my-1 border border-border rounded shrink-0"
                                   >
                                     무시
                                   </button>
                                 </div>
-                                <p className="text-[9px] text-muted-foreground/70 mt-0.5">{issue.reason}</p>
+                                <p className="text-[11px] text-muted-foreground/70 mt-0.5">{issue.reason}</p>
                                 {issue.suggestion && (
-                                  <p className="text-[9px] text-muted-foreground/50 mt-0.5 italic">{issue.suggestion}</p>
+                                  <p className="text-[11px] text-muted-foreground/50 mt-0.5 italic">{issue.suggestion}</p>
                                 )}
                               </div>
                             );
@@ -1799,7 +1799,7 @@ export default function NewNodePopover() {
                   <IslandList islands={islands} onSuggest={handleIslandSuggest} />
 
                   <section>
-                    <span className="text-[10px] font-semibold text-muted-foreground uppercase mb-1.5 flex items-center gap-1.5">
+                    <span className="text-xs font-semibold text-muted-foreground uppercase mb-1.5 flex items-center gap-1.5">
                       보강 {enrichments.length > 0 && `${enrichments.length}개`}
                       {enrichLoading && <Loader2 className="w-3 h-3 animate-spin" />}
                     </span>
@@ -1807,18 +1807,18 @@ export default function NewNodePopover() {
                       <Checkbox
                         checked={useWeb}
                         onCheckedChange={(v) => setUseWeb(v === true)}
-                        className="h-3 w-3"
+                        className="h-4 w-4"
                       />
-                      <span className="text-[10px] text-muted-foreground">
+                      <span className="text-xs text-muted-foreground">
                         웹 검색 사용 (기본 꺼짐 · 검증 필요)
                       </span>
                     </label>
                     {enrichLoading && enrichments.length === 0 ? (
-                      <p className="text-[10px] text-muted-foreground/70 pl-1">
+                      <p className="text-[11px] text-muted-foreground/70 pl-1">
                         보강 대상 탐지 중...
                       </p>
                     ) : enrichments.length === 0 ? (
-                      <p className="text-[10px] text-muted-foreground/70 pl-1">
+                      <p className="text-[11px] text-muted-foreground/70 pl-1">
                         보강 제안 없음
                       </p>
                     ) : (
@@ -1840,14 +1840,14 @@ export default function NewNodePopover() {
 
                   {/* PRD-E P2-5: 중복 검사 */}
                   <section>
-                    <span className="text-[10px] font-semibold text-muted-foreground uppercase mb-1.5 flex items-center gap-1.5">
+                    <span className="text-xs font-semibold text-muted-foreground uppercase mb-1.5 flex items-center gap-1.5">
                       중복 검사 {dedup.size > 0 && `${dedup.size}건`}
                       {dedupLoading && <Loader2 className="w-3 h-3 animate-spin" />}
                     </span>
                     <Button
                       variant="outline"
                       size="sm"
-                      className="h-6 px-2 text-[10px] gap-1 w-full"
+                      className="h-8 px-2 text-xs gap-1 w-full"
                       onClick={runDedup}
                       disabled={dedupLoading || !parsed}
                     >
@@ -1858,12 +1858,12 @@ export default function NewNodePopover() {
                         {[...dedup.entries()].map(([name, d]) => (
                           <div key={name} className="rounded-md border border-border px-1.5 py-1">
                             <div className="flex items-center gap-1.5">
-                              <Badge variant="outline" className={`text-[9px] h-4 px-1 ${DEDUP_BADGE[d.decision]}`}>
+                              <Badge variant="outline" className={`text-[11px] h-5 px-1.5 ${DEDUP_BADGE[d.decision]}`}>
                                 {DEDUP_LABEL[d.decision]}
                               </Badge>
-                              <span className="text-[11px] truncate">{name}</span>
+                              <span className="text-xs truncate">{name}</span>
                             </div>
-                            <p className="text-[9px] text-muted-foreground/70 mt-0.5">{d.reason}</p>
+                            <p className="text-[11px] text-muted-foreground/70 mt-0.5">{d.reason}</p>
                           </div>
                         ))}
                       </div>
@@ -1872,14 +1872,14 @@ export default function NewNodePopover() {
 
                   {/* PRD-E P2-7: 거버넌스 제안 (HITL) */}
                   <section>
-                    <span className="text-[10px] font-semibold text-muted-foreground uppercase mb-1.5 flex items-center gap-1.5">
+                    <span className="text-xs font-semibold text-muted-foreground uppercase mb-1.5 flex items-center gap-1.5">
                       거버넌스 제안 {governance.length > 0 && `${governance.length}개`}
                       {governanceLoading && <Loader2 className="w-3 h-3 animate-spin" />}
                     </span>
                     <Button
                       variant="outline"
                       size="sm"
-                      className="h-6 px-2 text-[10px] gap-1 w-full mb-1.5"
+                      className="h-8 px-2 text-xs gap-1 w-full mb-1.5"
                       onClick={runGovernance}
                       disabled={governanceLoading || !inputText.trim()}
                     >
@@ -1906,11 +1906,11 @@ export default function NewNodePopover() {
               </div>
 
               <div className="flex justify-end gap-2 mt-4">
-                <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={() => setPhase('input')}>
+                <Button variant="ghost" size="sm" className="h-8 text-xs gap-1" onClick={() => setPhase('input')}>
                   <ArrowLeft className="w-3 h-3" />
                   수정
                 </Button>
-                <Button size="sm" className="h-7 text-xs gap-1" onClick={handleConfirm}>
+                <Button size="sm" className="h-8 text-xs gap-1" onClick={handleConfirm}>
                   확정
                   <Check className="w-3 h-3" />
                 </Button>

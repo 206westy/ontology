@@ -73,23 +73,23 @@ function CollapsibleSection({ title, count, defaultOpen = true, onAdd, addLabel 
         ) : (
           <ChevronRight className="w-3 h-3 text-muted-foreground" />
         )}
-        <span className="text-[11px] font-semibold tracking-tight text-foreground/80">
+        <span className="text-sm font-semibold tracking-tight text-foreground/80">
           {title}
         </span>
-        <span className="text-[10px] font-mono text-muted-foreground ml-auto">
+        <span className="text-[11px] font-mono text-muted-foreground ml-auto">
           ({count})
         </span>
       </button>
       {/* 비전문가용 한 줄 설명 — 섹션이 무엇인지 용어 없이 안내 */}
       {hint && open && (
-        <p className="mt-1 ml-[18px] text-[10px] leading-snug text-muted-foreground/70">{hint}</p>
+        <p className="mt-1 ml-[18px] text-[11px] leading-snug text-muted-foreground/70">{hint}</p>
       )}
       {open && (
         <div className="mt-2 space-y-0.5">
           {children}
           {onAdd && (
             <button
-              className="flex items-center gap-1 text-[11px] text-primary/70 hover:text-primary mt-1.5 transition-colors"
+              className="flex items-center gap-1 text-xs text-primary/70 hover:text-primary mt-1.5 transition-colors"
               onClick={(e) => {
                 e.stopPropagation();
                 onAdd();
@@ -193,7 +193,7 @@ function InlineEditableText({
       <span className={`text-xs ${value ? 'text-foreground' : 'text-muted-foreground italic'}`}>
         {value || placeholder}
       </span>
-      <Pencil className="w-2.5 h-2.5 text-muted-foreground opacity-0 group-hover:opacity-100 inline ml-1.5 transition-opacity" />
+      <Pencil className="w-2.5 h-2.5 text-muted-foreground opacity-60 group-hover:opacity-100 inline ml-1.5 transition-opacity" />
     </div>
   );
 }
@@ -214,23 +214,23 @@ function PropertyRow({
 }) {
   return (
     <div className="flex items-center gap-1.5 py-1.5 px-1.5 rounded hover:bg-muted/40 transition-colors group -mx-1">
-      <span className="text-[11px] font-mono text-primary/80 truncate flex-1">{name}</span>
-      <Badge variant="secondary" className="h-4 text-[9px] px-1.5 font-normal shrink-0">
+      <span className="text-xs font-mono text-primary/80 truncate flex-1">{name}</span>
+      <Badge variant="secondary" className="h-5 text-[11px] px-1.5 font-normal shrink-0">
         {DATA_TYPE_LABEL[dataType]}
       </Badge>
       {isRequired && (
-        <Badge variant="outline" className="h-4 text-[9px] px-1 font-normal text-amber-600 border-amber-300 shrink-0">
+        <Badge variant="outline" className="h-5 text-[11px] px-1.5 font-normal text-amber-600 border-amber-300 shrink-0">
           req
         </Badge>
       )}
       {dataType === 'enum' && enumValues && (
-        <Badge variant="outline" className="h-4 text-[9px] px-1 font-normal text-cyan-600 border-cyan-300 shrink-0">
+        <Badge variant="outline" className="h-5 text-[11px] px-1.5 font-normal text-cyan-600 border-cyan-300 shrink-0">
           {enumValues.length}
         </Badge>
       )}
       {onDelete && (
         <button
-          className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive shrink-0"
+          className="-my-1 flex h-6 w-6 shrink-0 items-center justify-center rounded opacity-60 transition-opacity text-muted-foreground hover:text-destructive group-hover:opacity-100"
           onClick={(e) => { e.stopPropagation(); onDelete(); }}
         >
           <Trash2 className="w-3 h-3" />
@@ -255,17 +255,17 @@ function InheritedPropertyRow({
 }) {
   return (
     <div className="flex items-center gap-1.5 py-1.5 px-1.5 rounded hover:bg-muted/40 transition-colors group -mx-1">
-      <span className="text-[11px] font-mono text-muted-foreground truncate flex-1">{name}</span>
-      <Badge variant="secondary" className="h-4 text-[9px] px-1.5 font-normal shrink-0 opacity-60">
+      <span className="text-xs font-mono text-muted-foreground truncate flex-1">{name}</span>
+      <Badge variant="secondary" className="h-5 text-[11px] px-1.5 font-normal shrink-0 opacity-60">
         {DATA_TYPE_LABEL[dataType]}
       </Badge>
       {isRequired && (
-        <Badge variant="outline" className="h-4 text-[9px] px-1 font-normal text-amber-600/60 border-amber-300/60 shrink-0">
+        <Badge variant="outline" className="h-5 text-[11px] px-1.5 font-normal text-amber-600/60 border-amber-300/60 shrink-0">
           req
         </Badge>
       )}
       <button
-        className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-primary shrink-0"
+        className="-my-1 flex h-6 w-6 shrink-0 items-center justify-center rounded opacity-60 transition-opacity text-muted-foreground hover:text-primary group-hover:opacity-100"
         onClick={(e) => { e.stopPropagation(); onOverride(); }}
         title={`${inheritedFromName}에서 상속됨 — 클릭하여 오버라이드`}
       >
@@ -284,14 +284,14 @@ function EmptyState() {
       <Separator />
       <Tabs defaultValue="empty" className="flex-1 flex flex-col min-h-0">
         <TabsList className="w-full justify-start rounded-none border-b bg-transparent h-9 px-4 shrink-0">
-          <TabsTrigger value="empty" className="text-xs h-7 px-3 data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none">
+          <TabsTrigger value="empty" className="text-xs h-8 px-3 data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none">
             상세
           </TabsTrigger>
-          <TabsTrigger value="cypher" className="text-xs h-7 px-3 data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none gap-1">
+          <TabsTrigger value="cypher" className="text-xs h-8 px-3 data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none gap-1">
             <Terminal className="w-3 h-3" />
             Cypher
           </TabsTrigger>
-          <TabsTrigger value="constraints" className="text-xs h-7 px-3 data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none gap-1">
+          <TabsTrigger value="constraints" className="text-xs h-8 px-3 data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none gap-1">
             <Shield className="w-3 h-3" />
             제약
           </TabsTrigger>
@@ -381,25 +381,25 @@ function AddPropertyInline({
             }
           }}
           placeholder={'\uC774\uB984'}
-          className="flex-1 min-w-0 h-6 text-[11px] font-mono bg-transparent border-b border-primary/20 outline-none focus:border-primary/40 px-0.5"
+          className="flex-1 min-w-0 h-6 text-xs font-mono bg-transparent border-b border-primary/20 outline-none focus:border-primary/40 px-0.5"
         />
         <select
           value={dataType}
           onChange={(e) => setDataType(e.target.value as DataType)}
-          className="h-6 text-[9px] bg-transparent border border-border rounded px-1 outline-none"
+          className="h-6 text-[11px] bg-transparent border border-border rounded px-1 outline-none"
         >
           {DATA_TYPES.map((t) => (
             <option key={t} value={t}>{DATA_TYPE_LABEL[t]}</option>
           ))}
         </select>
         <button
-          className="w-5 h-5 flex items-center justify-center text-primary hover:bg-primary/10 rounded transition-colors"
+          className="w-6 h-6 flex items-center justify-center text-primary hover:bg-primary/10 rounded transition-colors"
           onClick={handleAdd}
         >
           <Check className="w-3 h-3" />
         </button>
         <button
-          className="w-5 h-5 flex items-center justify-center text-muted-foreground hover:bg-muted/50 rounded transition-colors"
+          className="w-6 h-6 flex items-center justify-center text-muted-foreground hover:bg-muted/50 rounded transition-colors"
           onClick={onDone}
         >
           <X className="w-3 h-3" />
@@ -448,16 +448,16 @@ function AddSubclassInline({ parentId, parentColor, onDone }: { parentId: string
           if (e.key === 'Escape') onDone();
         }}
         placeholder="하위 클래스 이름"
-        className="flex-1 min-w-0 h-6 text-[11px] font-mono bg-transparent border-b border-primary/20 outline-none focus:border-primary/40 px-0.5"
+        className="flex-1 min-w-0 h-6 text-xs font-mono bg-transparent border-b border-primary/20 outline-none focus:border-primary/40 px-0.5"
       />
       <button
-        className="w-5 h-5 flex items-center justify-center text-primary hover:bg-primary/10 rounded transition-colors"
+        className="w-6 h-6 flex items-center justify-center text-primary hover:bg-primary/10 rounded transition-colors"
         onClick={handleAdd}
       >
         <Check className="w-3 h-3" />
       </button>
       <button
-        className="w-5 h-5 flex items-center justify-center text-muted-foreground hover:bg-muted/50 rounded transition-colors"
+        className="w-6 h-6 flex items-center justify-center text-muted-foreground hover:bg-muted/50 rounded transition-colors"
         onClick={onDone}
       >
         <X className="w-3 h-3" />
@@ -494,16 +494,16 @@ function AddInstanceInline({ classId, onDone }: { classId: string; onDone: () =>
           if (e.key === 'Escape') onDone();
         }}
         placeholder="인스턴스 이름"
-        className="flex-1 min-w-0 h-6 text-[11px] font-mono bg-transparent border-b border-primary/20 outline-none focus:border-primary/40 px-0.5"
+        className="flex-1 min-w-0 h-6 text-xs font-mono bg-transparent border-b border-primary/20 outline-none focus:border-primary/40 px-0.5"
       />
       <button
-        className="w-5 h-5 flex items-center justify-center text-primary hover:bg-primary/10 rounded transition-colors"
+        className="w-6 h-6 flex items-center justify-center text-primary hover:bg-primary/10 rounded transition-colors"
         onClick={handleAdd}
       >
         <Check className="w-3 h-3" />
       </button>
       <button
-        className="w-5 h-5 flex items-center justify-center text-muted-foreground hover:bg-muted/50 rounded transition-colors"
+        className="w-6 h-6 flex items-center justify-center text-muted-foreground hover:bg-muted/50 rounded transition-colors"
         onClick={onDone}
       >
         <X className="w-3 h-3" />
@@ -543,16 +543,16 @@ function AddConstraintInline({ classId, onDone }: { classId: string; onDone: () 
           if (!description.trim()) onDone();
         }}
         placeholder="제약조건 설명"
-        className="flex-1 min-w-0 h-6 text-[11px] bg-transparent border-b border-primary/20 outline-none focus:border-primary/40 px-0.5"
+        className="flex-1 min-w-0 h-6 text-xs bg-transparent border-b border-primary/20 outline-none focus:border-primary/40 px-0.5"
       />
       <button
-        className="w-5 h-5 flex items-center justify-center text-primary hover:bg-primary/10 rounded transition-colors"
+        className="w-6 h-6 flex items-center justify-center text-primary hover:bg-primary/10 rounded transition-colors"
         onClick={handleAdd}
       >
         <Check className="w-3 h-3" />
       </button>
       <button
-        className="w-5 h-5 flex items-center justify-center text-muted-foreground hover:bg-muted/50 rounded transition-colors"
+        className="w-6 h-6 flex items-center justify-center text-muted-foreground hover:bg-muted/50 rounded transition-colors"
         onClick={onDone}
       >
         <X className="w-3 h-3" />
@@ -628,7 +628,7 @@ function InstanceValueRow({
         <select
           value={value}
           onChange={(e) => onSave(e.target.value)}
-          className="h-6 text-[11px] bg-transparent border border-border rounded px-1.5 outline-none min-w-[80px] max-w-[140px]"
+          className="h-6 text-xs bg-transparent border border-border rounded px-1.5 outline-none min-w-[80px] max-w-[140px]"
         >
           <option value="">--</option>
           {enumValues.map((ev) => (
@@ -648,7 +648,7 @@ function InstanceValueRow({
           onChange={(e) => setDraft(e.target.value)}
           onBlur={handleSave}
           onKeyDown={handleKeyDown}
-          className="flex-1 min-w-0 h-6 text-[11px] bg-transparent border-b border-primary/30 outline-none focus:border-primary/50 px-0.5 max-w-[140px]"
+          className="flex-1 min-w-0 h-6 text-xs bg-transparent border-b border-primary/30 outline-none focus:border-primary/50 px-0.5 max-w-[140px]"
           placeholder="..."
         />
       );
@@ -656,7 +656,7 @@ function InstanceValueRow({
 
     return (
       <span
-        className={`text-[11px] cursor-pointer px-1 py-0.5 rounded hover:bg-muted/50 transition-colors truncate max-w-[140px] ${
+        className={`text-xs cursor-pointer px-1 py-0.5 rounded hover:bg-muted/50 transition-colors truncate max-w-[140px] ${
           value ? 'text-foreground' : 'text-muted-foreground italic'
         }`}
         onClick={() => setEditing(true)}
@@ -668,9 +668,9 @@ function InstanceValueRow({
 
   return (
     <div className="flex items-center gap-2 py-1.5 px-1.5 rounded hover:bg-muted/40 transition-colors -mx-1">
-      <span className="text-[11px] font-mono text-primary/80 truncate min-w-[60px] shrink-0">{propertyName}</span>
+      <span className="text-xs font-mono text-primary/80 truncate min-w-[60px] shrink-0">{propertyName}</span>
       {isRequired && (
-        <span className="text-[9px] text-amber-500 shrink-0">*</span>
+        <span className="text-[11px] text-amber-500 shrink-0">*</span>
       )}
       <span className="flex-1" />
       {renderEditor()}
@@ -837,7 +837,7 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
       {/* Parent class breadcrumb for instances */}
       {selectedInstance && parentClass && (
         <button
-          className="flex items-center gap-1 px-4 py-1.5 text-[11px] text-primary/70 hover:text-primary hover:bg-muted/30 transition-colors w-full text-left shrink-0"
+          className="flex items-center gap-1 px-4 py-1.5 text-xs text-primary/70 hover:text-primary hover:bg-muted/30 transition-colors w-full text-left shrink-0"
           onClick={() => handleNavigate(parentClass.id, 'class')}
         >
           <ArrowLeft className="w-3 h-3" />
@@ -877,7 +877,7 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
         )}
         <Badge
           variant="outline"
-          className="text-[9px] h-5 shrink-0 uppercase"
+          className="text-[11px] h-5 shrink-0 uppercase"
           title={
             selectedNodeType === 'class'
               ? '클래스 — 유형·카테고리(비슷한 것들을 대표하는 묶음)'
@@ -890,12 +890,12 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
           <Button
             variant="ghost"
             size="sm"
-            className="h-6 px-2 gap-1 text-primary hover:text-primary hover:bg-primary/10 shrink-0"
+            className="h-8 px-2 gap-1 text-primary hover:text-primary hover:bg-primary/10 shrink-0"
             onClick={() => requestNodeExpansion(selectedNodeId)}
             title="이 노드를 기준으로 AI 확장"
           >
             <Sparkles className="w-3.5 h-3.5" />
-            <span className="text-[11px]">확장</span>
+            <span className="text-xs">확장</span>
           </Button>
         )}
         {onDeleteRequest && (
@@ -916,24 +916,24 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
         <TabsList className="w-full justify-start rounded-none border-b bg-transparent h-9 px-4 shrink-0">
-          <TabsTrigger value="detail" className="text-xs h-7 px-3 data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none">
+          <TabsTrigger value="detail" className="text-xs h-8 px-3 data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none">
             상세
           </TabsTrigger>
-          <TabsTrigger value="relations" className="text-xs h-7 px-3 data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none">
+          <TabsTrigger value="relations" className="text-xs h-8 px-3 data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none">
             관계
           </TabsTrigger>
-          <TabsTrigger value="constraints" className="text-xs h-7 px-3 data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none gap-1">
+          <TabsTrigger value="constraints" className="text-xs h-8 px-3 data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none gap-1">
             <Shield className="w-3 h-3" />
             제약
           </TabsTrigger>
-          <TabsTrigger value="ai" className="text-xs h-7 px-3 data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none">
+          <TabsTrigger value="ai" className="text-xs h-8 px-3 data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none">
             AI
           </TabsTrigger>
-          <TabsTrigger value="cypher" className="text-xs h-7 px-3 data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none gap-1">
+          <TabsTrigger value="cypher" className="text-xs h-8 px-3 data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none gap-1">
             <Terminal className="w-3 h-3" />
             Cypher
           </TabsTrigger>
-          <TabsTrigger value="evidence" className="text-xs h-7 px-3 data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none gap-1">
+          <TabsTrigger value="evidence" className="text-xs h-8 px-3 data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none gap-1">
             <FileSearch className="w-3 h-3" />
             근거
           </TabsTrigger>
@@ -963,14 +963,14 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
                 <div className="px-4 pb-3 -mt-1 space-y-1.5">
                   <div className="flex items-center flex-wrap gap-1">
                     {selectedClass.sourceType && (
-                      <Badge variant="outline" className="text-[9px] h-4 px-1 text-muted-foreground">
+                      <Badge variant="outline" className="text-[11px] h-5 px-1.5 text-muted-foreground">
                         {sourceTypeLabel(selectedClass.sourceType)}
                       </Badge>
                     )}
                   </div>
                   {selectedClass.evidence && selectedClass.evidence !== 'existing' && (
                     <p
-                      className="text-[10px] text-muted-foreground/70 italic line-clamp-2"
+                      className="text-[11px] text-muted-foreground/70 italic line-clamp-2"
                       title={selectedClass.evidence}
                     >
                       &ldquo;{selectedClass.evidence}&rdquo;
@@ -1003,7 +1003,7 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
                         style={{ backgroundColor: sub.color }}
                       />
                       <span className="text-xs">{sub.name}</span>
-                      <ArrowRight className="w-2.5 h-2.5 text-muted-foreground ml-auto opacity-0 group-hover:opacity-100" />
+                      <ArrowRight className="w-2.5 h-2.5 text-muted-foreground ml-auto opacity-60 group-hover:opacity-100" />
                     </button>
                   ))}
                   {showAddSubclass && selectedClass && (
@@ -1014,7 +1014,7 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
                     />
                   )}
                   {subclasses.length === 0 && !showAddSubclass && (
-                    <p className="text-[10px] text-muted-foreground py-1">하위 클래스가 없습니다</p>
+                    <p className="text-xs text-muted-foreground py-1">하위 클래스가 없습니다</p>
                   )}
                 </CollapsibleSection>
 
@@ -1062,10 +1062,10 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
                     {inheritedByAncestor.map(([ancestorId, { name: ancestorName, props }]) => (
                       <div key={ancestorId} className="px-4 py-2">
                         <div className="flex items-center gap-1.5 mb-2">
-                          <span className="text-[11px] font-semibold tracking-tight text-muted-foreground/70">
+                          <span className="text-sm font-semibold tracking-tight text-muted-foreground/70">
                             {ancestorName}에서 상속된 속성
                           </span>
-                          <span className="text-[10px] font-mono text-muted-foreground/60 ml-auto">
+                          <span className="text-[11px] font-mono text-muted-foreground/60 ml-auto">
                             ({props.length})
                           </span>
                         </div>
@@ -1103,9 +1103,9 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
                   {nodeAxioms.map((axiom) => (
                     <div key={axiom.id} className="flex items-start gap-1.5 py-1.5 px-1.5 rounded hover:bg-muted/40 transition-colors -mx-1 group">
                       <AlertTriangle className="w-3 h-3 text-amber-500 shrink-0 mt-0.5" />
-                      <span className="text-[11px] text-foreground leading-relaxed flex-1">{axiom.description}</span>
+                      <span className="text-xs text-foreground leading-relaxed flex-1">{axiom.description}</span>
                       <button
-                        className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive shrink-0"
+                        className="-my-1 flex h-6 w-6 shrink-0 items-center justify-center rounded opacity-60 transition-opacity text-muted-foreground hover:text-destructive group-hover:opacity-100"
                         onClick={() => removeAxiom(axiom.id)}
                       >
                         <Trash2 className="w-3 h-3" />
@@ -1119,7 +1119,7 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
                     />
                   )}
                   {nodeAxioms.length === 0 && !showAddConstraint && (
-                    <p className="text-[10px] text-muted-foreground py-1">제약조건이 없습니다</p>
+                    <p className="text-xs text-muted-foreground py-1">제약조건이 없습니다</p>
                   )}
                 </CollapsibleSection>
 
@@ -1146,9 +1146,9 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
                 {nodeInstances.length > 0 ? (
                   <div className="border border-border rounded-md overflow-hidden">
                     <div className="flex items-center bg-muted/30 px-2 py-1 border-b border-border">
-                      <span className="text-[9px] font-semibold text-muted-foreground uppercase flex-1">이름</span>
+                      <span className="text-[11px] font-semibold text-muted-foreground uppercase flex-1">이름</span>
                       {nodeProperties.slice(0, 2).map((prop) => (
-                        <span key={prop.id} className="text-[9px] font-semibold text-muted-foreground uppercase w-16 text-right truncate">
+                        <span key={prop.id} className="text-[11px] font-semibold text-muted-foreground uppercase w-16 text-right truncate">
                           {prop.name}
                         </span>
                       ))}
@@ -1163,15 +1163,15 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
                           onClick={() => handleNavigate(inst.id, 'instance')}
                         >
                           <Circle className="w-2 h-2 text-green-400 shrink-0" strokeWidth={2} />
-                          <span className="text-[11px] text-foreground truncate">{inst.name}</span>
+                          <span className="text-xs text-foreground truncate">{inst.name}</span>
                         </button>
                         {nodeProperties.slice(0, 2).map((prop) => (
-                          <span key={prop.id} className="text-[10px] text-muted-foreground w-16 text-right truncate">
+                          <span key={prop.id} className="text-xs text-muted-foreground w-16 text-right truncate">
                             —
                           </span>
                         ))}
                         <button
-                          className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive shrink-0 ml-1"
+                          className="ml-1 -my-1 flex h-6 w-6 shrink-0 items-center justify-center rounded opacity-60 transition-opacity text-muted-foreground hover:text-destructive group-hover:opacity-100"
                           onClick={() => removeInstance(inst.id)}
                         >
                           <Trash2 className="w-3 h-3" />
@@ -1180,7 +1180,7 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
                     ))}
                   </div>
                 ) : (
-                  <p className="text-[10px] text-muted-foreground py-1">인스턴스가 없습니다</p>
+                  <p className="text-xs text-muted-foreground py-1">인스턴스가 없습니다</p>
                 )}
               </CollapsibleSection>
             )}
@@ -1234,7 +1234,7 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
                       })}
                     </div>
                   ) : (
-                    <p className="text-[10px] text-muted-foreground py-1">
+                    <p className="text-xs text-muted-foreground py-1">
                       부모 클래스에 프로퍼티가 없습니다
                     </p>
                   )}
@@ -1279,17 +1279,17 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
                     ) : (
                       <ArrowLeft className="w-3 h-3 text-muted-foreground shrink-0" />
                     )}
-                    <Badge variant="secondary" className="h-4 text-[9px] px-1.5 font-normal bg-cyan-50 text-cyan-700 border-cyan-200 shrink-0">
+                    <Badge variant="secondary" className="h-5 text-[11px] px-1.5 font-normal bg-cyan-50 text-cyan-700 border-cyan-200 shrink-0">
                       {relType?.name ?? 'relation'}
                     </Badge>
                     <button
-                      className="text-[11px] text-foreground hover:text-primary transition-colors truncate flex-1 text-left"
+                      className="text-xs text-foreground hover:text-primary transition-colors truncate flex-1 text-left"
                       onClick={() => handleNavigate(otherNodeId, otherClass ? 'class' : 'instance')}
                     >
                       {otherName}
                     </button>
                     <button
-                      className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive shrink-0"
+                      className="-my-1 flex h-6 w-6 shrink-0 items-center justify-center rounded opacity-60 transition-opacity text-muted-foreground hover:text-destructive group-hover:opacity-100"
                       onClick={() => removeEdge(edge.id)}
                       aria-label={`관계 삭제: ${relType?.name ?? 'relation'} → ${otherName}`}
                     >
@@ -1299,7 +1299,7 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
                 );
               })}
               {nodeEdges.length === 0 && (
-                <p className="text-[10px] text-muted-foreground py-1">관계가 없습니다</p>
+                <p className="text-xs text-muted-foreground py-1">관계가 없습니다</p>
               )}
             </CollapsibleSection>
           </ScrollArea>

@@ -125,7 +125,7 @@ export default function LifecycleIndicator({ onOpenChanges, onPublish }: Lifecyc
             stage.key === 'draft' ? onOpenChanges : stage.key === 'published' ? onPublish : undefined;
 
           const segmentClass = cn(
-            'flex items-center gap-0.5 rounded px-1.5 h-4 text-[9px] font-medium border border-transparent transition-colors',
+            'flex items-center gap-0.5 rounded px-1.5 h-5 text-[11px] font-medium border border-transparent transition-colors',
             isActive
               ? ACTIVE_TONE[stage.key]
               : isPast
@@ -166,7 +166,7 @@ export default function LifecycleIndicator({ onOpenChanges, onPublish }: Lifecyc
         <Badge
           variant="outline"
           className={cn(
-            'h-4 gap-0.5 px-1 text-[9px] shrink-0',
+            'h-5 gap-0.5 px-1.5 text-[11px] shrink-0',
             connectivity.isConnected ? 'border-success/50 text-success' : 'border-warning/50 text-warning',
           )}
           title={connectivity.warning ?? '단일 연결 그래프입니다.'}
@@ -181,7 +181,7 @@ export default function LifecycleIndicator({ onOpenChanges, onPublish }: Lifecyc
         <Badge
           variant="outline"
           className={cn(
-            'h-4 gap-0.5 px-1 text-[9px] shrink-0',
+            'h-5 gap-0.5 px-1.5 text-[11px] shrink-0',
             cq.passRate >= 1 ? 'border-success/50 text-success' : 'border-warning/50 text-warning',
           )}
           title="활성 패턴 CQ(핵심 질문) 통과율"

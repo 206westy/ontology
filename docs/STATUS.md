@@ -44,11 +44,16 @@ docs/
 | v5-prd-B.md | 구획(Named Graph) | 테이블·FK·Neo4j 브리지·PartitionSwitcher 구현됨. 랜딩/라우팅 일부 미확정, AI 자동 구획 제안(B-5) 미구현 |
 | v6-roadmap.md | AI 역할 전환(Critic 척추) | Phase1 Critic 일부 시작(`/api/critic/review`+`lib/critic/*`). Phase2~4 미착수 → 아래 |
 | perf-roundtrip-notes.md | DB 왕복 성능 최적화 | 측정·분석 완료, 최적화 구현은 재개 대기(handoff 노트) |
+| PRD-J.md | 온톨로지 GitFlow(브랜치 협업) | **M1~M3 + M4 핵심 구현 완료(2026-07-06), 라이브 2-브라우저 검증 대기.** M1=branches/commits(author·branch·parent·seq) 마이그레이션 3종 라이브+author 주입+히스토리 표시. M2=브랜치 생성(베이스 스냅샷)/체크아웃(재생 엔진 `branch-replay.ts`)/격리(useApiSync·useLoadOntology·useAutoSave 게이팅, EmptyState 템플릿 가드)/BranchSwitcher. M3=3-way diff(`merge-diff.ts` 순변화 접기+충돌 판정)+MR API 3종+MergeRequestSheet(mine/theirs 해소)+병합 트랜잭션(main 적용+병합 커밋). M4 핵심=push 라우트 main 전용 가드+unpushed 필터. 655테스트+빌드+lint 그린. **잔여**: main 직접편집 보호 옵션(기본 off 예정)·병합 후 자동 push 옵션·2-브라우저 라이브 검증 |
+| PRD-K.md | 핵심 여정 UI 친화화 (2026-07-06) | **구현 착수(2026-07-07)**. 더블클릭 입력→AI 구조화→컨펌→상세 수정→발행 여정의 사용성 개선. M1 스케일 업(9px 금지·타깃 24px·hover 전용 폐지) / M2 입력 진입(더블클릭=자연어·정직한 로딩) / M3 프리뷰·컨펌(검토 표면·체크박스 부분 반영·이탈 가드·확정 피드백) / M4 상세 수정(탭 고정·스크롤 단층화·저장 피드백) / M5 확정 가시화(상태 평문·툴바 그룹핑). 코드 근거 33건(A1~A15·B1~B14) 수록 |
 | PRD-I.md | 코드베이스 통합 & 디자인 통일(UX) | **M1~M5 구현 완료·단위/빌드 검증(2026-07-02), 라이브 UX 검증 대기.** 플랜 `.claude/plans/prd-i.plan.md`. M1=§3 공통 `<ConfirmCard>`+배지 taxonomy+역할토큰(`--role-*`), 카드 10종 리스킨. M2=Guided 여정 상시화(EmptyState→`GuidedJourney` 추출, page.tsx 상시 마운트, Toolbar "가이드", JourneyStepper). M3=팝오버 결정(dedup/거버넌스/보강/critic) 여정 스텝 이관(`buildHitlPlan` 확장·`PatternReviewSequence` 스텝화) + Quick 회귀0 + 대량입력 "가이드로 전환". M4=CommitBar 초안→확정→발행 지표+CQ/연결 칩(위치·액션 유지). M5=RightPanel 근거(Evidence) 탭 additive. 622테스트+프로덕션 빌드 그린. **유보**: dedup reuse/중복가능은 여정에서 확인만(생성후 병합 안전액션 부재)·relate만 적용. **보류(플랜대로)**: F8 캔버스 구획레인·스트리밍LLM·RightPanel 강제4탭·confidence 원시값 |
 
 ## 🔴 진행전 (`진행전/`)
 
-상태 전용 문서는 아직 없음(아래 항목은 v6 로드맵 내부에 기술). 자세한 건 `진행전/README.md` 참고.
+| 문서 | 범위 | 비고 |
+|------|------|------|
+
+아래 항목은 전용 문서 없이 v6 로드맵 내부에 기술. 자세한 건 `진행전/README.md` 참고.
 
 - v6 Phase2 Grounder — 데이터 그라운딩
 - v6 Phase3 Operator — 운영 추론(RAG entrypoint만 스캐폴드)

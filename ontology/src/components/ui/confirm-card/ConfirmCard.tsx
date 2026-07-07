@@ -55,7 +55,7 @@ export function ConfirmCard({
       {(eyebrow != null || verdict != null || attention) && (
         <div className="mb-1 flex flex-wrap items-center gap-1.5">
           {eyebrow != null && (
-            <Badge variant="secondary" className="h-4 px-1 text-[9px]">
+            <Badge variant="secondary" className="h-5 px-1.5 text-[11px]">
               {eyebrow}
             </Badge>
           )}
@@ -63,7 +63,7 @@ export function ConfirmCard({
           {attention && (
             <Badge
               variant="outline"
-              className="ml-auto h-4 gap-0.5 px-1 text-[9px] border-warning text-warning"
+              className="ml-auto h-5 gap-0.5 px-1.5 text-[11px] border-warning text-warning"
             >
               <ShieldAlert className="h-2.5 w-2.5" />
               검증 필요
@@ -72,11 +72,11 @@ export function ConfirmCard({
         </div>
       )}
 
-      <div className="text-[11px] font-medium">{title}</div>
+      <div className="text-xs font-medium">{title}</div>
 
       {/* 2. 근거 */}
       {evidence != null && (
-        <div className="mt-0.5 text-[9px] italic text-muted-foreground/70">{evidence}</div>
+        <div className="mt-0.5 text-[11px] italic text-muted-foreground/70">{evidence}</div>
       )}
 
       {/* 3. 미리보기 */}
