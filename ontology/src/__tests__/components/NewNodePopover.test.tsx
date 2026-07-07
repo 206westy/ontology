@@ -215,7 +215,7 @@ describe('NewNodePopover', () => {
     });
 
     expect(screen.getByText('수정')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '확정' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /확정/ })).toBeInTheDocument();
   });
 
   // J1-5: Remove item from preview
@@ -303,7 +303,7 @@ describe('NewNodePopover', () => {
       expect(screen.getByText('구조화 결과')).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole('button', { name: '확정' }));
+    fireEvent.click(screen.getByRole('button', { name: /확정/ }));
 
     // Store should have the classes
     const state = useOntologyStore.getState();
@@ -333,7 +333,7 @@ describe('NewNodePopover', () => {
       expect(screen.getByText('구조화 결과')).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole('button', { name: '확정' }));
+    fireEvent.click(screen.getByRole('button', { name: /확정/ }));
 
     const state = useOntologyStore.getState();
     expect(state.classes.length).toBe(2);
@@ -359,7 +359,7 @@ describe('NewNodePopover', () => {
       expect(screen.getByText('구조화 결과')).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole('button', { name: '확정' }));
+    fireEvent.click(screen.getByRole('button', { name: /확정/ }));
 
     const changes = useOntologyStore.getState().pendingChanges;
     expect(changes.length).toBe(3);

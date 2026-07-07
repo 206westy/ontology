@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef, Fragment } from 'react';
 import { m, AnimatePresence } from 'motion/react';
-import { X, Paperclip, ClipboardPaste, ArrowRight, ArrowLeft, Check, Trash2, Loader2, ChevronRight, ChevronLeft, Link2, Plus, Table, AlertTriangle, Wand2, Circle, CircleDot } from 'lucide-react';
+import { X, Paperclip, ClipboardPaste, ArrowRight, ArrowLeft, Check, Trash2, Loader2, ChevronRight, ChevronLeft, ChevronDown, Link2, Plus, Table, AlertTriangle, Wand2, Circle, CircleDot } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -38,6 +38,14 @@ import { mapParseResult, findPossibleDuplicates, computeIslands, partitionRelati
 import { stableEntityId, stableEdgeId } from '../lib/identity';
 import { DEFAULT_PARTITION_ID } from '../lib/types';
 import { reviewProposal, type CriticIssue, type CriticSeverity } from '../lib/critic/review';
+import {
+  buildTriage,
+  classSelKey,
+  propSelKey,
+  instSelKey,
+  relSelKey,
+  type TriageReasonCode,
+} from '../lib/confirm-triage';
 import { buildParseSchemaContext } from '../lib/schema-context';
 import type { EnrichmentItem, EnrichProposal } from '../lib/enrich-types';
 import type { GovernanceProposal, DedupResolveResponse } from '../lib/schemas';
@@ -284,16 +292,21 @@ const CRITIC_SEVERITY_BADGE: Record<CriticSeverity, string> = {
 };
 const criticKey = (i: CriticIssue) => `${i.ruleId}::${i.targetName}::${i.relatedName ?? ''}`;
 
-// PRD-K M3: 프리뷰 선택(체크박스) 키 — 파싱 항목의 안정 식별자(인덱스는 삭제 시 흔들림).
-const classSelKey = (name: string) => `class::${name}`;
-const propSelKey = (className: string, name: string) => `prop::${className}::${name}`;
-const instSelKey = (name: string) => `inst::${name}`;
-const relSelKey = (rel: { sourceName: string; relationName: string; targetName: string }) =>
-  `rel::${rel.sourceName}|${rel.relationName}|${rel.targetName}`;
+// PRD-K M3: 프리뷰 선택(체크박스) 키 — 안정 식별자는 confirm-triage 에서 단일 정의.
+// (트리아지 맵과 excludedKeys 가 같은 키 공간을 공유하도록 lib 로 수렴.)
+
+// PRD-L M5: 저신뢰 표면화 사유 배지 문구.
+const TRIAGE_REASON_LABEL: Record<TriageReasonCode, string> = {
+  low_confidence: '확신 낮음',
+  critic: 'Critic 지적',
+  unresolved: '연결 미해소',
+};
 
 // PRD-K M3: 검토 표면 승격 임계 — 이하이면 팝오버 유지(기존 경로 보존).
 const SMALL_RESULT_CLASSES = 3;
 const SMALL_RESULT_RELATIONS = 5;
+// PRD-L M5: 저신뢰(review) 항목이 이 수 이상이면 검토 표면으로 승격.
+const REVIEW_PROMOTE_MIN = 3;
 
 export default function NewNodePopover() {
   const popoverState = useOntologyStore((s) => s.popoverState);
@@ -342,6 +355,9 @@ export default function NewNodePopover() {
   const [exitGuardOpen, setExitGuardOpen] = useState(false);
   // PRD-K M3: 부가 검수(검수·보강·중복·규칙)의 현재 스텝 — 언제든 건너뛰고 확정 가능.
   const [auxStep, setAuxStep] = useState(0);
+  // PRD-L M5: 고신뢰(auto) 묶음 펼침 여부 — 기본 접힘(저신뢰만 표면화). 저신뢰가 없으면
+  // 접을 게 없으므로 렌더 시 자동으로 펼쳐 보인다(아래 isAutoOpen).
+  const [autoExpanded, setAutoExpanded] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   // PRD-K M2 (A6): 가짜 진행률 대신 정직한 표시 — 실제 파이프라인 단계 안내 + 경과시간.
   const [elapsedSec, setElapsedSec] = useState(0);
@@ -506,6 +522,27 @@ export default function NewNodePopover() {
     });
   }, [parsed, classes, instances, existingClassNames]);
 
+  // S4 + PRD-L M5: 사용자가 무시하지 않은 Critic 이슈만 표시·트리아지에 반영.
+  const visibleCriticIssues = useMemo(
+    () => (criticReport ? criticReport.issues.filter((i) => !ignoredCritic.has(criticKey(i))) : []),
+    [criticReport, ignoredCritic],
+  );
+
+  // PRD-L M5: 신뢰도 트리아지 — 항목별 고신뢰(auto)/저신뢰(review) 판정 + 요약 카운트.
+  // 무시된 Critic 이슈는 review 사유에서 빠지므로, 무시 즉시 해당 항목이 auto 로 내려간다.
+  const triage = useMemo(
+    () =>
+      parsed
+        ? buildTriage(
+            parsed,
+            existingClassNames,
+            new Set(instances.map((i) => i.name)),
+            visibleCriticIssues,
+          )
+        : null,
+    [parsed, existingClassNames, instances, visibleCriticIssues],
+  );
+
   // A-1.1: class names available as instance parents (extracted + existing).
   const allClassNames = useMemo(() => {
     const names = new Set<string>();
@@ -547,6 +584,7 @@ export default function NewNodePopover() {
     setExcludedKeys(new Set());
     setExitGuardOpen(false);
     setAuxStep(0);
+    setAutoExpanded(false);
     classAC.clear();
     setShowClassAC(false);
     closePopover();
@@ -1381,18 +1419,193 @@ export default function NewNodePopover() {
     );
   };
 
+  // PRD-K M3 (자산 재사용): 계층 트리 한 행 렌더. 트리아지 표면화를 위해 검토/자동
+  // 두 곳에서 동일 마크업을 재사용하려고 인라인 map 에서 함수로 추출했다(행 JSX 불변).
+  const renderTreeRow = (item: TreeItem, i: number) => {
+    // PR1 (목표④): 인스턴스에 추출된 속성 값을 프리뷰에 노출(비가시 저장 방지).
+    const instValues =
+      item.type === 'instance' && item.originalIndex >= 0
+        ? parsed?.instances[item.originalIndex]?.values ?? []
+        : [];
+    // PRD-K M3: 체크 해제(제외)된 행은 흐리게 — 확정에서 빠짐을 시각화.
+    const itemSelKey = item.type === 'class' ? classSelKey(item.name) : instSelKey(item.name);
+    const isItemExcluded = !item.isExisting && excludedKeys.has(itemSelKey);
+    return (
+      <Fragment key={`${item.type}-${item.name}-${i}`}>
+        <div
+          className={`flex items-center gap-1.5 py-0.5 group ${
+            item.isExisting || isItemExcluded ? 'opacity-50' : ''
+          }`}
+          style={{ paddingLeft: `${item.depth * 16 + 4}px` }}
+        >
+          {!item.isExisting && (
+            <Checkbox
+              checked={!isItemExcluded}
+              onCheckedChange={() => toggleSelKey(itemSelKey)}
+              className="h-4 w-4 shrink-0"
+              aria-label={`포함: ${item.name}`}
+            />
+          )}
+          {item.type === 'class' ? (
+            <>
+              {item.depth > 0 && (
+                <ChevronRight className="w-2.5 h-2.5 text-muted-foreground/50" />
+              )}
+              <span
+                className="w-2 h-2 rounded-full shrink-0"
+                style={{ backgroundColor: item.isExisting ? 'hsl(var(--muted-foreground))' : NODE_COLORS.mid }}
+              />
+              <Badge
+                variant={item.isExisting ? 'outline' : 'secondary'}
+                className={`text-[11px] h-5 ${item.isExisting ? 'border-dashed text-muted-foreground' : ''}`}
+              >
+                {item.isExisting ? '기존' : '+'} {item.name}
+              </Badge>
+              {item.isExisting && (
+                <span className="text-[11px] text-muted-foreground italic">연결됨</span>
+              )}
+              {!item.isExisting && possibleDuplicates.has(item.name) && (
+                <button
+                  type="button"
+                  title={`기존 "${possibleDuplicates.get(item.name)}"와(과) 유사 — 중복 검사로 이동`}
+                  onClick={() => {
+                    window.dispatchEvent(new Event('ontology:duplicate-check'));
+                    toast.info('중복 검사', {
+                      description: `"${item.name}" ≈ "${possibleDuplicates.get(item.name)}" — ER 큐에서 확인하세요.`,
+                    });
+                  }}
+                  className="inline-flex items-center py-1 -my-1"
+                >
+                  <Badge
+                    variant="outline"
+                    className="text-[11px] h-5 px-1.5 border-dashed border-amber-400 text-amber-600 gap-0.5"
+                  >
+                    <AlertTriangle className="w-2.5 h-2.5" />
+                    중복 가능
+                  </Badge>
+                </button>
+              )}
+              {!item.isExisting && item.originalIndex >= 0 && (
+                <>
+                  {/* PRD-L M4: 원탭 전환을 NodeKindToggle(compact)로 수렴 */}
+                  <NodeKindToggle
+                    kind="class"
+                    compact
+                    onToggle={() => convertToInstance(item.originalIndex)}
+                    className="ml-auto"
+                  />
+                  <button
+                    className="-my-1 flex h-6 w-6 shrink-0 items-center justify-center rounded opacity-60 transition-opacity text-muted-foreground hover:text-destructive group-hover:opacity-100"
+                    onClick={() => removeItem('classes', item.originalIndex)}
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                </>
+              )}
+            </>
+          ) : (
+            <>
+              <span className="w-2 h-2 rounded-sm bg-emerald-400 shrink-0" />
+              <Badge variant="secondary" className="text-[11px] h-5">
+                + {item.name}
+              </Badge>
+              <Select
+                value={item.className || undefined}
+                onValueChange={(v) => setInstanceParent(item.originalIndex, v)}
+              >
+                <SelectTrigger
+                  className={`h-6 text-[11px] px-2 w-auto gap-1 ${
+                    item.className ? '' : 'border-amber-400 text-amber-600'
+                  }`}
+                >
+                  <SelectValue placeholder="부모 선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  {allClassNames.map((cn) => (
+                    <SelectItem key={cn} value={cn} className="text-xs">
+                      {cn}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {/* PRD-L M4: 원탭 전환을 NodeKindToggle(compact)로 수렴 */}
+              <NodeKindToggle
+                kind="instance"
+                compact
+                onToggle={() => convertToClass(item.originalIndex)}
+                className="ml-auto"
+              />
+              <button
+                className="-my-1 flex h-6 w-6 shrink-0 items-center justify-center rounded opacity-60 transition-opacity text-muted-foreground hover:text-destructive group-hover:opacity-100"
+                onClick={() => removeItem('instances', item.originalIndex)}
+              >
+                <Trash2 className="w-3 h-3" />
+              </button>
+            </>
+          )}
+        </div>
+        {instValues.length > 0 && (
+          <div
+            className="flex flex-wrap gap-1 py-0.5"
+            style={{ paddingLeft: `${(item.depth + 1) * 16 + 8}px` }}
+          >
+            {instValues.map((v, vi) => (
+              <span
+                key={vi}
+                className="text-[11px] font-mono text-muted-foreground bg-muted/50 rounded px-1"
+              >
+                {v.propertyName}: {v.value}
+              </span>
+            ))}
+          </div>
+        )}
+      </Fragment>
+    );
+  };
+
+  // PRD-L M5: 트리 항목의 트리아지 판정/사유 — 기존 노드는 초안이 아니므로 auto.
+  const treeRowVerdict = (item: TreeItem) => {
+    if (item.isExisting) return 'auto' as const;
+    const key = item.type === 'class' ? classSelKey(item.name) : instSelKey(item.name);
+    return triage?.byKey.get(key)?.verdict ?? 'auto';
+  };
+  const treeRowReasons = (item: TreeItem): TriageReasonCode[] => {
+    if (item.isExisting) return [];
+    const key = item.type === 'class' ? classSelKey(item.name) : instSelKey(item.name);
+    return triage?.byKey.get(key)?.reasons ?? [];
+  };
+
+  // PRD-L M5: 저신뢰 사유 배지(평문, 12px). hover 전용 아님 — 상시 노출.
+  const renderReasonBadges = (reasons: TriageReasonCode[]) =>
+    reasons.length > 0 ? (
+      <div className="flex flex-wrap items-center gap-1 pl-1">
+        {reasons.map((r) => (
+          <Badge
+            key={r}
+            variant="outline"
+            className="text-[11px] h-5 px-1.5 border-amber-400 text-amber-600"
+          >
+            {TRIAGE_REASON_LABEL[r]}
+          </Badge>
+        ))}
+      </div>
+    ) : null;
+
   // A-5: the preview needs room for the structure / island / enrichment columns.
   const isPreview = phase === 'preview';
-  // S4: Critic 이슈 중 사용자가 무시하지 않은 것만 표시.
-  const visibleCriticIssues = criticReport
-    ? criticReport.issues.filter((i) => !ignoredCritic.has(criticKey(i)))
-    : [];
-  // PRD-K M3: 검토 표면 자동 승격 — 소량(클래스 ≤3·관계 ≤5)은 현행 팝오버 유지,
-  // 초과하면 중앙 확대 검토 표면(넓은 폭 + 화면 상단 고정)으로 승격한다.
+  // PRD-L M5: 트리아지 요약 카운트(파싱 전이면 0).
+  const autoCount = triage?.autoCount ?? 0;
+  const reviewCount = triage?.reviewCount ?? 0;
+  // PRD-L M5: 저신뢰가 없으면 접을 게 없으므로 auto 묶음을 자동으로 펼쳐 보인다.
+  const isAutoOpen = autoExpanded || reviewCount === 0;
+  // PRD-K M3 + PRD-L M5: 검토 표면 자동 승격 — 소량(클래스 ≤3·관계 ≤5)은 현행 팝오버 유지,
+  // 초과하거나 저신뢰(review)가 3개 이상이면 중앙 확대 검토 표면으로 승격한다.
   const isLargeResult =
     isPreview &&
     !!parsed &&
-    (newCount.classes > SMALL_RESULT_CLASSES || parsed.relations.length > SMALL_RESULT_RELATIONS);
+    (newCount.classes > SMALL_RESULT_CLASSES ||
+      parsed.relations.length > SMALL_RESULT_RELATIONS ||
+      reviewCount >= REVIEW_PROMOTE_MIN);
   const popoverW = isLargeResult
     ? Math.min(1040, typeof window !== 'undefined' ? window.innerWidth * 0.94 : 1040)
     : isPreview
@@ -1410,6 +1623,34 @@ export default function NewNodePopover() {
         })
       : { left: 0, top: 0 };
   const previewColumnMaxH = isLargeResult ? 'max-h-[64vh]' : 'max-h-[440px]';
+
+  // PRD-L M5: 트리아지 기준 분류 — 검토(저신뢰)는 상단 표면, 자동(고신뢰)은 접힘 묶음.
+  const relIsReview = (rel: ParsedResult['relations'][number]) =>
+    triage?.byKey.get(relSelKey(rel))?.verdict === 'review';
+  const reviewTreeItems = parsed
+    ? treeItems.map((item, i) => ({ item, i })).filter(({ item }) => treeRowVerdict(item) === 'review')
+    : [];
+  const autoTreeItems = parsed
+    ? treeItems.map((item, i) => ({ item, i })).filter(({ item }) => treeRowVerdict(item) !== 'review')
+    : [];
+  const reviewRelations = parsed
+    ? parsed.relations.map((rel, index) => ({ rel, index })).filter(({ rel }) => relIsReview(rel))
+    : [];
+  const autoSemantic = relationGroups.semantic.filter(({ rel }) => !relIsReview(rel));
+  const autoKinetic = relationGroups.kinetic.filter(({ rel }) => !relIsReview(rel));
+
+  // PRD-L M5: 확정 버튼 문구용 — 반영 대상 총수 + 그중 검토(review) 선택 수.
+  const appliedCount = selectionSummary
+    ? selectionSummary.classes +
+      selectionSummary.properties +
+      selectionSummary.instances +
+      selectionSummary.relations
+    : 0;
+  const reviewSelectedCount = triage
+    ? [...triage.byKey.entries()].filter(
+        ([key, o]) => o.verdict === 'review' && !excludedKeys.has(key),
+      ).length
+    : 0;
 
   return (
     <div
@@ -1857,160 +2098,84 @@ export default function NewNodePopover() {
                       — {selectionSummary.excluded}건 제외
                     </span>
                   )}
+                  {/* PRD-L M5: 트리아지 요약 밴드 — 고신뢰는 기본 수락, 저신뢰만 손보면 됨 */}
+                  <span
+                    data-testid="triage-summary"
+                    className="w-full text-xs text-muted-foreground"
+                  >
+                    자동 반영 {autoCount}개
+                    {reviewCount > 0 && (
+                      <span className="ml-1 font-medium text-amber-600">
+                        · 검토 필요 {reviewCount}개
+                      </span>
+                    )}
+                  </span>
                 </div>
               )}
 
               <div className="flex gap-3">
                 {/* 구조 — extracted structure (left column) */}
                 <div className={`flex-1 min-w-0 overflow-y-auto ${previewColumnMaxH} pr-1`}>
-                {/* Hierarchical tree */}
-                {treeItems.length > 0 && (
+                {/* PRD-L M5: 저신뢰(review) 항목 — 항상 펼쳐 상단 노출 + 사유 배지.
+                    체크박스·전환 토글·삭제는 PRD-K/M4 행 렌더러를 그대로 재사용한다. */}
+                {parsed && reviewCount > 0 && (
+                  <div data-testid="triage-review" className="mb-3">
+                    <span className="mb-1.5 block text-xs font-semibold uppercase text-amber-600">
+                      검토 필요 {reviewCount}개
+                    </span>
+                    <div className="space-y-1.5">
+                      {reviewTreeItems.map(({ item, i }) => (
+                        <div
+                          key={`rv-${item.type}-${item.name}-${i}`}
+                          className="rounded-md border border-amber-200 bg-amber-50/40 px-1 py-1 dark:border-amber-900/50 dark:bg-amber-900/10"
+                        >
+                          {renderReasonBadges(treeRowReasons(item))}
+                          {renderTreeRow(item, i)}
+                        </div>
+                      ))}
+                      {reviewRelations.map(({ rel, index }) => (
+                        <div
+                          key={`rvr-${index}`}
+                          className="rounded-md border border-amber-200 bg-amber-50/40 px-1 py-1 dark:border-amber-900/50 dark:bg-amber-900/10"
+                        >
+                          {renderReasonBadges(triage?.byKey.get(relSelKey(rel))?.reasons ?? [])}
+                          {renderRelationRow(rel, index)}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* PRD-L M5: 고신뢰(auto) 묶음 — 기본 접힘("펼쳐서 검토"). 저신뢰가 없으면
+                    접을 게 없으므로 isAutoOpen 이 참이 되어 자동으로 펼쳐진다. */}
+                {reviewCount > 0 && (
+                  <button
+                    type="button"
+                    data-testid="triage-auto-toggle"
+                    onClick={() => setAutoExpanded((v) => !v)}
+                    className="mb-2 flex w-full items-center gap-1.5 rounded-md border border-border bg-muted/30 px-2 py-1.5 text-left transition-colors hover:bg-muted/50"
+                  >
+                    {isAutoOpen ? (
+                      <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    ) : (
+                      <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    )}
+                    <span className="text-xs font-medium">자동 반영 예정 {autoCount}개</span>
+                    {!isAutoOpen && (
+                      <span className="ml-auto text-xs text-primary">펼쳐서 검토</span>
+                    )}
+                  </button>
+                )}
+
+                {isAutoOpen && (
+                  <div data-testid="triage-auto-body">
+                {/* Hierarchical tree (고신뢰 + 기존 컨텍스트 노드) */}
+                {autoTreeItems.length > 0 && (
                   <div className="space-y-0.5 mb-3">
                     <span className="text-xs font-semibold text-muted-foreground uppercase mb-1 block">
                       계층 구조
                     </span>
-                    {treeItems.map((item, i) => {
-                      // PR1 (목표④): 인스턴스에 추출된 속성 값을 프리뷰에 노출(비가시 저장 방지).
-                      const instValues =
-                        item.type === 'instance' && item.originalIndex >= 0
-                          ? parsed?.instances[item.originalIndex]?.values ?? []
-                          : [];
-                      // PRD-K M3: 체크 해제(제외)된 행은 흐리게 — 확정에서 빠짐을 시각화.
-                      const itemSelKey =
-                        item.type === 'class' ? classSelKey(item.name) : instSelKey(item.name);
-                      const isItemExcluded = !item.isExisting && excludedKeys.has(itemSelKey);
-                      return (
-                      <Fragment key={`${item.type}-${item.name}-${i}`}>
-                      <div
-                        className={`flex items-center gap-1.5 py-0.5 group ${
-                          item.isExisting || isItemExcluded ? 'opacity-50' : ''
-                        }`}
-                        style={{ paddingLeft: `${item.depth * 16 + 4}px` }}
-                      >
-                        {!item.isExisting && (
-                          <Checkbox
-                            checked={!isItemExcluded}
-                            onCheckedChange={() => toggleSelKey(itemSelKey)}
-                            className="h-4 w-4 shrink-0"
-                            aria-label={`포함: ${item.name}`}
-                          />
-                        )}
-                        {item.type === 'class' ? (
-                          <>
-                            {item.depth > 0 && (
-                              <ChevronRight className="w-2.5 h-2.5 text-muted-foreground/50" />
-                            )}
-                            <span
-                              className="w-2 h-2 rounded-full shrink-0"
-                              style={{ backgroundColor: item.isExisting ? 'hsl(var(--muted-foreground))' : NODE_COLORS.mid }}
-                            />
-                            <Badge
-                              variant={item.isExisting ? 'outline' : 'secondary'}
-                              className={`text-[11px] h-5 ${item.isExisting ? 'border-dashed text-muted-foreground' : ''}`}
-                            >
-                              {item.isExisting ? '기존' : '+'} {item.name}
-                            </Badge>
-                            {item.isExisting && (
-                              <span className="text-[11px] text-muted-foreground italic">연결됨</span>
-                            )}
-                            {!item.isExisting && possibleDuplicates.has(item.name) && (
-                              <button
-                                type="button"
-                                title={`기존 "${possibleDuplicates.get(item.name)}"와(과) 유사 — 중복 검사로 이동`}
-                                onClick={() => {
-                                  window.dispatchEvent(new Event('ontology:duplicate-check'));
-                                  toast.info('중복 검사', {
-                                    description: `"${item.name}" ≈ "${possibleDuplicates.get(item.name)}" — ER 큐에서 확인하세요.`,
-                                  });
-                                }}
-                                className="inline-flex items-center py-1 -my-1"
-                              >
-                                <Badge
-                                  variant="outline"
-                                  className="text-[11px] h-5 px-1.5 border-dashed border-amber-400 text-amber-600 gap-0.5"
-                                >
-                                  <AlertTriangle className="w-2.5 h-2.5" />
-                                  중복 가능
-                                </Badge>
-                              </button>
-                            )}
-                            {!item.isExisting && item.originalIndex >= 0 && (
-                              <>
-                                {/* PRD-L M4: 원탭 전환을 NodeKindToggle(compact)로 수렴 */}
-                                <NodeKindToggle
-                                  kind="class"
-                                  compact
-                                  onToggle={() => convertToInstance(item.originalIndex)}
-                                  className="ml-auto"
-                                />
-                                <button
-                                  className="-my-1 flex h-6 w-6 shrink-0 items-center justify-center rounded opacity-60 transition-opacity text-muted-foreground hover:text-destructive group-hover:opacity-100"
-                                  onClick={() => removeItem('classes', item.originalIndex)}
-                                >
-                                  <Trash2 className="w-3 h-3" />
-                                </button>
-                              </>
-                            )}
-                          </>
-                        ) : (
-                          <>
-                            <span className="w-2 h-2 rounded-sm bg-emerald-400 shrink-0" />
-                            <Badge variant="secondary" className="text-[11px] h-5">
-                              + {item.name}
-                            </Badge>
-                            <Select
-                              value={item.className || undefined}
-                              onValueChange={(v) => setInstanceParent(item.originalIndex, v)}
-                            >
-                              <SelectTrigger
-                                className={`h-6 text-[11px] px-2 w-auto gap-1 ${
-                                  item.className ? '' : 'border-amber-400 text-amber-600'
-                                }`}
-                              >
-                                <SelectValue placeholder="부모 선택" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {allClassNames.map((cn) => (
-                                  <SelectItem key={cn} value={cn} className="text-xs">
-                                    {cn}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            {/* PRD-L M4: 원탭 전환을 NodeKindToggle(compact)로 수렴 */}
-                            <NodeKindToggle
-                              kind="instance"
-                              compact
-                              onToggle={() => convertToClass(item.originalIndex)}
-                              className="ml-auto"
-                            />
-                            <button
-                              className="-my-1 flex h-6 w-6 shrink-0 items-center justify-center rounded opacity-60 transition-opacity text-muted-foreground hover:text-destructive group-hover:opacity-100"
-                              onClick={() => removeItem('instances', item.originalIndex)}
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
-                          </>
-                        )}
-                      </div>
-                      {instValues.length > 0 && (
-                        <div
-                          className="flex flex-wrap gap-1 py-0.5"
-                          style={{ paddingLeft: `${(item.depth + 1) * 16 + 8}px` }}
-                        >
-                          {instValues.map((v, vi) => (
-                            <span
-                              key={vi}
-                              className="text-[11px] font-mono text-muted-foreground bg-muted/50 rounded px-1"
-                            >
-                              {v.propertyName}: {v.value}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                      </Fragment>
-                      );
-                    })}
+                    {autoTreeItems.map(({ item, i }) => renderTreeRow(item, i))}
                   </div>
                 )}
 
@@ -2048,29 +2213,31 @@ export default function NewNodePopover() {
                   </div>
                 )}
 
-                {/* PRD-L M2: 지식(semantic) 관계 */}
-                {parsed && relationGroups.semantic.length > 0 && (
+                {/* PRD-L M2: 지식(semantic) 관계 — 고신뢰(auto)만. 저신뢰는 상단 검토 표면. */}
+                {parsed && autoSemantic.length > 0 && (
                   <div>
                     <span
                       className="text-xs font-semibold text-muted-foreground uppercase mb-1 block"
                       title={LAYER_HINT.semantic}
                     >
-                      지식 관계 {relationGroups.semantic.length}개
+                      지식 관계 {autoSemantic.length}개
                     </span>
-                    {relationGroups.semantic.map(({ rel, index }) => renderRelationRow(rel, index))}
+                    {autoSemantic.map(({ rel, index }) => renderRelationRow(rel, index))}
                   </div>
                 )}
 
-                {/* PRD-L M2: 행동(kinetic) 관계 */}
-                {parsed && relationGroups.kinetic.length > 0 && (
+                {/* PRD-L M2: 행동(kinetic) 관계 — 고신뢰(auto)만. */}
+                {parsed && autoKinetic.length > 0 && (
                   <div className="mt-2">
                     <span
                       className="text-xs font-semibold text-muted-foreground uppercase mb-1 block"
                       title={LAYER_HINT.kinetic}
                     >
-                      행동 관계 {relationGroups.kinetic.length}개
+                      행동 관계 {autoKinetic.length}개
                     </span>
-                    {relationGroups.kinetic.map(({ rel, index }) => renderRelationRow(rel, index))}
+                    {autoKinetic.map(({ rel, index }) => renderRelationRow(rel, index))}
+                  </div>
+                )}
                   </div>
                 )}
                 </div>
@@ -2279,9 +2446,11 @@ export default function NewNodePopover() {
                   <ArrowLeft className="w-3 h-3" />
                   수정
                 </Button>
+                {/* PRD-L M5: 확정 문구에 트리아지 반영 — 반영 총수 + 검토(review) 선택 수 */}
                 <Button size="sm" className="h-8 text-xs gap-1" onClick={handleConfirm}>
-                  확정
                   <Check className="w-3 h-3" />
+                  확정 · {appliedCount}개 반영
+                  {reviewSelectedCount > 0 && ` (검토 ${reviewSelectedCount}개 포함)`}
                 </Button>
               </div>
             </>

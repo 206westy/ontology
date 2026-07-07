@@ -136,7 +136,7 @@ describe('NewNodePopover — Iteration 2', () => {
     });
 
     // Click confirm
-    fireEvent.click(screen.getByRole('button', { name: '확정' }));
+    fireEvent.click(screen.getByRole('button', { name: /확정/ }));
 
     const state = useOntologyStore.getState();
     const byName = new Map(state.classes.map((c) => [c.name, c]));
@@ -204,7 +204,7 @@ describe('NewNodePopover — Iteration 2', () => {
     fireEvent.click(screen.getByText('무시'));
     expect(screen.queryByText(/매우 유사/)).not.toBeInTheDocument();
     // Confirm is NOT blocked — the 확정 button remains available.
-    expect(screen.getByRole('button', { name: '확정' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /확정/ })).toBeInTheDocument();
   });
 
   // A-2 (foundation): entity type matching an existing class resolves to its parentId
@@ -233,7 +233,7 @@ describe('NewNodePopover — Iteration 2', () => {
       expect(screen.getByText('구조화 결과')).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole('button', { name: '확정' }));
+    fireEvent.click(screen.getByRole('button', { name: /확정/ }));
 
     const state = useOntologyStore.getState();
     const dryAsher = state.classes.find((c) => c.name === 'DryAsher');
