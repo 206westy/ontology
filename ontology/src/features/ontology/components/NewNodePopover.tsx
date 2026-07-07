@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef, Fragment } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Paperclip, ClipboardPaste, ArrowRight, ArrowLeft, Check, Trash2, Loader2, ChevronRight, Link2, Plus, Table, AlertTriangle, Wand2 } from 'lucide-react';
+import { X, Paperclip, ClipboardPaste, ArrowRight, ArrowLeft, Check, Trash2, Loader2, ChevronRight, ChevronLeft, Link2, Plus, Table, AlertTriangle, Wand2, Circle, CircleDot } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -16,6 +16,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { useOntologyStore } from '../hooks/useOntologyStore';
 import { NODE_COLORS } from '../constants/colors';
 import { llmApi, enrichApi, dedupApi, constraintsApi, type LlmParseResult, type DetectSubgraphInput } from '../api';
@@ -178,6 +188,55 @@ const popoverAnimation = {
 const POPOVER_WIDTH = 400;
 const POPOVER_EST_HEIGHT = 400;
 
+// PRD-K M3 (A11): 팝오버 경로에도 여정과 통일된 단계 안내 — 입력→분석→검토→확정.
+// JourneyStepper 의 상태 문법(완료 Check/현재 CircleDot/예정 Circle + 동일 색)을 계승한 가로형.
+const PHASE_STEPS = [
+  { id: 'input', label: '입력' },
+  { id: 'loading', label: '분석' },
+  { id: 'preview', label: '검토' },
+  { id: 'confirm', label: '확정' },
+] as const;
+
+function PhaseMiniStepper({ current }: { current: number }) {
+  return (
+    <ol data-testid="phase-stepper" className="mb-2 flex items-center gap-1.5">
+      {PHASE_STEPS.map((step, i) => {
+        const state: 'completed' | 'current' | 'upcoming' =
+          i < current ? 'completed' : i === current ? 'current' : 'upcoming';
+        const Icon = state === 'completed' ? Check : state === 'current' ? CircleDot : Circle;
+        return (
+          <li key={step.id} data-state={state} className="flex items-center gap-1">
+            <Icon
+              className={`h-3 w-3 shrink-0 ${
+                state === 'completed'
+                  ? 'text-success'
+                  : state === 'current'
+                    ? 'text-primary'
+                    : 'text-muted-foreground/60'
+              }`}
+            />
+            <span
+              className={`text-[11px] leading-none ${
+                state === 'current'
+                  ? 'font-medium text-primary'
+                  : state === 'completed'
+                    ? 'text-foreground'
+                    : 'text-muted-foreground'
+              }`}
+            >
+              {step.label}
+            </span>
+            {i < PHASE_STEPS.length - 1 && <span className="mx-0.5 h-px w-3 bg-border" aria-hidden />}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+// PRD-K M3 (A8·A13): 우측 적층 5섹션을 순차 검수 스텝으로 — 항상 건너뛰고 확정 가능.
+const AUX_STEPS = ['구조 검수', '보강', '중복 확인', '규칙 제안'] as const;
+
 // PRD-I (M3, Task 3.3): 입력이 이 길이를 넘거나 CSV 탭이면 "가이드 여정" 전환을 권한다.
 // (짧은 텍스트/빠른 입력은 절대 권하지 않는다 — Quick 경로 무회귀.)
 const GUIDED_SUGGEST_THRESHOLD = 280;
@@ -220,6 +279,17 @@ const CRITIC_SEVERITY_BADGE: Record<CriticSeverity, string> = {
   low: 'border-muted-foreground/40 text-muted-foreground',
 };
 const criticKey = (i: CriticIssue) => `${i.ruleId}::${i.targetName}::${i.relatedName ?? ''}`;
+
+// PRD-K M3: 프리뷰 선택(체크박스) 키 — 파싱 항목의 안정 식별자(인덱스는 삭제 시 흔들림).
+const classSelKey = (name: string) => `class::${name}`;
+const propSelKey = (className: string, name: string) => `prop::${className}::${name}`;
+const instSelKey = (name: string) => `inst::${name}`;
+const relSelKey = (rel: { sourceName: string; relationName: string; targetName: string }) =>
+  `rel::${rel.sourceName}|${rel.relationName}|${rel.targetName}`;
+
+// PRD-K M3: 검토 표면 승격 임계 — 이하이면 팝오버 유지(기존 경로 보존).
+const SMALL_RESULT_CLASSES = 3;
+const SMALL_RESULT_RELATIONS = 5;
 
 export default function NewNodePopover() {
   const popoverState = useOntologyStore((s) => s.popoverState);
@@ -265,6 +335,12 @@ export default function NewNodePopover() {
   const [showDescriptive, setShowDescriptive] = useState(false);
   // S4: Critic 검수에서 사용자가 무시한 이슈 키 집합(읽기전용 자문 — 확정 차단 안 함).
   const [ignoredCritic, setIgnoredCritic] = useState<Set<string>>(new Set());
+  // PRD-K M3: 항목별 체크박스 제외 집합(기본 전체 선택) — "확정"은 체크된 것만 반영.
+  const [excludedKeys, setExcludedKeys] = useState<Set<string>>(new Set());
+  // PRD-K M3: 프리뷰 이탈 가드 — 배경 클릭/Esc 시 초안 소실 확인.
+  const [exitGuardOpen, setExitGuardOpen] = useState(false);
+  // PRD-K M3: 부가 검수(검수·보강·중복·규칙)의 현재 스텝 — 언제든 건너뛰고 확정 가능.
+  const [auxStep, setAuxStep] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   // PRD-K M2 (A6): 가짜 진행률 대신 정직한 표시 — 실제 파이프라인 단계 안내 + 경과시간.
   const [elapsedSec, setElapsedSec] = useState(0);
@@ -351,6 +427,31 @@ export default function NewNodePopover() {
     const newClasses = parsed.classes.filter((c) => !existingClassNames.has(c.name)).length;
     return { classes: newClasses, instances: parsed.instances.length };
   }, [parsed, existingClassNames]);
+
+  // PRD-K M3: 체크박스 토글 + 선택 요약(sticky 요약 헤더용).
+  const toggleSelKey = useCallback((key: string) => {
+    setExcludedKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
+
+  const selectionSummary = useMemo(() => {
+    if (!parsed) return null;
+    const newClasses = parsed.classes.filter((c) => !existingClassNames.has(c.name));
+    const counts = {
+      classes: newClasses.filter((c) => !excludedKeys.has(classSelKey(c.name))).length,
+      properties: parsed.properties.filter((p) => !excludedKeys.has(propSelKey(p.className, p.name))).length,
+      instances: parsed.instances.filter((i) => !excludedKeys.has(instSelKey(i.name))).length,
+      relations: parsed.relations.filter((r) => !excludedKeys.has(relSelKey(r))).length,
+    };
+    const total =
+      newClasses.length + parsed.properties.length + parsed.instances.length + parsed.relations.length;
+    const selected = counts.classes + counts.properties + counts.instances + counts.relations;
+    return { ...counts, excluded: total - selected, totalDraft: total };
+  }, [parsed, existingClassNames, excludedKeys]);
 
   // A-2: new class names that resemble an existing class (synonym suspects). Not
   // auto-merged — surfaced as a "중복 가능" flag that links to the P0-2 ER queue.
@@ -443,10 +544,26 @@ export default function NewNodePopover() {
     setCsvText('');
     setShowDescriptive(false);
     setIgnoredCritic(new Set());
+    setExcludedKeys(new Set());
+    setExitGuardOpen(false);
+    setAuxStep(0);
     classAC.clear();
     setShowClassAC(false);
     closePopover();
   }, [closePopover, classAC, stopElapsedTimer]);
+
+  // PRD-K M3: 이탈 가드 — 프리뷰에 초안이 있으면 확인 후에만 버린다(실수 1클릭 소실 방지).
+  const draftCount = parsed
+    ? parsed.classes.length + parsed.properties.length + parsed.instances.length + parsed.relations.length
+    : 0;
+  const requestClose = useCallback(() => {
+    const hasDraft = phase === 'preview' && draftCount > 0;
+    if (hasDraft) {
+      setExitGuardOpen(true);
+      return;
+    }
+    resetAndClose();
+  }, [phase, draftCount, resetAndClose]);
 
   // Esc key handler
   useEffect(() => {
@@ -454,12 +571,16 @@ export default function NewNodePopover() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.stopPropagation();
-        resetAndClose();
+        if (exitGuardOpen) {
+          setExitGuardOpen(false);
+          return;
+        }
+        requestClose();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, resetAndClose]);
+  }, [isOpen, exitGuardOpen, requestClose]);
 
   // 취소 시 입력 텍스트는 그대로 보존된 입력 화면으로 복귀한다(PRD-K M2).
   const handleCancelLoading = useCallback(() => {
@@ -853,6 +974,24 @@ export default function NewNodePopover() {
   const handleConfirm = () => {
     if (!parsed) return;
 
+    // PRD-K M3: 부분 반영 — 체크 해제(제외)된 항목을 뺀 유효 결과만 확정한다.
+    const effective: ParsedResult = {
+      ...parsed,
+      classes: parsed.classes.filter(
+        (c) => existingClassNames.has(c.name) || !excludedKeys.has(classSelKey(c.name)),
+      ),
+      properties: parsed.properties.filter((p) => !excludedKeys.has(propSelKey(p.className, p.name))),
+      instances: parsed.instances.filter((i) => !excludedKeys.has(instSelKey(i.name))),
+      relations: parsed.relations.filter((r) => !excludedKeys.has(relSelKey(r))),
+    };
+
+    // PRD-K M3: 확정 피드백 — 생성 수 집계 + 새 노드 하이라이트 + 일괄 되돌리기.
+    const temporalBefore = useOntologyStore.temporal.getState().pastStates.length;
+    const createdNodeIds: string[] = [];
+    let createdClassCount = 0;
+    let createdInstanceCount = 0;
+    let createdEdgeCount = 0;
+
     // P1-1: 이 확정으로 만드는 노드는 현재 구획에 속한다. 안정 id 산출에 같은
     // 구획을 써 재유입 시 동일 id 로 수렴시킨다(random UUID 대신 content-hash).
     const partition = currentPartitionId ?? DEFAULT_PARTITION_ID;
@@ -877,7 +1016,7 @@ export default function NewNodePopover() {
     classes.forEach((c) => classIdMap.set(c.name, c.id));
 
     // Topological sort: classes whose parentName is another new class should come after it
-    const sorted = [...parsed.classes];
+    const sorted = [...effective.classes];
     sorted.sort((a, b) => {
       if (a.name === b.parentName) return -1;
       if (b.name === a.parentName) return 1;
@@ -919,11 +1058,13 @@ export default function NewNodePopover() {
         evidence: enrich ? enrich.evidence : cls.evidence ?? null,
       });
       classIdMap.set(cls.name, id);
+      createdNodeIds.push(id);
+      createdClassCount++;
     });
 
     // Properties (class-level definitions). Reuse existing prop ids where present.
     const propIdMap = new Map<string, string>();
-    parsed.properties.forEach((prop) => {
+    effective.properties.forEach((prop) => {
       const classId = classIdMap.get(prop.className) ?? classIdMap.values().next().value;
       if (!classId) return;
       const existingProp = properties.find((p) => p.classId === classId && p.name === prop.name);
@@ -945,7 +1086,7 @@ export default function NewNodePopover() {
     // relations can reference them.
     const instanceIdMap = new Map<string, string>();
     instances.forEach((i) => instanceIdMap.set(i.name, i.id));
-    parsed.instances.forEach((inst) => {
+    effective.instances.forEach((inst) => {
       const classId = classIdMap.get(inst.className);
       if (!classId) return;
       // PRD-E P2-5: reuse 면 기존 인스턴스 재사용, relate 면 엣지 링크 기록
@@ -964,6 +1105,8 @@ export default function NewNodePopover() {
         description: inst.description ?? '',
       });
       instanceIdMap.set(inst.name, instId);
+      createdNodeIds.push(instId);
+      createdInstanceCount++;
       (inst.values ?? []).forEach((v) => {
         const propId = propIdMap.get(`${inst.className}::${v.propertyName}`);
         if (propId) setInstanceValue(instId, propId, v.value);
@@ -981,7 +1124,7 @@ export default function NewNodePopover() {
       if (instanceIdMap.has(name)) return { id: instanceIdMap.get(name)!, kind: 'instance' };
       return null;
     };
-    parsed.relations.forEach((rel) => {
+    effective.relations.forEach((rel) => {
       const src = resolveNode(rel.sourceName);
       const tgt = resolveNode(rel.targetName);
       if (src && tgt && src.id !== tgt.id) {
@@ -1003,6 +1146,7 @@ export default function NewNodePopover() {
           evidence: rel.evidence ?? null,
           categoryConfidence: rel.categoryConfidence ?? null,
         });
+        createdEdgeCount++;
       }
     });
 
@@ -1029,7 +1173,41 @@ export default function NewNodePopover() {
         confidence: null,
         evidence: null,
       });
+      createdEdgeCount++;
     });
+
+    // PRD-K M3 (A5): 확정 피드백 3종 — ① 성공 토스트(+일괄 되돌리기) ② 새 노드
+    // 캔버스 하이라이트(fit+pulse) ③ CommitBar 카운트는 pendingChanges 증가로 반영.
+    const undoSteps = Math.max(
+      0,
+      useOntologyStore.temporal.getState().pastStates.length - temporalBefore,
+    );
+    const summaryText = [
+      createdClassCount > 0 ? `클래스 ${createdClassCount}` : null,
+      createdInstanceCount > 0 ? `인스턴스 ${createdInstanceCount}` : null,
+      createdEdgeCount > 0 ? `관계 ${createdEdgeCount}` : null,
+    ]
+      .filter(Boolean)
+      .join(', ');
+    if (summaryText) {
+      toast.success(`${summaryText} 추가됨`, {
+        description: '새 항목이 캔버스에 강조 표시됩니다.',
+        action:
+          undoSteps > 0
+            ? {
+                label: '되돌리기',
+                onClick: () => useOntologyStore.temporal.getState().undo(undoSteps),
+              }
+            : undefined,
+      });
+    } else {
+      toast.info('반영할 새 항목이 없습니다', {
+        description: '모두 제외됐거나 기존 항목과 중복(재사용)입니다.',
+      });
+    }
+    if (createdNodeIds.length > 0) {
+      useOntologyStore.getState().highlightNodes(createdNodeIds);
+    }
 
     resetAndClose();
   };
@@ -1147,9 +1325,16 @@ export default function NewNodePopover() {
   ) => {
     // 표시 전용: 근거 문장을 노출해 검토를 돕는다. M6: AI 확신도(confidence)는 매 추출마다
     // 기준이 달라 재현 불가능한 신호라 사용자에게 숫자로 노출하지 않는다(값은 데이터로만 운반).
+    const relExcluded = excludedKeys.has(relSelKey(rel));
     return (
-      <div key={index} className="py-0.5 group pl-1">
+      <div key={index} className={`py-0.5 group pl-1 ${relExcluded ? 'opacity-50' : ''}`}>
         <div className="flex items-center gap-1.5">
+          <Checkbox
+            checked={!relExcluded}
+            onCheckedChange={() => toggleSelKey(relSelKey(rel))}
+            className="h-4 w-4 shrink-0"
+            aria-label={`포함: ${rel.sourceName} ${rel.relationName} ${rel.targetName}`}
+          />
           <Link2 className="w-3 h-3 text-muted-foreground/60 shrink-0" />
           {rel.category && (
             <Badge
@@ -1192,19 +1377,35 @@ export default function NewNodePopover() {
   const visibleCriticIssues = criticReport
     ? criticReport.issues.filter((i) => !ignoredCritic.has(criticKey(i)))
     : [];
-  const popoverW = isPreview ? 720 : POPOVER_WIDTH;
-  const popoverPos = popoverState
-    ? calcPopoverPosition(popoverState.position, {
-        w: popoverW,
-        h: isPreview ? 540 : POPOVER_EST_HEIGHT,
-      })
-    : { left: 0, top: 0 };
+  // PRD-K M3: 검토 표면 자동 승격 — 소량(클래스 ≤3·관계 ≤5)은 현행 팝오버 유지,
+  // 초과하면 중앙 확대 검토 표면(넓은 폭 + 화면 상단 고정)으로 승격한다.
+  const isLargeResult =
+    isPreview &&
+    !!parsed &&
+    (newCount.classes > SMALL_RESULT_CLASSES || parsed.relations.length > SMALL_RESULT_RELATIONS);
+  const popoverW = isLargeResult
+    ? Math.min(1040, typeof window !== 'undefined' ? window.innerWidth * 0.94 : 1040)
+    : isPreview
+      ? 720
+      : POPOVER_WIDTH;
+  const popoverPos = isLargeResult
+    ? {
+        left: Math.max(12, ((typeof window !== 'undefined' ? window.innerWidth : 1280) - popoverW) / 2),
+        top: Math.max(12, (typeof window !== 'undefined' ? window.innerHeight : 800) * 0.07),
+      }
+    : popoverState
+      ? calcPopoverPosition(popoverState.position, {
+          w: popoverW,
+          h: isPreview ? 540 : POPOVER_EST_HEIGHT,
+        })
+      : { left: 0, top: 0 };
+  const previewColumnMaxH = isLargeResult ? 'max-h-[64vh]' : 'max-h-[440px]';
 
   return (
     <div
       className="fixed inset-0 z-50"
       data-testid="new-node-popover"
-      onClick={resetAndClose}
+      onClick={requestClose}
       role="dialog"
       aria-modal="true"
       aria-label="새 노드 생성"
@@ -1214,8 +1415,13 @@ export default function NewNodePopover() {
           key={phase === 'input' ? `input-${activeTab}` : phase}
           {...popoverAnimation}
           className={`absolute bg-white dark:bg-card border border-border rounded-xl shadow-lg p-4 ${
-            isPreview ? 'w-[720px] max-w-[92vw]' : 'w-[400px] max-w-[400px]'
+            isLargeResult
+              ? 'w-[min(1040px,94vw)] max-w-[94vw]'
+              : isPreview
+                ? 'w-[720px] max-w-[92vw]'
+                : 'w-[400px] max-w-[400px]'
           }`}
+          data-surface={isLargeResult ? 'review' : 'popover'}
           style={{
             left: popoverPos.left + drag.offset.x,
             top: popoverPos.top + drag.offset.y,
@@ -1234,11 +1440,14 @@ export default function NewNodePopover() {
             <div className="h-1 w-10 rounded-full bg-border transition-colors group-hover/drag:bg-muted-foreground/50" />
           </div>
 
+          {/* PRD-K M3 (A11): 현재 위치·다음 단계 상시 안내 */}
+          <PhaseMiniStepper current={phase === 'input' ? 0 : phase === 'loading' ? 1 : 2} />
+
           {phase === 'input' && (
             <>
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-semibold">새 노드</h3>
-                <button onClick={resetAndClose} className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:text-foreground">
+                <button onClick={requestClose} className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:text-foreground">
                   <X className="w-4 h-4" />
                 </button>
               </div>
@@ -1596,7 +1805,7 @@ export default function NewNodePopover() {
                     </p>
                   )}
                 </div>
-                <button onClick={resetAndClose} className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:text-foreground">
+                <button onClick={requestClose} className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:text-foreground">
                   <X className="w-4 h-4" />
                 </button>
               </div>
@@ -1620,9 +1829,27 @@ export default function NewNodePopover() {
                 </div>
               )}
 
+              {/* PRD-K M3: 요약 헤더 상시 고정 — 스크롤해도 전체 그림 유지 */}
+              {selectionSummary && (
+                <div
+                  data-testid="selection-summary"
+                  className="sticky top-0 z-10 mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-border bg-card/95 px-2.5 py-1.5 backdrop-blur-sm"
+                >
+                  <span className="text-xs font-medium">
+                    클래스 {selectionSummary.classes} · 속성 {selectionSummary.properties} · 인스턴스{' '}
+                    {selectionSummary.instances} · 관계 {selectionSummary.relations} 선택됨
+                  </span>
+                  {selectionSummary.excluded > 0 && (
+                    <span className="text-xs text-muted-foreground">
+                      — {selectionSummary.excluded}건 제외
+                    </span>
+                  )}
+                </div>
+              )}
+
               <div className="flex gap-3">
                 {/* 구조 — extracted structure (left column) */}
-                <div className="flex-1 min-w-0 overflow-y-auto max-h-[440px] pr-1">
+                <div className={`flex-1 min-w-0 overflow-y-auto ${previewColumnMaxH} pr-1`}>
                 {/* Hierarchical tree */}
                 {treeItems.length > 0 && (
                   <div className="space-y-0.5 mb-3">
@@ -1635,14 +1862,26 @@ export default function NewNodePopover() {
                         item.type === 'instance' && item.originalIndex >= 0
                           ? parsed?.instances[item.originalIndex]?.values ?? []
                           : [];
+                      // PRD-K M3: 체크 해제(제외)된 행은 흐리게 — 확정에서 빠짐을 시각화.
+                      const itemSelKey =
+                        item.type === 'class' ? classSelKey(item.name) : instSelKey(item.name);
+                      const isItemExcluded = !item.isExisting && excludedKeys.has(itemSelKey);
                       return (
                       <Fragment key={`${item.type}-${item.name}-${i}`}>
                       <div
                         className={`flex items-center gap-1.5 py-0.5 group ${
-                          item.isExisting ? 'opacity-50' : ''
+                          item.isExisting || isItemExcluded ? 'opacity-50' : ''
                         }`}
                         style={{ paddingLeft: `${item.depth * 16 + 4}px` }}
                       >
+                        {!item.isExisting && (
+                          <Checkbox
+                            checked={!isItemExcluded}
+                            onCheckedChange={() => toggleSelKey(itemSelKey)}
+                            className="h-4 w-4 shrink-0"
+                            aria-label={`포함: ${item.name}`}
+                          />
+                        )}
                         {item.type === 'class' ? (
                           <>
                             {item.depth > 0 && (
@@ -1771,7 +2010,18 @@ export default function NewNodePopover() {
                       프로퍼티 {parsed.properties.length}개
                     </span>
                     {parsed.properties.map((prop, i) => (
-                      <div key={i} className="flex items-center gap-2 py-0.5 group pl-1">
+                      <div
+                        key={i}
+                        className={`flex items-center gap-2 py-0.5 group pl-1 ${
+                          excludedKeys.has(propSelKey(prop.className, prop.name)) ? 'opacity-50' : ''
+                        }`}
+                      >
+                        <Checkbox
+                          checked={!excludedKeys.has(propSelKey(prop.className, prop.name))}
+                          onCheckedChange={() => toggleSelKey(propSelKey(prop.className, prop.name))}
+                          className="h-4 w-4 shrink-0"
+                          aria-label={`포함: ${prop.name}`}
+                        />
                         <span className="text-xs font-mono">+ {prop.name}: {prop.dataType}</span>
                         {prop.className && (
                           <span className="text-[11px] text-muted-foreground">({prop.className})</span>
@@ -1814,10 +2064,43 @@ export default function NewNodePopover() {
                 )}
                 </div>
 
-                {/* 섬 + 보강 (right column) */}
-                <div className="w-[260px] shrink-0 flex flex-col gap-3 overflow-y-auto max-h-[440px] border-l border-border pl-3">
+                {/* PRD-K M3: 부가 검수 — 적층 대신 순차 스텝(구조 검수→보강→중복→규칙), 건너뛰기 상시 가능 */}
+                <div
+                  className={`${isLargeResult ? 'w-[320px]' : 'w-[260px]'} shrink-0 flex flex-col gap-3 overflow-y-auto ${previewColumnMaxH} border-l border-border pl-3`}
+                >
+                  <div>
+                    <div className="flex items-center justify-between gap-1" data-testid="aux-step-nav">
+                      <button
+                        type="button"
+                        aria-label="이전 검수 단계"
+                        disabled={auxStep === 0}
+                        onClick={() => setAuxStep((s) => Math.max(0, s - 1))}
+                        className="flex h-6 w-6 items-center justify-center rounded border border-border text-muted-foreground hover:text-foreground disabled:opacity-40"
+                      >
+                        <ChevronLeft className="w-3.5 h-3.5" />
+                      </button>
+                      <span className="text-xs font-semibold">
+                        {AUX_STEPS[auxStep]}{' '}
+                        <span className="font-normal text-muted-foreground">
+                          ({auxStep + 1}/{AUX_STEPS.length})
+                        </span>
+                      </span>
+                      <button
+                        type="button"
+                        aria-label="다음 검수 단계"
+                        disabled={auxStep === AUX_STEPS.length - 1}
+                        onClick={() => setAuxStep((s) => Math.min(AUX_STEPS.length - 1, s + 1))}
+                        className="flex h-6 w-6 items-center justify-center rounded border border-border text-muted-foreground hover:text-foreground disabled:opacity-40"
+                      >
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    <p className="mt-1 text-[11px] text-muted-foreground/70">
+                      검수는 선택 사항 — 언제든 아래 &quot;확정&quot;을 눌러도 됩니다.
+                    </p>
+                  </div>
                   {/* S4: Critic 검수 — 모델 수호자 자문(읽기전용, 확정 차단 안 함) */}
-                  {criticReport && (
+                  {auxStep === 0 && criticReport && (
                     <section>
                       <span className="text-xs font-semibold text-muted-foreground uppercase mb-1.5 flex items-center gap-1.5">
                         검수
@@ -1865,8 +2148,9 @@ export default function NewNodePopover() {
                     </section>
                   )}
 
-                  <IslandList islands={islands} onSuggest={handleIslandSuggest} />
+                  {auxStep === 0 && <IslandList islands={islands} onSuggest={handleIslandSuggest} />}
 
+                  {auxStep === 1 && (
                   <section>
                     <span className="text-xs font-semibold text-muted-foreground uppercase mb-1.5 flex items-center gap-1.5">
                       보강 {enrichments.length > 0 && `${enrichments.length}개`}
@@ -1906,8 +2190,10 @@ export default function NewNodePopover() {
                       </div>
                     )}
                   </section>
+                  )}
 
                   {/* PRD-E P2-5: 중복 검사 */}
+                  {auxStep === 2 && (
                   <section>
                     <span className="text-xs font-semibold text-muted-foreground uppercase mb-1.5 flex items-center gap-1.5">
                       중복 검사 {dedup.size > 0 && `${dedup.size}건`}
@@ -1938,8 +2224,10 @@ export default function NewNodePopover() {
                       </div>
                     )}
                   </section>
+                  )}
 
                   {/* PRD-E P2-7: 거버넌스 제안 (HITL) */}
+                  {auxStep === 3 && (
                   <section>
                     <span className="text-xs font-semibold text-muted-foreground uppercase mb-1.5 flex items-center gap-1.5">
                       거버넌스 제안 {governance.length > 0 && `${governance.length}개`}
@@ -1971,6 +2259,7 @@ export default function NewNodePopover() {
                       </div>
                     )}
                   </section>
+                  )}
                 </div>
               </div>
 
@@ -1988,6 +2277,28 @@ export default function NewNodePopover() {
           )}
         </motion.div>
       </AnimatePresence>
+
+      {/* PRD-K M3: 이탈 가드 — 실수 1클릭으로 LLM 결과 전량 소실 방지 */}
+      <AlertDialog open={exitGuardOpen} onOpenChange={setExitGuardOpen}>
+        <AlertDialogContent onClick={(e) => e.stopPropagation()} data-testid="exit-guard">
+          <AlertDialogHeader>
+            <AlertDialogTitle>생성된 초안 {draftCount}건을 버릴까요?</AlertDialogTitle>
+            <AlertDialogDescription>
+              지금 닫으면 AI가 구조화한 결과가 모두 사라집니다. 확정 전에는 그래프에 아무것도
+              반영되지 않습니다.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setExitGuardOpen(false)}>계속 검토</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={resetAndClose}
+            >
+              버리기
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

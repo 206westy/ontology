@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { motion } from 'motion/react';
 import { useQuery } from '@tanstack/react-query';
 import { Undo2, List, ArrowUpCircle, GitCommitHorizontal, Loader2, History } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -140,7 +141,19 @@ export default function CommitBar() {
           onPublish={() => setShowNeoPush(true)}
         />
         <span className="text-xs text-foreground">
-          변경사항 {pendingChanges.length}건
+          변경사항{' '}
+          {/* PRD-K M3 (A5): 확정 직후 카운트 증가를 시각적으로 확인시키는 펄스 */}
+          <motion.span
+            key={pendingChanges.length}
+            initial={{ scale: 1.35 }}
+            animate={{ scale: 1 }}
+            transition={{ type: 'spring', stiffness: 500, damping: 22 }}
+            className="inline-block font-semibold tabular-nums"
+            data-testid="pending-count"
+          >
+            {pendingChanges.length}
+          </motion.span>
+          건
         </span>
         {unpushedCount > 0 && (
           <Badge

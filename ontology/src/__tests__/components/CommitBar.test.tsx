@@ -95,7 +95,9 @@ describe('CommitBar', () => {
 
   it('should show 0 changes when no pending changes', () => {
     renderBar();
-    expect(screen.getByText('변경사항 0건')).toBeInTheDocument();
+    // PRD-K M3: 카운트가 펄스 애니메이션용 별도 요소로 분리됨
+    expect(screen.getByText(/변경사항/)).toBeInTheDocument();
+    expect(screen.getByTestId('pending-count')).toHaveTextContent('0');
   });
 
   it('should show change count after adding classes', () => {
@@ -103,7 +105,7 @@ describe('CommitBar', () => {
     useOntologyStore.getState().addClass({ name: 'B' });
 
     renderBar();
-    expect(screen.getByText('변경사항 2건')).toBeInTheDocument();
+    expect(screen.getByTestId('pending-count')).toHaveTextContent('2');
   });
 
   it('should show summary with class count', () => {
