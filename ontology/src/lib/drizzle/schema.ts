@@ -207,8 +207,8 @@ export const relationTypes = pgTable(
     id: uuid('id').primaryKey().defaultRandom(),
     name: text('name').notNull().unique(),
     description: text('description').default(''),
-    // PR1 (목표①): 액션 지향 분류. 기존 row 는 'descriptive' 백필.
-    category: text('category').notNull().default('descriptive'),
+    // PRD-L M2: 2레이어 분류(semantic|kinetic). 기존 row 는 'semantic' 백필.
+    layer: text('layer').notNull().default('semantic'),
     sourceClassId: uuid('source_class_id').references(() => classes.id, {
       onDelete: 'set null',
     }),
@@ -221,8 +221,8 @@ export const relationTypes = pgTable(
   },
   (t) => [
     check(
-      'chk_relation_category',
-      sql`${t.category} IN ('structural', 'causal', 'diagnostic', 'procedural', 'descriptive')`,
+      'chk_relation_layer',
+      sql`${t.layer} IN ('semantic', 'kinetic')`,
     ),
   ],
 );
@@ -269,8 +269,6 @@ export const edges = pgTable(
     sourceType: text('source_type'),
     confidence: real('confidence'),
     evidence: text('evidence'),
-    // PRD-F P4-1: category 판정 확신도(저신뢰는 traversal 비우선). nullable.
-    categoryConfidence: real('category_confidence'),
   },
   (t) => [
     unique('uq_edge').on(t.relationTypeId, t.sourceId, t.targetId),

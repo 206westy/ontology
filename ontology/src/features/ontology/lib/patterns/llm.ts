@@ -62,8 +62,9 @@ export async function recognizeDomain(text: string): Promise<RecognizeResult> {
 }
 
 const BUNDLE_SYSTEM = `너는 온톨로지 설계 패턴(ODP) 저자다. 도메인에 맞는 패턴 번들을 설계한다.
-번들 = 역할(roles: 노드 타입, nodeKind 항상 'class') + 관계 타입(relationTypes: category 는
-structural|causal|diagnostic|procedural|descriptive 중 하나, sourceRole/targetRole 는 roles 의 name)
+번들 = 역할(roles: 노드 타입, nodeKind 항상 'class') + 관계 타입(relationTypes: layer 는
+semantic|kinetic 중 하나 — semantic 은 지식·서술 관계(구성·인과·서술 등 "무엇인가"),
+kinetic 은 행동·조치 관계(점검·교체·실행 등 "무엇을 하는가"), sourceRole/targetRole 는 roles 의 name)
 + competencyQuestions(그래프가 답해야 할 질문) + traversalTemplates(각 CQ 에 답하는 경로 표현).
 관계 방향·의미를 정확히. 진단 도메인이면 증상→원인→점검→조치의 인과 계층을 반영한다.`;
 

@@ -356,28 +356,28 @@ describe('buildCypherStatements', () => {
     expect(stmts[0].params.rangeClassId).toBe(parentId);
   });
 
-  // PR1 (목표①): category 가 Neo4j 까지 운반됨 (조용한 유실 금지).
-  it('carries relation type action-centric category to Neo4j', () => {
+  // PRD-L M2: layer 가 Neo4j 까지 운반됨 (조용한 유실 금지).
+  it('carries relation type layer to Neo4j', () => {
     const details: CommitDetail[] = [
       {
         operation: 'ADD',
         targetTable: 'relation_types',
         targetId: relTypeId,
         afterSnapshot: {
-          name: 'increases',
+          name: 'inspects',
           description: '',
-          category: 'causal',
+          layer: 'kinetic',
           sourceClassId: classId,
           targetClassId: parentId,
         },
       },
     ];
     const stmts = buildCypherStatements(details);
-    expect(stmts[0].query).toContain('rt.category = $category');
-    expect(stmts[0].params.category).toBe('causal');
+    expect(stmts[0].query).toContain('rt.layer = $layer');
+    expect(stmts[0].params.layer).toBe('kinetic');
   });
 
-  it('defaults relation type category to descriptive when snapshot omits it', () => {
+  it('defaults relation type layer to semantic when snapshot omits it', () => {
     const details: CommitDetail[] = [
       {
         operation: 'ADD',
@@ -387,7 +387,21 @@ describe('buildCypherStatements', () => {
       },
     ];
     const stmts = buildCypherStatements(details);
-    expect(stmts[0].params.category).toBe('descriptive');
+    expect(stmts[0].params.layer).toBe('semantic');
+  });
+
+  // PRD-L M2: 과거 커밋의 category(5분류) 스냅샷은 layer 로 하위호환 변환된다.
+  it('maps a legacy category snapshot to the 2-layer value', () => {
+    const details: CommitDetail[] = [
+      {
+        operation: 'ADD',
+        targetTable: 'relation_types',
+        targetId: relTypeId,
+        afterSnapshot: { name: 'old_diag', description: '', category: 'diagnostic' },
+      },
+    ];
+    const stmts = buildCypherStatements(details);
+    expect(stmts[0].params.layer).toBe('kinetic');
   });
 
   it('carries node attribution (_src/_conf/_srcRef)', () => {

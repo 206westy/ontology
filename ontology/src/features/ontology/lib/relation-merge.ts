@@ -1,13 +1,14 @@
 // PRD-F P2-3: 전역 관계 병합. 청크별 Stage2 결과를 합치며 중복을 제거한다.
-// 동일 (source, target, type, category) 는 1건으로, confidence 는 최댓값을 유지한다.
+// PRD-L M2: 동일 (source, target, type) 는 1건으로 — dedup 키는 layer 와 무관하다
+// (같은 관계가 layer 만 달라도 중복이다). confidence 는 최댓값을 유지한다.
 // 별모양·섬 방지는 grounding(Stage2 프롬프트)이 이미 담당 — 여기선 병합만.
 import type { ParsedRelation } from './schemas';
 import { normalizeName } from './similarity';
 
 export function relationKey(
-  r: Pick<ParsedRelation, 'source' | 'target' | 'type' | 'category'>,
+  r: Pick<ParsedRelation, 'source' | 'target' | 'type'>,
 ): string {
-  return `${normalizeName(r.source)}|${normalizeName(r.target)}|${normalizeName(r.type)}|${r.category}`;
+  return `${normalizeName(r.source)}|${normalizeName(r.target)}|${normalizeName(r.type)}`;
 }
 
 export function mergeRelationsAcrossChunks(relations: ParsedRelation[]): {

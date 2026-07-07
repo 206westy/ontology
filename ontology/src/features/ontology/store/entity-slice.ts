@@ -354,8 +354,8 @@ export const createEntitySlice: SliceCreator<EntitySlice> = (set, get) => ({
       id,
       name: data.name,
       description: data.description ?? '',
-      // PR1 (목표①): 분류 미지정 시 'descriptive'(서술) 기본값 — 액션 그래프에서 강등.
-      category: data.category ?? 'descriptive',
+      // PRD-L M2: 레이어 미지정 시 'semantic'(지식) 기본값.
+      layer: data.layer ?? 'semantic',
       sourceClassId: data.sourceClassId ?? '',
       targetClassId: data.targetClassId ?? '',
       createdAt: new Date().toISOString(),
@@ -389,7 +389,6 @@ export const createEntitySlice: SliceCreator<EntitySlice> = (set, get) => ({
       sourceType: data.sourceType ?? null,
       confidence: data.confidence ?? null,
       evidence: data.evidence ?? null,
-      categoryConfidence: data.categoryConfidence ?? null,
     };
     set((state) => ({
       edges: [...state.edges, newEdge],
@@ -546,7 +545,7 @@ export const createEntitySlice: SliceCreator<EntitySlice> = (set, get) => ({
           targetClassId = c.id;
         }
         const newType: RelationType = {
-          id: generateId(), name, description: '', category: 'descriptive',
+          id: generateId(), name, description: '', layer: 'semantic',
           sourceClassId, targetClassId,
           createdAt: new Date().toISOString(),
         };
@@ -570,7 +569,7 @@ export const createEntitySlice: SliceCreator<EntitySlice> = (set, get) => ({
         const newEdge: OntologyEdge = {
           // P1-1: 엣지도 안정 id — 안 그러면 재유입마다 새 random id 로 같은 노드
           // 사이 관계가 중복 생성된다(cypher-builder edge MERGE 가 {id} 로 묶음).
-          id: stableEdgeId(s.id, t.id, rt.name, rt.category),
+          id: stableEdgeId(s.id, t.id, rt.name),
           relationTypeId: rt.id,
           sourceId: s.id, targetId: t.id, sourceKind: s.kind, targetKind: t.kind,
           createdAt: new Date().toISOString(),

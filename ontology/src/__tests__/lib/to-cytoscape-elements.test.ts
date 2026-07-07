@@ -30,7 +30,7 @@ function edge(id: string, sourceId: string, targetId: string, relationTypeId: st
   return { id, sourceId, targetId, relationTypeId, sourceKind: 'class', targetKind: 'class', createdAt: '' };
 }
 function rel(id: string, name: string): RelationType {
-  return { id, name, description: '', category: 'descriptive', sourceClassId: '', targetClassId: '', createdAt: '' };
+  return { id, name, description: '', layer: 'semantic', sourceClassId: '', targetClassId: '', createdAt: '' };
 }
 
 describe('getColorKey', () => {

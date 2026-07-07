@@ -1,7 +1,7 @@
 import { NODE_COLORS } from '../constants/colors';
 import { levenshtein, normalizeName } from './similarity';
 import type { LlmParseResult } from '../api';
-import type { RelationCategory } from './types';
+import type { RelationLayer } from './types';
 
 // H1: 파싱 파이프라인이 조용히 흘려보내던 누락을 구조화 경고로 노출한다.
 // 비즈니스 로직(무엇을 만들지)은 그대로 두고 "무엇이 빠졌는지"만 검토 UI에 전달한다.
@@ -37,12 +37,10 @@ export interface ParsedExtraction {
     sourceName: string;
     targetName: string;
     relationName: string;
-    // PR1 (목표①): 액션 지향 분류. 구버전 payload 호환 위해 optional.
-    category?: RelationCategory;
+    // PRD-L M2: 2레이어 분류(semantic|kinetic). 구버전 payload 호환 위해 optional.
+    layer?: RelationLayer;
     evidence?: string;
     confidence?: number;
-    // PRD-F P4-1: category 판정 확신도(저신뢰 라우팅용).
-    categoryConfidence?: number;
   }[];
   instances: {
     className: string;
@@ -173,10 +171,9 @@ export function mapParseResult(
     sourceName: r.source,
     targetName: r.target,
     relationName: r.type,
-    category: r.category,
+    layer: r.layer,
     evidence: r.evidence,
     confidence: r.confidence,
-    categoryConfidence: r.categoryConfidence,
   }));
 
   // Ensure relation endpoints exist as nodes (class fallback if neither a class
@@ -204,18 +201,19 @@ export function mapParseResult(
   return { classes, properties, relations, instances, warnings };
 }
 
-// PR1 (목표①): 액션 지향 관계와 서술(descriptive) 관계를 분리. descriptive 는 프리뷰에서
-// 강등(접힘) 표시한다. 원본 인덱스를 보존해 편집/삭제가 parsed.relations 를 그대로 가리킨다.
-export function partitionRelationsByCategory<T extends { category?: RelationCategory }>(
+// PRD-L M2: 표시용 레이어 분할. semantic(지식·서술) / kinetic(행동·조치) 두 그룹으로
+// 나눈다 — 강등·비우선 개념 없이 동등한 두 묶음이다. 원본 인덱스를 보존해 편집/삭제가
+// parsed.relations 를 그대로 가리킨다. layer 미지정(구버전 payload)은 semantic 로 본다.
+export function partitionRelationsByLayer<T extends { layer?: RelationLayer }>(
   relations: T[],
-): { actionable: { rel: T; index: number }[]; descriptive: { rel: T; index: number }[] } {
-  const actionable: { rel: T; index: number }[] = [];
-  const descriptive: { rel: T; index: number }[] = [];
+): { semantic: { rel: T; index: number }[]; kinetic: { rel: T; index: number }[] } {
+  const semantic: { rel: T; index: number }[] = [];
+  const kinetic: { rel: T; index: number }[] = [];
   relations.forEach((rel, index) => {
-    if (rel.category === 'descriptive') descriptive.push({ rel, index });
-    else actionable.push({ rel, index });
+    if (rel.layer === 'kinetic') kinetic.push({ rel, index });
+    else semantic.push({ rel, index });
   });
-  return { actionable, descriptive };
+  return { semantic, kinetic };
 }
 
 // Islands (A-5): newly-extracted nodes with no grounded relation AND no place in

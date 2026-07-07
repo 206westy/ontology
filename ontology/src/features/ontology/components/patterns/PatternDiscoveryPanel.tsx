@@ -78,7 +78,7 @@ export function buildParsePatternContext(
     roles: source.roles.map((r) => ({ name: r.name, description: r.description })),
     relationTypes: source.relationTypes.map((rt) => ({
       name: rt.name,
-      category: rt.category,
+      layer: rt.layer,
       sourceRole: rt.sourceRole,
       targetRole: rt.targetRole,
     })),

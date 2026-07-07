@@ -26,15 +26,15 @@ export function stableEntityId(
   return uuidv5(key, ONTOLOGY_NAMESPACE);
 }
 
-// 엣지 안정 id. 양 끝 노드가 이미 안정 id 이므로 (src,tgt,관계명,category)만으로
-// 완전히 결정적이다. 이게 없으면 재유입마다 새 random 엣지 id 가 생겨 같은 노드
-// 사이에 관계가 중복 생성된다(cypher-builder edge MERGE 가 {id} 로 묶기 때문).
+// 엣지 안정 id. 양 끝 노드가 이미 안정 id 이므로 (src,tgt,관계명)만으로 완전히
+// 결정적이다. PRD-L M2: 엣지 정체성은 layer 와 무관하다 — 같은 두 노드 사이 같은
+// 관계명은 layer 재분류와 상관없이 동일 엣지다(중복 생성 금지). 이게 없으면
+// 재유입마다 새 random 엣지 id 가 생겨 관계가 중복된다(edge MERGE 가 {id} 로 묶음).
 export function stableEdgeId(
   sourceId: string,
   targetId: string,
   relationName: string,
-  category: string,
 ): string {
-  const key = `${sourceId}|${targetId}|${normalizeName(relationName)}|${category}`;
+  const key = `${sourceId}|${targetId}|${normalizeName(relationName)}`;
   return uuidv5(key, ONTOLOGY_NAMESPACE);
 }

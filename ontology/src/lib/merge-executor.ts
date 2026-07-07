@@ -19,7 +19,7 @@ import {
   type MergePlan,
   type NetChange,
 } from '@/features/ontology/lib/merge-diff';
-import { DEFAULT_PARTITION_ID } from '@/features/ontology/lib/types';
+import { DEFAULT_PARTITION_ID, toRelationLayer } from '@/features/ontology/lib/types';
 
 // PRD-J M3: 병합 실행기(서버 전용).
 // - loadMergePlan: 브랜치 순변화(mine) vs 분기 이후 main 순변화(theirs) → 병합 계획.
@@ -131,7 +131,10 @@ async function upsertOne(tx: Tx, change: NetChange): Promise<void> {
         id,
         name: s(d.name ?? ''),
         description: (d.description as string | undefined) ?? '',
-        ...(d.category ? { category: s(d.category) } : {}),
+        // PRD-L M2: layer(2레이어). 과거 스냅샷의 category(5분류)는 하위호환 변환.
+        ...((d.layer ?? d.category) != null
+          ? { layer: toRelationLayer(d.layer ?? d.category) }
+          : {}),
         sourceClassId: so(d.sourceClassId),
         targetClassId: so(d.targetClassId),
       };
@@ -205,7 +208,6 @@ async function upsertOne(tx: Tx, change: NetChange): Promise<void> {
         sourceType: so(d.sourceType),
         confidence: num(d.confidence),
         evidence: so(d.evidence),
-        categoryConfidence: num(d.categoryConfidence),
       };
       const { id: _i, ...set } = row;
       await tx.insert(edges).values(row).onConflictDoUpdate({ target: edges.id, set });

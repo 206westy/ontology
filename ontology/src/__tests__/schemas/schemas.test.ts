@@ -148,28 +148,27 @@ describe('createRelationTypeSchema', () => {
   });
 });
 
-describe('parsedRelationSchema (PR1: 액션 지향 category)', () => {
+describe('parsedRelationSchema (PRD-L M2: 2레이어 layer)', () => {
   const base = {
     source: 'MW Power',
     target: 'Particle',
     type: '증가시킨다',
     evidence: 'MW Power가 높으면 Particle 증가',
     confidence: 0.9,
-    categoryConfidence: 0.85,
   };
 
-  it('requires a category (strict 모드 — optional 불가)', () => {
+  it('requires a layer (strict 모드 — optional 불가)', () => {
     const result = parsedRelationSchema.safeParse(base);
     expect(result.success).toBe(false);
   });
 
-  it('accepts a valid action-centric category', () => {
-    const result = parsedRelationSchema.safeParse({ ...base, category: 'causal' });
-    expect(result.success).toBe(true);
+  it('accepts a valid layer (semantic|kinetic)', () => {
+    expect(parsedRelationSchema.safeParse({ ...base, layer: 'semantic' }).success).toBe(true);
+    expect(parsedRelationSchema.safeParse({ ...base, layer: 'kinetic' }).success).toBe(true);
   });
 
-  it('rejects an unknown category', () => {
-    const result = parsedRelationSchema.safeParse({ ...base, category: 'temporal' });
+  it('rejects an unknown layer', () => {
+    const result = parsedRelationSchema.safeParse({ ...base, layer: 'causal' });
     expect(result.success).toBe(false);
   });
 });

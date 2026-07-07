@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { relationCategoryEnum, type RelationCategory } from '../schemas';
+import { relationLayerEnum, type RelationLayer } from '../schemas';
 
 // PRD-H (H1/M1): 패턴 = 번들(역할+관계+CQ+traversal). 학습형 캐시의 1급 자산.
 // 발견 방식(method)·출처·라이선스를 함께 들고 다녀 재현·수렴·발행 게이트를 지원한다.
@@ -14,7 +14,7 @@ export interface PatternRole {
 
 export interface PatternRelationType {
   name: string;
-  category: RelationCategory;
+  layer: RelationLayer;
   sourceRole: string;
   targetRole: string;
 }
@@ -56,7 +56,7 @@ export const patternRoleSchema = z.object({
 
 export const patternRelationTypeSchema = z.object({
   name: z.string().min(1),
-  category: relationCategoryEnum,
+  layer: relationLayerEnum,
   sourceRole: z.string().min(1),
   targetRole: z.string().min(1),
 });

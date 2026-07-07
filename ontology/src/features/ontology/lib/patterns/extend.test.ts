@@ -19,7 +19,7 @@ const base: Pattern = {
     { name: '원인', nodeKind: 'class', description: '' },
   ],
   relationTypes: [
-    { name: 'caused_by', category: 'causal', sourceRole: '증상', targetRole: '원인' },
+    { name: 'caused_by', layer: 'semantic', sourceRole: '증상', targetRole: '원인' },
   ],
   competencyQuestions: ['이 증상의 원인은?'],
   traversalTemplates: [{ cq: '이 증상의 원인은?', path: '증상-caused_by->원인' }],
@@ -47,7 +47,7 @@ describe('extendPattern (H5 확장 = 패턴 버전업)', () => {
     const next = extendPattern(base, {
       roles: [{ name: '조치', nodeKind: 'class', description: '수리' }],
       relationTypes: [
-        { name: 'fixed_by', category: 'procedural', sourceRole: '원인', targetRole: '조치' },
+        { name: 'fixed_by', layer: 'kinetic', sourceRole: '원인', targetRole: '조치' },
       ],
     });
     expect(next.roles.map((r) => r.name)).toEqual(['증상', '원인', '조치']);
@@ -84,7 +84,7 @@ describe('driftElementsToExtension', () => {
       { name: '조치', nodeKind: 'class', description: '수리 작업' },
     ]);
     expect(ext.relationTypes).toEqual([
-      { name: 'fixed_by', category: 'descriptive', sourceRole: '원인', targetRole: '조치' },
+      { name: 'fixed_by', layer: 'semantic', sourceRole: '원인', targetRole: '조치' },
     ]);
   });
 });

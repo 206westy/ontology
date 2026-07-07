@@ -36,8 +36,8 @@ export async function POST(request: NextRequest) {
         ...(parsed.data.id ? { id: parsed.data.id } : {}),
         name: parsed.data.name,
         description: parsed.data.description,
-        // PR1 (목표①): 액션 지향 분류 저장.
-        category: parsed.data.category,
+        // PRD-L M2: 2레이어 분류 저장.
+        layer: parsed.data.layer,
         sourceClassId: parsed.data.sourceClassId ?? null,
         targetClassId: parsed.data.targetClassId ?? null,
       })

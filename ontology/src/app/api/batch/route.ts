@@ -10,7 +10,7 @@ import {
   attributions,
 } from '@/lib/drizzle/schema';
 import { batchRequestSchema, type BatchOperation } from '@/features/ontology/lib/schemas';
-import { DEFAULT_PARTITION_ID } from '@/features/ontology/lib/types';
+import { DEFAULT_PARTITION_ID, toRelationLayer } from '@/features/ontology/lib/types';
 import { mapAttributionSourceType } from '@/lib/attribution';
 import { eq, sql } from 'drizzle-orm';
 import { handleApiError } from '@/lib/api-error';
@@ -127,8 +127,10 @@ async function applyCreates(
               ...(d.id ? { id: str(d.id) } : {}),
               name: str(d.name),
               description: (d.description as string | undefined) ?? '',
-              // PR1 (목표①): category 보존 — 조용한 'descriptive' 유실 방지.
-              ...(d.category ? { category: str(d.category) } : {}),
+              // PRD-L M2: layer 보존 — 과거 category(5분류)는 하위호환 변환, 누락은 semantic.
+              ...((d.layer ?? d.category) != null
+                ? { layer: toRelationLayer(d.layer ?? d.category) }
+                : {}),
               sourceClassId: optStr(d.sourceClassId),
               targetClassId: optStr(d.targetClassId),
             };

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mapParseResult, findPossibleDuplicates, computeIslands, partitionRelationsByCategory } from '@/features/ontology/lib/parse-mapping';
+import { mapParseResult, findPossibleDuplicates, computeIslands, partitionRelationsByLayer } from '@/features/ontology/lib/parse-mapping';
 import type { LlmParseResult } from '@/features/ontology/api';
 
 describe('mapParseResult (A-1)', () => {
@@ -65,7 +65,7 @@ describe('mapParseResult (A-1)', () => {
         { name: 'Particle', type: '결과', evidence: 'y' },
       ],
       relations: [
-        { source: 'MW Power', target: 'Particle', type: '증가시킨다', category: 'causal', evidence: 'MW Power가 높으면 Particle 증가', confidence: 0.9 },
+        { source: 'MW Power', target: 'Particle', type: '증가시킨다', layer: 'semantic', evidence: 'MW Power가 높으면 Particle 증가', confidence: 0.9 },
       ],
     };
     const out = mapParseResult(res, new Set());
@@ -79,18 +79,18 @@ describe('mapParseResult (A-1)', () => {
     expect(out.relations[0].evidence).toContain('Particle 증가');
   });
 
-  it('carries the action-centric category through to the mapped relation (PR1 목표①)', () => {
+  it('carries the layer through to the mapped relation (PRD-L M2)', () => {
     const res: LlmParseResult = {
       entities: [
         { name: 'MW Power', type: '파라미터', evidence: 'x' },
         { name: 'Particle', type: '결과', evidence: 'y' },
       ],
       relations: [
-        { source: 'MW Power', target: 'Particle', type: '증가시킨다', category: 'causal', evidence: 'e', confidence: 0.9 },
+        { source: 'MW Power', target: 'Particle', type: '증가시킨다', layer: 'semantic', evidence: 'e', confidence: 0.9 },
       ],
     };
     const out = mapParseResult(res, new Set());
-    expect(out.relations[0].category).toBe('causal');
+    expect(out.relations[0].layer).toBe('semantic');
   });
 
   it('does not re-create existing classes (node reuse)', () => {
@@ -106,7 +106,7 @@ describe('mapParseResult (A-1)', () => {
     const res: LlmParseResult = {
       entities: [{ name: 'Chuck', type: '하드웨어', evidence: 'x' }],
       relations: [
-        { source: 'Chuck', target: 'RF Matcher', type: '연결', category: 'structural', evidence: 'z', confidence: 0.6 },
+        { source: 'Chuck', target: 'RF Matcher', type: '연결', layer: 'semantic', evidence: 'z', confidence: 0.6 },
       ],
     };
     const out = mapParseResult(res, new Set());
@@ -233,23 +233,23 @@ describe('findPossibleDuplicates (A-2)', () => {
   });
 });
 
-describe('partitionRelationsByCategory (PR1 목표①: descriptive 강등)', () => {
+describe('partitionRelationsByLayer (PRD-L M2: semantic/kinetic 표시 분할)', () => {
   const rels = [
-    { sourceName: 'A', targetName: 'B', relationName: '증가', category: 'causal' as const },
-    { sourceName: 'C', targetName: 'D', relationName: '~의 일종', category: 'descriptive' as const },
-    { sourceName: 'E', targetName: 'F', relationName: 'relates_to' }, // no category (mockParse)
+    { sourceName: 'A', targetName: 'B', relationName: '증가', layer: 'semantic' as const },
+    { sourceName: 'C', targetName: 'D', relationName: '점검한다', layer: 'kinetic' as const },
+    { sourceName: 'E', targetName: 'F', relationName: 'relates_to' }, // no layer → semantic
   ];
 
-  it('demotes only descriptive relations, keeping the rest actionable', () => {
-    const { actionable, descriptive } = partitionRelationsByCategory(rels);
-    expect(descriptive.map((d) => d.rel.relationName)).toEqual(['~의 일종']);
-    expect(actionable.map((a) => a.rel.relationName)).toEqual(['증가', 'relates_to']);
+  it('splits into semantic and kinetic; missing layer counts as semantic', () => {
+    const { semantic, kinetic } = partitionRelationsByLayer(rels);
+    expect(kinetic.map((d) => d.rel.relationName)).toEqual(['점검한다']);
+    expect(semantic.map((a) => a.rel.relationName)).toEqual(['증가', 'relates_to']);
   });
 
   it('preserves original indices for edit/remove operations', () => {
-    const { actionable, descriptive } = partitionRelationsByCategory(rels);
-    expect(descriptive[0].index).toBe(1);
-    expect(actionable.map((a) => a.index)).toEqual([0, 2]);
+    const { semantic, kinetic } = partitionRelationsByLayer(rels);
+    expect(kinetic[0].index).toBe(1);
+    expect(semantic.map((a) => a.index)).toEqual([0, 2]);
   });
 });
 
@@ -262,7 +262,7 @@ describe('computeIslands (A-5)', () => {
         { name: 'Particle', type: 'Result', evidence: 'z' },
       ],
       relations: [
-        { source: 'MW Power', target: 'Particle', type: '증가', category: 'causal', evidence: 'e', confidence: 0.8 },
+        { source: 'MW Power', target: 'Particle', type: '증가', layer: 'semantic', evidence: 'e', confidence: 0.8 },
       ],
     };
     const parsed = mapParseResult(res, new Set());

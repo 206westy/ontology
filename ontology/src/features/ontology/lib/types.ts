@@ -87,20 +87,24 @@ export interface InstanceValue {
   value: string;
 }
 
-// PR1 (목표①): 관계의 액션 지향 분류. parsedRelationSchema 의 enum 과 동일.
-export type RelationCategory =
-  | 'structural'
-  | 'causal'
-  | 'diagnostic'
-  | 'procedural'
-  | 'descriptive';
+// PRD-L M2: 관계의 2레이어 분류. semantic=지식·서술 관계(구 structural/causal/
+// descriptive), kinetic=행동·조치 관계(구 diagnostic/procedural).
+export type RelationLayer = 'semantic' | 'kinetic';
+
+// PRD-L M2: 과거 category(5분류) → layer(2레이어) 하위호환 매핑. 진단·절차는
+// 행동이므로 kinetic, 그 외(구조·인과·서술)는 semantic. 이미 layer 값이면 그대로.
+export function toRelationLayer(value: unknown): RelationLayer {
+  if (value === 'kinetic') return 'kinetic';
+  if (value === 'semantic') return 'semantic';
+  return value === 'diagnostic' || value === 'procedural' ? 'kinetic' : 'semantic';
+}
 
 export interface RelationType {
   id: string;
   name: string;
   description: string;
-  // PR1 (목표①): 추출 시점에 부여되는 액션 지향 분류. 기존 데이터는 'descriptive' 백필.
-  category: RelationCategory;
+  // PRD-L M2: 추출 시점에 부여되는 2레이어 분류. 기존 데이터는 'semantic' 백필.
+  layer: RelationLayer;
   sourceClassId: string;
   targetClassId: string;
   createdAt: string;
@@ -120,8 +124,6 @@ export interface OntologyEdge {
   sourceType?: string | null;
   confidence?: number | null;
   evidence?: string | null;
-  // PRD-F P4-1: category 판정 확신도. 저신뢰는 traversal 비우선(값 자체는 보존).
-  categoryConfidence?: number | null;
 }
 
 export interface Commit {

@@ -44,7 +44,7 @@ const cachedResult: DiscoverPatternResult = {
       { name: '원인', nodeKind: 'class', description: '근본 원인' },
     ],
     relationTypes: [
-      { name: 'caused_by', category: 'causal', sourceRole: '증상', targetRole: '원인' },
+      { name: 'caused_by', layer: 'semantic', sourceRole: '증상', targetRole: '원인' },
     ],
     competencyQuestions: ['증상 X의 원인은?'],
     traversalTemplates: [],

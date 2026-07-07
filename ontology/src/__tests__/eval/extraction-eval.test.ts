@@ -19,7 +19,7 @@ import { normalizeName } from '@/features/ontology/lib/similarity';
 
 // 시작 임계(점진 상향): PRD-F P3-4.
 const RELATION_F1_MIN = 0.6;
-const CATEGORY_ACC_MIN = 0.7;
+const LAYER_ACC_MIN = 0.7;
 
 const enabled = process.env.RUN_EVAL === '1';
 
@@ -35,8 +35,8 @@ describe.runIf(enabled)('추출 eval 게이트 (RUN_EVAL=1)', () => {
       let relTP = 0;
       let relExpected = 0;
       let relActual = 0;
-      let catMatched = 0;
-      let catCorrect = 0;
+      let layerMatched = 0;
+      let layerCorrect = 0;
       const calibration: CalibrationSample[] = [];
 
       for (const c of GOLDEN_CASES) {
@@ -49,15 +49,15 @@ describe.runIf(enabled)('추출 eval 게이트 (RUN_EVAL=1)', () => {
             source: r.source,
             target: r.target,
             type: r.type,
-            category: r.category,
+            layer: r.layer,
           })),
         };
         const score = scoreExtraction(c.expected, actual);
         relTP += score.relations.truePositives;
         relExpected += score.relations.expected;
         relActual += score.relations.actual;
-        catMatched += score.category.matched;
-        catCorrect += score.category.correct;
+        layerMatched += score.layer.matched;
+        layerCorrect += score.layer.correct;
 
         // calibration: actual 관계별 confidence vs 정답여부.
         const expectedKeys = new Set(c.expected.relations.map(relKey));
@@ -73,10 +73,10 @@ describe.runIf(enabled)('추출 eval 게이트 (RUN_EVAL=1)', () => {
       const recall = relExpected === 0 ? 0 : relTP / relExpected;
       const relF1 =
         precision + recall === 0 ? 0 : (2 * precision * recall) / (precision + recall);
-      const catAcc = catMatched === 0 ? null : catCorrect / catMatched;
+      const layerAcc = layerMatched === 0 ? null : layerCorrect / layerMatched;
       const cal = computeCalibration(calibration);
 
-      const line = `| ${new Date().toISOString()} | ${GOLDEN_CASES.length} | ${relF1.toFixed(3)} | ${catAcc === null ? 'n/a' : catAcc.toFixed(3)} | ${cal.ece.toFixed(3)} | ${cal.overconfidentBins.length} |`;
+      const line = `| ${new Date().toISOString()} | ${GOLDEN_CASES.length} | ${relF1.toFixed(3)} | ${layerAcc === null ? 'n/a' : layerAcc.toFixed(3)} | ${cal.ece.toFixed(3)} | ${cal.overconfidentBins.length} |`;
       try {
         appendFileSync(join(process.cwd(), 'docs', 'eval-results.md'), `\n${line}`);
       } catch {
@@ -85,7 +85,7 @@ describe.runIf(enabled)('추출 eval 게이트 (RUN_EVAL=1)', () => {
 
       // 게이트: 임계 미달 시 실패(빌드 실패).
       expect(relF1).toBeGreaterThanOrEqual(RELATION_F1_MIN);
-      if (catAcc !== null) expect(catAcc).toBeGreaterThanOrEqual(CATEGORY_ACC_MIN);
+      if (layerAcc !== null) expect(layerAcc).toBeGreaterThanOrEqual(LAYER_ACC_MIN);
     },
   );
 });

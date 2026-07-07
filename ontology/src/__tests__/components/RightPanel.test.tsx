@@ -26,7 +26,6 @@ vi.mock('zustand/shallow', () => {
     const prevRef = React.useRef<{ value: U; json: string } | null>(null);
     const selectorRef = React.useRef(selector);
     selectorRef.current = selector;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     return React.useCallback((state: S) => {
       const next = selectorRef.current(state);
       const nextJson = JSON.stringify(next);

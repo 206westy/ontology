@@ -83,7 +83,7 @@ export function driftElementsToExtension(
     } else {
       relationTypes.push({
         name: el.name,
-        category: 'descriptive',
+        layer: 'semantic',
         sourceRole: el.sourceRole ?? '',
         targetRole: el.targetRole ?? '',
       });

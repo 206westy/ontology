@@ -331,8 +331,8 @@ export interface ParsedRelation {
   source: string;
   target: string;
   type: string;
-  // PR1 (목표①): 액션 지향 분류 (structural/causal/diagnostic/procedural/descriptive).
-  category: 'structural' | 'causal' | 'diagnostic' | 'procedural' | 'descriptive';
+  // PRD-L M2: 2레이어 분류. semantic=지식·서술, kinetic=행동·조치.
+  layer: 'semantic' | 'kinetic';
   evidence: string;
   confidence: number;
 }

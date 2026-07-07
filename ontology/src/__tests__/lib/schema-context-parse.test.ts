@@ -9,7 +9,7 @@ const baseStore = {
   instances: [],
   properties: [],
   relationTypes: [
-    { id: 'r1', name: '관련_하드웨어', description: '', category: 'descriptive' as const, sourceClassId: '', targetClassId: '', createdAt: '' },
+    { id: 'r1', name: '관련_하드웨어', description: '', layer: 'semantic' as const, sourceClassId: '', targetClassId: '', createdAt: '' },
   ],
   edges: [],
 };

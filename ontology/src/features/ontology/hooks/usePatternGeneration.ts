@@ -217,13 +217,12 @@ function buildInsertionPlan(
     const src = resolve(rel.sourceName);
     const tgt = resolve(rel.targetName);
     if (!src || !tgt || src.id === tgt.id) return;
-    const category = rel.category ?? 'descriptive';
     let relTypeId = relTypeIdByName.get(rel.relationName);
     if (!relTypeId) {
-      relTypeId = store.addRelationType({ name: rel.relationName, category: rel.category });
+      relTypeId = store.addRelationType({ name: rel.relationName, layer: rel.layer });
       relTypeIdByName.set(rel.relationName, relTypeId);
     }
-    const edgeId = stableEdgeId(src.id, tgt.id, rel.relationName, category);
+    const edgeId = stableEdgeId(src.id, tgt.id, rel.relationName);
     edges.push({ id: edgeId, sourceId: src.id, targetId: tgt.id });
     creators.set(edgeId, () => {
       store.addEdge({
@@ -236,7 +235,6 @@ function buildInsertionPlan(
         sourceType: rel.evidence ? 'session_doc' : null,
         confidence: rel.confidence ?? null,
         evidence: rel.evidence ?? null,
-        categoryConfidence: rel.categoryConfidence ?? null,
       });
     });
   });

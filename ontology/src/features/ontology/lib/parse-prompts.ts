@@ -30,7 +30,7 @@ ${roleLines}
 // 만들도록 유도한다(깊이 1 평면 목록 금지: 예 증상→원인→점검→조치).
 export function buildStage2PatternBlock(pc: ParsePatternContext): string {
   const relLines = pc.relationTypes
-    .map((rt) => `- ${rt.name} (${rt.category}): ${rt.sourceRole} → ${rt.targetRole}`)
+    .map((rt) => `- ${rt.name} (${rt.layer}): ${rt.sourceRole} → ${rt.targetRole}`)
     .join('\n');
   const cqLines = pc.competencyQuestions.map((q) => `- ${q}`).join('\n');
   const parts = [
@@ -116,24 +116,16 @@ Valid grounding includes: causal ("A increases B"), compositional ("A contains B
 For each relation provide:
 - source, target: entity names (prefer names from the provided entity list; you may reference a concept the text clearly relates even if it was not listed).
 - type: a concise relation/verb name describing the connection. Keep the verb general — do NOT bake the object into the predicate. "끌어와 답한다" is good; "예측을 끌어와 답한다" is bad (the object 예측 is the target, not part of the type).
-- category: classify the relation as exactly one. Judge by the PURPOSE of the relation, not the surface sentence shape:
-    - "structural": composition, containment, hierarchy, part-of, attached-to, location, or measurement. "A contains B", "A is part of B", "A sits between B and C". (A는 B를 포함한다 / A는 B의 일부다 / A는 B와 C 사이에 위치한다)
-    - "causal": one variable drives a VALUE change in another — increases/decreases/raises/triggers it. "A increases B", "when A rises, B falls". (A가 상승하면 B가 감소한다 / A는 B를 상승시킨다)
-    - "diagnostic": narrows a SYMPTOM or anomaly down to its cause or the parts to inspect. The trigger is a symptom/abnormality (예: "particle 초과", "RF reflected 상승", "arcing 감지") and the action is investigate / inspect / check / suspect in order to FIND what is wrong. Example: "particle count가 spec을 초과하면 chuck을 점검한다" = diagnostic (it narrows down the cause). (증상이 감지되면 ~를 점검/확인/의심한다)
-    - "procedural": a fixed task or step ordering carried out on a schedule or as a defined sequence — typically AFTER diagnosis. The trigger is a schedule or process step (예: "PM 시", "500 RF hours마다", "A 다음에") and the action is execute / replace / perform a predetermined operation. Example: "focus ring은 500 RF hours마다 교체한다", "wafer를 unload한 뒤 chamber를 vent한다" = procedural. (정해진 작업을 실행/교체/수행한다)
-    - "descriptive": a definition, naming, parallel, or layout statement. Weak and non-actionable — prefer not emitting it at all (see rules below).
-- DISCRIMINATION RULE for "~하면 ~한다" (condition→action) sentences: do NOT classify by surface form, because diagnostic and procedural share that shape. If the action's purpose is to NARROW DOWN the cause (fault-finding: inspect/check/suspect to locate the problem), it is "diagnostic". If the action EXECUTES a predetermined operation or scheduled/sequenced step, it is "procedural". 예: "particle이 증가하면 chuck을 점검한다" → diagnostic (원인을 좁힘); "필터를 6개월마다 교체한다" / "A 다음에 B를 수행한다" → procedural (정해진 조치를 실행).
+- layer: classify as exactly one — "semantic" (the relation states knowledge: composition, containment, location, causation, description — what IS) or "kinetic" (the relation is an action to perform: inspect, check, replace, execute, a procedure or response — what to DO).
 - evidence: the verbatim span that grounds the relation.
 - confidence: 0..1, how strongly the text supports this relation EXISTING.
-- categoryConfidence: 0..1, how certain you are about the CATEGORY choice specifically (separate from confidence). If the sentence is ambiguous between two categories (e.g. diagnostic vs procedural), lower this value. High only when the purpose is unmistakable.
 
 ${SHARED_RULES}
 - Co-occurrence is NOT grounding. If two entities merely appear together with no stated connection, do NOT relate them.
 - A DEFINITION is NOT a relation. "X is a platform for Y" / "X is a kind of Y" should become an isA hierarchy (parentType) or the node's description — NOT an edge. Do not emit a relation for it.
 - TAXONOMY IS NOT A "contains"/"includes" RELATION. A kind-of / 종류 / 일종 listing ("D에는 A, B가 있다", "D의 한 종류로 A가 있다") is hierarchy and was already captured in the entity type — do NOT emit a contains/includes/포함 structural edge for it. Reserve "structural contains" for PHYSICAL part-of composition (a device physically contains a part), never for type taxonomy.
 - AN ATTRIBUTE VALUE IS NOT A RELATION. Do NOT emit a relation that merely restates an entity's own attribute/measurement ("X의 무게는 999g", "X의 정격 출력은 5kW", "X는 5살이다", "X의 part number는 KC033"). These are property values of X — already captured in stage 1 — not relations. A relation must connect two DISTINCT real entities; never connect an entity to one of its own attributes, to a literal number, or to a measurement/unit.
-- Hierarchy, parallel, ordering-by-layout, and pure layout statements ("A and B are parallel", "A is listed next to B", "A is in the left column") are NOT actionable relations. If you must emit one, set category="descriptive".
-- Prefer action-centric relations (causal/procedural/diagnostic/structural). Descriptive relations should be rare.
+- Hierarchy, parallel, ordering-by-layout, and pure layout statements ("A and B are parallel", "A is listed next to B", "A is in the left column") are weak and usually not worth emitting — prefer leaving them out.
 - If an entity has no grounded relation, leave it unconnected. Honest islands are better than forced edges — return fewer, well-grounded relations.`;
 }
 
@@ -220,10 +212,9 @@ In a table, two entities that appear in the SAME ROW through a reference column 
 For each relation provide:
 - source: the record (row) instance name. target: the referenced-entity instance named by a reference column in that row.
 - type: a concise verb naming the link, derived from the column's meaning (a "공급사"/supplier column -> "supplied_by"; a "부서"/department column -> "belongs_to"; a "담당자"/owner column -> "assigned_to"; a "위치"/location column -> "located_in"). Keep the verb general — do NOT bake the specific cell value into the predicate.
-- category: classify by PURPOSE. Reference-column links (belongs-to, located-in, supplied-by, assigned-to, part-of, owned-by) are "structural". Use "causal", "diagnostic", or "procedural" ONLY if the table explicitly encodes such a process between records.
+- layer: classify as exactly one — "semantic" (the relation states knowledge: composition, containment, location, causation, description — what IS) or "kinetic" (the relation is an action to perform: inspect, check, replace, execute, a procedure or response — what to DO). Reference-column links (belongs-to, located-in, supplied-by, assigned-to, part-of, owned-by) are "semantic". Use "kinetic" ONLY if the table explicitly encodes an action or response step between records.
 - evidence: the row (or the relevant header+cell) that grounds the link.
 - confidence: 0..1, how strongly the table supports this link EXISTING.
-- categoryConfidence: 0..1, certainty about the CATEGORY choice specifically. Reference-column links are usually unambiguous (high); lower it only when a process reading is plausible.
 
 Rules:
 - Only relate a record to the entities named by its OWN row's reference columns. Never relate two records to each other merely because they share a column value — that shared value is the referenced entity, so relate BOTH records TO it instead.

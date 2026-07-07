@@ -25,11 +25,11 @@ export const BOOTSTRAP_PATTERNS: BootstrapPatternSeed[] = [
       { name: 'Action', nodeKind: 'class', description: '조치' },
     ],
     relationTypes: [
-      { name: 'indicates', category: 'diagnostic', sourceRole: 'Symptom', targetRole: 'FailureMode' },
-      { name: 'caused_by', category: 'causal', sourceRole: 'FailureMode', targetRole: 'Cause' },
-      { name: 'detected_by', category: 'diagnostic', sourceRole: 'FailureMode', targetRole: 'Inspection' },
-      { name: 'resolved_by', category: 'procedural', sourceRole: 'Cause', targetRole: 'Action' },
-      { name: 'part_of', category: 'structural', sourceRole: 'Part', targetRole: 'Part' },
+      { name: 'indicates', layer: 'kinetic', sourceRole: 'Symptom', targetRole: 'FailureMode' },
+      { name: 'caused_by', layer: 'semantic', sourceRole: 'FailureMode', targetRole: 'Cause' },
+      { name: 'detected_by', layer: 'kinetic', sourceRole: 'FailureMode', targetRole: 'Inspection' },
+      { name: 'resolved_by', layer: 'kinetic', sourceRole: 'Cause', targetRole: 'Action' },
+      { name: 'part_of', layer: 'semantic', sourceRole: 'Part', targetRole: 'Part' },
     ],
     competencyQuestions: [
       '증상 X의 원인은 무엇인가?',
@@ -56,9 +56,9 @@ export const BOOTSTRAP_PATTERNS: BootstrapPatternSeed[] = [
       { name: 'Document', nodeKind: 'class', description: '문서' },
     ],
     relationTypes: [
-      { name: 'next_step', category: 'procedural', sourceRole: 'Step', targetRole: 'Step' },
-      { name: 'approved_by', category: 'procedural', sourceRole: 'Request', targetRole: 'Approver' },
-      { name: 'requires', category: 'structural', sourceRole: 'Step', targetRole: 'Document' },
+      { name: 'next_step', layer: 'kinetic', sourceRole: 'Step', targetRole: 'Step' },
+      { name: 'approved_by', layer: 'kinetic', sourceRole: 'Request', targetRole: 'Approver' },
+      { name: 'requires', layer: 'semantic', sourceRole: 'Step', targetRole: 'Document' },
     ],
     competencyQuestions: ['요청 R의 다음 단계는?', '요청 R을 승인하는 사람은?'],
     traversalTemplates: [
@@ -77,8 +77,8 @@ export const BOOTSTRAP_PATTERNS: BootstrapPatternSeed[] = [
       { name: 'Supplier', nodeKind: 'class', description: '공급사' },
     ],
     relationTypes: [
-      { name: 'contains', category: 'structural', sourceRole: 'Product', targetRole: 'Component' },
-      { name: 'supplied_by', category: 'descriptive', sourceRole: 'Component', targetRole: 'Supplier' },
+      { name: 'contains', layer: 'semantic', sourceRole: 'Product', targetRole: 'Component' },
+      { name: 'supplied_by', layer: 'semantic', sourceRole: 'Component', targetRole: 'Supplier' },
     ],
     competencyQuestions: ['제품 P의 구성품은?', '구성품 C의 공급사는?'],
     traversalTemplates: [
@@ -97,8 +97,8 @@ export const BOOTSTRAP_PATTERNS: BootstrapPatternSeed[] = [
       { name: 'Team', nodeKind: 'class', description: '팀' },
     ],
     relationTypes: [
-      { name: 'holds_role', category: 'descriptive', sourceRole: 'Person', targetRole: 'Role' },
-      { name: 'member_of', category: 'structural', sourceRole: 'Person', targetRole: 'Team' },
+      { name: 'holds_role', layer: 'semantic', sourceRole: 'Person', targetRole: 'Role' },
+      { name: 'member_of', layer: 'semantic', sourceRole: 'Person', targetRole: 'Team' },
     ],
     competencyQuestions: ['사람 X의 역할은?', '팀 T의 구성원은?'],
     traversalTemplates: [
@@ -117,9 +117,9 @@ export const BOOTSTRAP_PATTERNS: BootstrapPatternSeed[] = [
       { name: 'Place', nodeKind: 'class', description: '장소' },
     ],
     relationTypes: [
-      { name: 'precedes', category: 'causal', sourceRole: 'Event', targetRole: 'Event' },
-      { name: 'involves', category: 'descriptive', sourceRole: 'Event', targetRole: 'Actor' },
-      { name: 'located_at', category: 'descriptive', sourceRole: 'Event', targetRole: 'Place' },
+      { name: 'precedes', layer: 'semantic', sourceRole: 'Event', targetRole: 'Event' },
+      { name: 'involves', layer: 'semantic', sourceRole: 'Event', targetRole: 'Actor' },
+      { name: 'located_at', layer: 'semantic', sourceRole: 'Event', targetRole: 'Place' },
     ],
     competencyQuestions: ['사건 E의 다음 사건은?', '사건 E에 관여한 행위자는?'],
     traversalTemplates: [

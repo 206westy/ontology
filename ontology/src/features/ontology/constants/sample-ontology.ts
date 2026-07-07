@@ -41,9 +41,9 @@ export const SAMPLE_PROPERTIES: OntologyProperty[] = [
 ];
 
 export const SAMPLE_RELATION_TYPES: RelationType[] = [
-  { id: id('r', 1), name: 'located_at', description: '장비가 위치한 사이트', category: 'structural', sourceClassId: id('c', 1), targetClassId: id('c', 6), createdAt: now },
-  { id: id('r', 2), name: 'assigned_to', description: '엔지니어가 담당하는 장비', category: 'structural', sourceClassId: id('c', 5), targetClassId: id('c', 1), createdAt: now },
-  { id: id('r', 3), name: 'works_at', description: '엔지니어의 근무 사이트', category: 'structural', sourceClassId: id('c', 5), targetClassId: id('c', 6), createdAt: now },
+  { id: id('r', 1), name: 'located_at', description: '장비가 위치한 사이트', layer: 'semantic', sourceClassId: id('c', 1), targetClassId: id('c', 6), createdAt: now },
+  { id: id('r', 2), name: 'assigned_to', description: '엔지니어가 담당하는 장비', layer: 'semantic', sourceClassId: id('c', 5), targetClassId: id('c', 1), createdAt: now },
+  { id: id('r', 3), name: 'works_at', description: '엔지니어의 근무 사이트', layer: 'semantic', sourceClassId: id('c', 5), targetClassId: id('c', 6), createdAt: now },
 ];
 
 export const SAMPLE_EDGES: OntologyEdge[] = [

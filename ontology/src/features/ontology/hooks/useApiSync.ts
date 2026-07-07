@@ -228,8 +228,8 @@ function buildAddOperation(
         type: 'relation_type',
         action: 'create',
         id: targetId,
-        // PR1 (목표①): category 를 Supabase 까지 전파(조용한 유실 방지).
-        data: { id: targetId, name: rt.name, description: rt.description, category: rt.category },
+        // PRD-L M2: layer 를 Supabase 까지 전파(조용한 유실 방지).
+        data: { id: targetId, name: rt.name, description: rt.description, layer: rt.layer },
       };
     }
     case 'instance_values': {

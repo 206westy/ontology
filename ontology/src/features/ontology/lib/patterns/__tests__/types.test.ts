@@ -14,7 +14,7 @@ describe('patternBundleSchema', () => {
     relationTypes: [
       {
         name: 'caused_by',
-        category: 'causal',
+        layer: 'semantic',
         sourceRole: 'Symptom',
         targetRole: 'Cause',
       },
@@ -36,11 +36,11 @@ describe('patternBundleSchema', () => {
     expect(parsed.success).toBe(false);
   });
 
-  it('rejects a relation with an unknown category', () => {
+  it('rejects a relation with an unknown layer', () => {
     const parsed = patternBundleSchema.safeParse({
       ...valid,
       relationTypes: [
-        { name: 'r', category: 'bogus', sourceRole: 'A', targetRole: 'B' },
+        { name: 'r', layer: 'bogus', sourceRole: 'A', targetRole: 'B' },
       ],
     });
     expect(parsed.success).toBe(false);

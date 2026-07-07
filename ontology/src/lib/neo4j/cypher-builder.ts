@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { DEFAULT_PARTITION_ID } from '@/features/ontology/lib/types';
+import { DEFAULT_PARTITION_ID, toRelationLayer } from '@/features/ontology/lib/types';
 import { ATTRIBUTION_KEYS, CONCEPT_LABEL } from '@/lib/neo4j/schema';
 
 // ─── Types ──────────────────────────────────────────────────
@@ -295,9 +295,7 @@ function edgeUpsert(
   const attr = attrParams('edges', detail.targetId, context);
   return {
     // MERGE on id → 재푸시 중복 0. domain/range·cardinality·출처 반영.
-    // PRD-F P4-1: category 판정 확신도(_catconf)를 관계 속성으로 운반한다. myATHENA
-    // traversal 은 저신뢰(_catconf < 0.7)를 "포함하되 비우선"으로 처리한다(드롭 아님).
-    query: `MATCH (a {id: $sourceId}), (b {id: $targetId}) MERGE (a)-[r:${relClause} {id: $id}]->(b) SET r.relationTypeId = $relationTypeId, r.bridge = $bridge, r.min_cardinality = toInteger($minCardinality), r.max_cardinality = toInteger($maxCardinality), r.sourceKind = $sourceKind, r.targetKind = $targetKind, r._catconf = $catconf, r.${SRC} = $src, r.${CONF} = $conf, r.${SRC_REF} = $srcRef`,
+    query: `MATCH (a {id: $sourceId}), (b {id: $targetId}) MERGE (a)-[r:${relClause} {id: $id}]->(b) SET r.relationTypeId = $relationTypeId, r.bridge = $bridge, r.min_cardinality = toInteger($minCardinality), r.max_cardinality = toInteger($maxCardinality), r.sourceKind = $sourceKind, r.targetKind = $targetKind, r.${SRC} = $src, r.${CONF} = $conf, r.${SRC_REF} = $srcRef`,
     params: {
       id: detail.targetId,
       sourceId: snap.sourceId ?? '',
@@ -308,7 +306,6 @@ function edgeUpsert(
       maxCardinality: snap.maxCardinality ?? null,
       sourceKind: snap.sourceKind ?? null,
       targetKind: snap.targetKind ?? null,
-      catconf: snap.categoryConfidence ?? null,
       ...attr,
     },
     description: `관계 "${relName}"${snap.isBridge ? ' (bridge)' : ''} 엣지 생성`,
@@ -330,13 +327,14 @@ function relationTypeUpsert(
   const snap = detail.afterSnapshot as Record<string, unknown>;
   const attr = attrParams('relation_types', detail.targetId, context);
   return {
-    // PR1 (목표①): category 운반 — snapshot 누락 시 'descriptive' 백필(조용한 유실 금지).
-    query: `MERGE (rt:RelationType {id: $id}) SET rt.name = $name, rt.description = $description, rt.category = $category, rt.domainClassId = $domainClassId, rt.rangeClassId = $rangeClassId, rt.${SRC} = $src, rt.${CONF} = $conf, rt.${SRC_REF} = $srcRef`,
+    // PRD-L M2: layer 운반. 과거 커밋 스냅샷의 category(5분류)는 toRelationLayer 로
+    // 하위호환 변환(diagnostic/procedural→kinetic, 그 외→semantic). 누락은 semantic.
+    query: `MERGE (rt:RelationType {id: $id}) SET rt.name = $name, rt.description = $description, rt.layer = $layer, rt.domainClassId = $domainClassId, rt.rangeClassId = $rangeClassId, rt.${SRC} = $src, rt.${CONF} = $conf, rt.${SRC_REF} = $srcRef`,
     params: {
       id: detail.targetId,
       name: snap.name ?? '',
       description: snap.description ?? '',
-      category: snap.category ?? 'descriptive',
+      layer: toRelationLayer(snap.layer ?? snap.category),
       domainClassId: snap.sourceClassId ?? null,
       rangeClassId: snap.targetClassId ?? null,
       ...attr,

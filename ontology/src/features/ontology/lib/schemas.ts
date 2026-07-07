@@ -180,20 +180,16 @@ export type CreateAttributionInput = z.infer<typeof createAttributionSchema>;
 export { attributionSourceTypeEnum, attributionTargetTableEnum };
 
 // ─── Relation Types ────────────────────────────────────────
-// PR1 (목표①): relation_types.category 와 정합. enum 값은 parsedRelationSchema 와 공유.
-const relationTypeCategoryEnum = z.enum([
-  'structural',
-  'causal',
-  'diagnostic',
-  'procedural',
-  'descriptive',
-]);
+// PRD-L M2: relation_types.layer 와 정합. enum 값은 parsedRelationSchema 와 공유.
+export const relationLayerEnum = z.enum(['semantic', 'kinetic']);
+
+export type RelationLayer = z.infer<typeof relationLayerEnum>;
 
 export const createRelationTypeSchema = z.object({
   id: z.string().uuid().optional(),
   name: z.string().min(1),
   description: z.string().optional().default(''),
-  category: relationTypeCategoryEnum.optional().default('descriptive'),
+  layer: relationLayerEnum.optional().default('semantic'),
   sourceClassId: z.string().uuid().nullable().optional(),
   targetClassId: z.string().uuid().nullable().optional(),
 });
@@ -205,7 +201,7 @@ export type CreateRelationTypeInput = z.infer<
 export const updateRelationTypeSchema = z.object({
   name: z.string().min(1).optional(),
   description: z.string().optional(),
-  category: relationTypeCategoryEnum.optional(),
+  layer: relationLayerEnum.optional(),
   sourceClassId: z.string().uuid().nullable().optional(),
   targetClassId: z.string().uuid().nullable().optional(),
 });
@@ -490,40 +486,20 @@ export const parsedEntitySchema = z.object({
   properties: z.array(parsedEntityPropertySchema),
 });
 
-// PR1 (목표①): 관계의 액션 지향 분류. descriptive(정의문·위계·레이아웃 등 서술
-// 관계)는 액션 그래프에서 강등 대상. strict 모드라 required(optional 불가).
-export const relationCategoryEnum = z.enum([
-  'structural',
-  'causal',
-  'diagnostic',
-  'procedural',
-  'descriptive',
-]);
-
-export type RelationCategory = z.infer<typeof relationCategoryEnum>;
+// PRD-L M2: 관계의 2레이어 분류. semantic=지식·서술 관계, kinetic=행동·조치 관계.
+// strict 모드라 required(optional 불가). 값은 relationLayerEnum(2값) 재사용.
 
 export const parsedRelationSchema = z.object({
   source: z.string().min(1),
   target: z.string().min(1),
   // Relation/verb name (causal, compositional, temporal, measurement, etc.).
   type: z.string().min(1),
-  // PR1 (목표①): 추출 시점에 부여되는 액션 지향 분류.
-  category: relationCategoryEnum,
+  // PRD-L M2: 추출 시점에 부여되는 2레이어 분류(semantic|kinetic).
+  layer: relationLayerEnum,
   // Verbatim span grounding this relation. Empty grounding => no relation.
   evidence: z.string(),
   confidence: z.number().min(0).max(1),
-  // PRD-F P4-1: category 판정 자체에 대한 확신도(관계 존재 confidence 와 별개).
-  // strict 모드라 required. 저신뢰(< CATEGORY_CONFIDENCE_MIN)는 traversal 에서
-  // 강등되고 Critic 검수 큐로 간다(category 값 자체는 보존).
-  categoryConfidence: z.number().min(0).max(1),
 });
-
-// P4-1: category 저신뢰 컷. 이 미만이면 "포함하되 비우선"(드롭 아님).
-export const CATEGORY_CONFIDENCE_MIN = 0.7;
-
-export function isLowCategoryConfidence(catconf: number | null | undefined): boolean {
-  return typeof catconf === 'number' && catconf < CATEGORY_CONFIDENCE_MIN;
-}
 
 export const parseStage1ResponseSchema = z.object({
   entities: z.array(parsedEntitySchema),
@@ -552,7 +528,7 @@ export const parsePatternRoleContextSchema = z.object({
 
 export const parsePatternRelationContextSchema = z.object({
   name: z.string().min(1),
-  category: relationCategoryEnum,
+  layer: relationLayerEnum,
   sourceRole: z.string().min(1),
   targetRole: z.string().min(1),
 });

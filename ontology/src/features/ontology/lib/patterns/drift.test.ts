@@ -17,7 +17,7 @@ const diagnosticCtx: DriftPatternContext = {
     { name: '점검', nodeKind: 'class', description: '' },
   ],
   relationTypes: [
-    { name: 'caused_by', category: 'causal', sourceRole: '증상', targetRole: '원인' },
+    { name: 'caused_by', layer: 'semantic', sourceRole: '증상', targetRole: '원인' },
   ],
 };
 

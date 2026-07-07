@@ -42,22 +42,28 @@ describe('stableEntityId', () => {
 });
 
 describe('stableEdgeId', () => {
-  it('같은 (src,tgt,관계명,category) 은 같은 edge id', () => {
-    const a = stableEdgeId('n1', 'n2', 'contains', 'structural');
-    const b = stableEdgeId('n1', 'n2', 'Contains', 'structural');
+  it('같은 (src,tgt,관계명) 은 같은 edge id', () => {
+    const a = stableEdgeId('n1', 'n2', 'contains');
+    const b = stableEdgeId('n1', 'n2', 'Contains');
     expect(a).toBe(b);
   });
 
-  it('방향/끝점/관계명/category 가 다르면 다른 edge id', () => {
-    const base = stableEdgeId('n1', 'n2', 'contains', 'structural');
-    expect(stableEdgeId('n2', 'n1', 'contains', 'structural')).not.toBe(base);
-    expect(stableEdgeId('n1', 'n3', 'contains', 'structural')).not.toBe(base);
-    expect(stableEdgeId('n1', 'n2', 'causes', 'structural')).not.toBe(base);
-    expect(stableEdgeId('n1', 'n2', 'contains', 'causal')).not.toBe(base);
+  it('방향/끝점/관계명 이 다르면 다른 edge id', () => {
+    const base = stableEdgeId('n1', 'n2', 'contains');
+    expect(stableEdgeId('n2', 'n1', 'contains')).not.toBe(base);
+    expect(stableEdgeId('n1', 'n3', 'contains')).not.toBe(base);
+    expect(stableEdgeId('n1', 'n2', 'causes')).not.toBe(base);
+  });
+
+  it('PRD-L M2: edge id 는 layer 와 무관하다 (정체성 = src/tgt/관계명)', () => {
+    // 시그니처가 (src,tgt,관계명)뿐이므로 layer 재분류가 정체성을 바꾸지 못한다.
+    const a = stableEdgeId('n1', 'n2', 'contains');
+    const b = stableEdgeId('n1', 'n2', 'contains');
+    expect(a).toBe(b);
   });
 
   it('반환값은 유효한 UUID', () => {
-    const id = stableEdgeId('n1', 'n2', 'contains', 'structural');
+    const id = stableEdgeId('n1', 'n2', 'contains');
     expect(() => z.uuid().parse(id)).not.toThrow();
   });
 });

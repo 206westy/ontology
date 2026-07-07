@@ -20,9 +20,9 @@ const diagnosticPattern: ParsePatternContext = {
     { name: '조치', description: '문제를 해결하는 조치' },
   ],
   relationTypes: [
-    { name: 'caused_by', category: 'causal', sourceRole: '증상', targetRole: '원인' },
-    { name: 'inspected_by', category: 'diagnostic', sourceRole: '원인', targetRole: '점검' },
-    { name: 'resolved_by', category: 'procedural', sourceRole: '점검', targetRole: '조치' },
+    { name: 'caused_by', layer: 'semantic', sourceRole: '증상', targetRole: '원인' },
+    { name: 'inspected_by', layer: 'kinetic', sourceRole: '원인', targetRole: '점검' },
+    { name: 'resolved_by', layer: 'kinetic', sourceRole: '점검', targetRole: '조치' },
   ],
   competencyQuestions: ['증상 X의 원인은?', 'Y를 점검하려면?'],
 };
@@ -59,30 +59,29 @@ describe('parse-prompts (A-1)', () => {
     expect(sys.toLowerCase()).toContain('confidence');
   });
 
-  // PR1 (목표①): 각 관계에 액션 지향 category 분류를 요구.
-  it('stage 2 system requires an action-centric category per relation', () => {
+  // PRD-L M2: 각 관계에 2레이어(layer) 분류를 요구.
+  it('stage 2 system requires a 2-layer classification per relation', () => {
     const sys = buildStage2System();
-    expect(sys).toContain('category');
-    expect(sys).toContain('structural');
-    expect(sys).toContain('causal');
-    expect(sys).toContain('diagnostic');
-    expect(sys).toContain('procedural');
-    expect(sys).toContain('descriptive');
+    expect(sys).toContain('layer');
+    expect(sys).toContain('semantic');
+    expect(sys).toContain('kinetic');
+    // 구 5분류 카테고리 정의 블록은 제거됨.
+    expect(sys).not.toContain('categoryConfidence');
   });
 
-  // PR1 (목표②): 정의문·위계·레이아웃 진술은 관계가 아니거나 descriptive 로 강등.
-  it('stage 2 system demotes definition and layout statements to descriptive', () => {
+  // PRD-L M2: 정의문·레이아웃 진술은 관계가 아니거나 약한 진술로 남긴다(유지 규칙).
+  it('stage 2 system keeps the definition/taxonomy/attribute-value rules', () => {
     const sys = buildStage2System();
-    expect(sys.toLowerCase()).toContain('definition');
-    expect(sys.toLowerCase()).toContain('descriptive');
+    expect(sys.toLowerCase()).toContain('definition is not a relation');
+    expect(sys.toLowerCase()).toContain('taxonomy is not');
+    expect(sys.toLowerCase()).toContain('attribute value is not a relation');
   });
 
-  // PR1 Stage2 후속: diagnostic vs procedural 경계 — 조건-행동 표층형으로 판단 금지.
-  it('stage 2 system defines the diagnostic↔procedural boundary by action purpose', () => {
+  // PRD-L M2: layer 정의는 "무엇인가(semantic)" vs "무엇을 하는가(kinetic)" 이분.
+  it('stage 2 system defines the semantic/kinetic layer by what-IS vs what-to-DO', () => {
     const sys = buildStage2System();
-    expect(sys).toContain('DISCRIMINATION RULE');
-    expect(sys.toLowerCase()).toContain('narrow down the cause');
-    expect(sys.toLowerCase()).toContain('predetermined operation');
+    expect(sys.toLowerCase()).toContain('what is');
+    expect(sys.toLowerCase()).toContain('what to do');
   });
 
   // PR1 (목표②): 동작 모드·상태·옵션은 별도 노드가 아니라 enum 속성 값.
@@ -194,6 +193,6 @@ describe('parse-prompts CSV mode (M5)', () => {
     expect(sys.toLowerCase()).toContain('same row');
     expect(sys.toLowerCase()).toContain('foreign key');
     expect(sys.toLowerCase()).toContain('not mere co-occurrence');
-    expect(sys).toContain('structural');
+    expect(sys).toContain('semantic');
   });
 });

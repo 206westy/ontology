@@ -9,17 +9,22 @@ const rel = (over: Partial<ParsedRelation>): ParsedRelation => ({
   source: 'A',
   target: 'B',
   type: 'contains',
-  category: 'structural',
+  layer: 'semantic',
   evidence: '',
   confidence: 0.5,
-  categoryConfidence: 0.8,
   ...over,
 });
 
 describe('relationKey', () => {
-  it('정규화된 (source,target,type,category) 로 키 생성', () => {
+  it('정규화된 (source,target,type) 로 키 생성', () => {
     expect(relationKey(rel({ type: 'Contains' }))).toBe(
       relationKey(rel({ type: 'contains' })),
+    );
+  });
+
+  it('PRD-L M2: 키는 layer 와 무관하다', () => {
+    expect(relationKey(rel({ layer: 'semantic' }))).toBe(
+      relationKey(rel({ layer: 'kinetic' })),
     );
   });
 });
@@ -36,12 +41,12 @@ describe('mergeRelationsAcrossChunks', () => {
     expect(merged[0].evidence).toBe('more evidence text'); // 더 긴 스팬 유지
   });
 
-  it('category 가 다르면 별개 관계로 보존', () => {
+  it('PRD-L M2: layer 만 달라도 같은 관계이므로 1건으로 dedup', () => {
     const { merged } = mergeRelationsAcrossChunks([
-      rel({ category: 'structural' }),
-      rel({ category: 'causal' }),
+      rel({ layer: 'semantic' }),
+      rel({ layer: 'kinetic' }),
     ]);
-    expect(merged).toHaveLength(2);
+    expect(merged).toHaveLength(1);
   });
 
   it('방향/끝점이 다르면 별개', () => {

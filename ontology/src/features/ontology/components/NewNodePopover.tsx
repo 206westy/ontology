@@ -29,7 +29,7 @@ import {
 import { useOntologyStore } from '../hooks/useOntologyStore';
 import { NODE_COLORS } from '../constants/colors';
 import { llmApi, enrichApi, dedupApi, constraintsApi, type LlmParseResult, type DetectSubgraphInput } from '../api';
-import { mapParseResult, findPossibleDuplicates, computeIslands, partitionRelationsByCategory } from '../lib/parse-mapping';
+import { mapParseResult, findPossibleDuplicates, computeIslands, partitionRelationsByLayer } from '../lib/parse-mapping';
 import { stableEntityId, stableEdgeId } from '../lib/identity';
 import { DEFAULT_PARTITION_ID } from '../lib/types';
 import { reviewProposal, type CriticIssue, type CriticSeverity } from '../lib/critic/review';
@@ -255,20 +255,19 @@ const DEDUP_BADGE: Record<string, string> = {
   new: 'border-muted-foreground/40 text-muted-foreground',
 };
 
-// PR1 (목표①): 관계 category 배지 — 액션 지향 분류를 색으로 구분.
-const CATEGORY_LABEL: Record<string, string> = {
-  structural: '구조',
-  causal: '인과',
-  diagnostic: '진단',
-  procedural: '절차',
-  descriptive: '서술',
+// PRD-L M2: 관계 레이어 배지 — semantic(지식)/kinetic(행동) 2레이어를 색으로 구분.
+const LAYER_LABEL: Record<string, string> = {
+  semantic: '지식',
+  kinetic: '행동',
 };
-const CATEGORY_BADGE: Record<string, string> = {
-  structural: 'border-violet-400 text-violet-600',
-  causal: 'border-rose-400 text-rose-600',
-  diagnostic: 'border-amber-400 text-amber-600',
-  procedural: 'border-sky-400 text-sky-600',
-  descriptive: 'border-muted-foreground/40 text-muted-foreground',
+const LAYER_BADGE: Record<string, string> = {
+  semantic: 'border-violet-400 text-violet-600',
+  kinetic: 'border-sky-400 text-sky-600',
+};
+// PRD-L M2: 레이어 툴팁 보조문구.
+const LAYER_HINT: Record<string, string> = {
+  semantic: '시멘틱 레이어 — 구성·인과·서술 등 지식 관계',
+  kinetic: '키네틱 레이어 — 점검·교체·실행 등 행동 관계',
 };
 
 // S4: Critic 검수 — 심각도 배지/라벨, 이슈 식별 키.
@@ -330,8 +329,6 @@ export default function NewNodePopover() {
   // PRD-E P2-5: 중복대조 판정 (노드 이름 → reuse/relate/possible_duplicate/new)
   const [dedup, setDedup] = useState<Map<string, DedupResolveResponse>>(new Map());
   const [dedupLoading, setDedupLoading] = useState(false);
-  // PR1 (목표①): descriptive(서술) 관계는 기본 접힘 — 사용자가 펼쳐서 선택적 채택.
-  const [showDescriptive, setShowDescriptive] = useState(false);
   // S4: Critic 검수에서 사용자가 무시한 이슈 키 집합(읽기전용 자문 — 확정 차단 안 함).
   const [ignoredCritic, setIgnoredCritic] = useState<Set<string>>(new Set());
   // PRD-K M3: 항목별 체크박스 제외 집합(기본 전체 선택) — "확정"은 체크된 것만 반영.
@@ -468,12 +465,12 @@ export default function NewNodePopover() {
     [parsed],
   );
 
-  // PR1 (목표①): 액션 지향 관계와 서술 관계 분리 (서술은 강등 표시).
+  // PRD-L M2: semantic(지식)/kinetic(행동) 2레이어로 표시 분할 (동등한 두 묶음).
   const relationGroups = useMemo(
     () =>
       parsed
-        ? partitionRelationsByCategory(parsed.relations)
-        : { actionable: [], descriptive: [] },
+        ? partitionRelationsByLayer(parsed.relations)
+        : { semantic: [], kinetic: [] },
     [parsed],
   );
 
@@ -541,7 +538,6 @@ export default function NewNodePopover() {
     setQuickType('class');
     setQuickParentId('');
     setCsvText('');
-    setShowDescriptive(false);
     setIgnoredCritic(new Set());
     setExcludedKeys(new Set());
     setExitGuardOpen(false);
@@ -1139,12 +1135,12 @@ export default function NewNodePopover() {
       if (src && tgt && src.id !== tgt.id) {
         let relTypeId = relTypeIdByName.get(rel.relationName);
         if (!relTypeId) {
-          // PR1 (목표①): 추출된 액션 지향 분류를 relation type 에 부여.
-          relTypeId = addRelationType({ name: rel.relationName, category: rel.category });
+          // PRD-L M2: 추출된 2레이어 분류를 relation type 에 부여.
+          relTypeId = addRelationType({ name: rel.relationName, layer: rel.layer });
           relTypeIdByName.set(rel.relationName, relTypeId);
         }
         addEdge({
-          id: stableEdgeId(src.id, tgt.id, rel.relationName, rel.category ?? 'descriptive'),
+          id: stableEdgeId(src.id, tgt.id, rel.relationName),
           sourceId: src.id,
           targetId: tgt.id,
           sourceKind: src.kind,
@@ -1153,7 +1149,6 @@ export default function NewNodePopover() {
           sourceType: rel.evidence ? 'session_doc' : null,
           confidence: rel.confidence ?? null,
           evidence: rel.evidence ?? null,
-          categoryConfidence: rel.categoryConfidence ?? null,
         });
         createdEdgeCount++;
       }
@@ -1172,7 +1167,7 @@ export default function NewNodePopover() {
         relTypeIdByName.set(link.relationType, relTypeId);
       }
       addEdge({
-        id: stableEdgeId(from.id, link.targetId, link.relationType, 'descriptive'),
+        id: stableEdgeId(from.id, link.targetId, link.relationType),
         sourceId: from.id,
         targetId: link.targetId,
         sourceKind: from.kind,
@@ -1345,12 +1340,13 @@ export default function NewNodePopover() {
             aria-label={`포함: ${rel.sourceName} ${rel.relationName} ${rel.targetName}`}
           />
           <Link2 className="w-3 h-3 text-muted-foreground/60 shrink-0" />
-          {rel.category && (
+          {rel.layer && (
             <Badge
               variant="outline"
-              className={`text-[11px] h-5 px-1.5 shrink-0 ${CATEGORY_BADGE[rel.category] ?? ''}`}
+              title={LAYER_HINT[rel.layer]}
+              className={`text-xs h-5 px-1.5 shrink-0 ${LAYER_BADGE[rel.layer] ?? ''}`}
             >
-              {CATEGORY_LABEL[rel.category] ?? rel.category}
+              {LAYER_LABEL[rel.layer] ?? rel.layer}
             </Badge>
           )}
           <span className="text-xs">
@@ -2046,29 +2042,29 @@ export default function NewNodePopover() {
                   </div>
                 )}
 
-                {/* Relations — 액션 지향 관계 (PR1 목표①) */}
-                {parsed && relationGroups.actionable.length > 0 && (
+                {/* PRD-L M2: 지식(semantic) 관계 */}
+                {parsed && relationGroups.semantic.length > 0 && (
                   <div>
-                    <span className="text-xs font-semibold text-muted-foreground uppercase mb-1 block">
-                      관계 {relationGroups.actionable.length}개
+                    <span
+                      className="text-xs font-semibold text-muted-foreground uppercase mb-1 block"
+                      title={LAYER_HINT.semantic}
+                    >
+                      지식 관계 {relationGroups.semantic.length}개
                     </span>
-                    {relationGroups.actionable.map(({ rel, index }) => renderRelationRow(rel, index))}
+                    {relationGroups.semantic.map(({ rel, index }) => renderRelationRow(rel, index))}
                   </div>
                 )}
 
-                {/* 서술 관계 — 기본 접힘으로 강등 (PR1 목표①) */}
-                {parsed && relationGroups.descriptive.length > 0 && (
+                {/* PRD-L M2: 행동(kinetic) 관계 */}
+                {parsed && relationGroups.kinetic.length > 0 && (
                   <div className="mt-2">
-                    <button
-                      type="button"
-                      onClick={() => setShowDescriptive((v) => !v)}
-                      className="flex items-center gap-1 text-xs font-semibold text-muted-foreground/70 uppercase mb-1 hover:text-foreground"
+                    <span
+                      className="text-xs font-semibold text-muted-foreground uppercase mb-1 block"
+                      title={LAYER_HINT.kinetic}
                     >
-                      <ChevronRight className={`w-2.5 h-2.5 transition-transform ${showDescriptive ? 'rotate-90' : ''}`} />
-                      서술 관계 {relationGroups.descriptive.length}개 (액션 아님)
-                    </button>
-                    {showDescriptive &&
-                      relationGroups.descriptive.map(({ rel, index }) => renderRelationRow(rel, index))}
+                      행동 관계 {relationGroups.kinetic.length}개
+                    </span>
+                    {relationGroups.kinetic.map(({ rel, index }) => renderRelationRow(rel, index))}
                   </div>
                 )}
                 </div>

@@ -34,6 +34,7 @@
 | `id` | string (UNIQUE) | Supabase relation_types.id |
 | `name` | string | 관계 타입 이름 |
 | `description` | string | 설명 |
+| `layer` | string | 2레이어 분류 `semantic`(지식·서술) \| `kinetic`(행동·조치). PRD-L M2 |
 | `domainClassId` | string | 도메인(source) 클래스 id |
 | `rangeClassId` | string | 치역(target) 클래스 id |
 
