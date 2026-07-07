@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { motion } from 'motion/react';
+import { m } from 'motion/react';
 import { X, ArrowRight, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -137,7 +137,7 @@ export default function RelationPopover() {
       aria-modal="true"
       aria-label="관계 설정"
     >
-      <motion.div
+      <m.div
         {...popoverAnimation}
         className="absolute w-[360px] max-w-[360px] bg-white dark:bg-card border border-border rounded-xl shadow-lg p-4"
         style={{
@@ -323,7 +323,7 @@ export default function RelationPopover() {
             연결
           </Button>
         </div>
-      </motion.div>
+      </m.div>
     </div>
   );
 }

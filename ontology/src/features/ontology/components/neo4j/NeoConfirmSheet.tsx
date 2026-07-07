@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { motion, AnimatePresence } from 'motion/react';
+import { m, AnimatePresence } from 'motion/react';
 import { Loader2, ShieldAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { buildPublishLicenseWarning } from '../../lib/patterns/license';
@@ -268,7 +268,7 @@ export default function NeoConfirmSheet({ open, onOpenChange }: NeoConfirmSheetP
         <div className="mt-4 overflow-y-auto max-h-[calc(50vh-80px)]">
           <AnimatePresence mode="wait">
             {phase === 'loading' && (
-              <motion.div
+              <m.div
                 key="loading"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -277,11 +277,11 @@ export default function NeoConfirmSheet({ open, onOpenChange }: NeoConfirmSheetP
               >
                 <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
                 <p className="text-xs text-muted-foreground">Cypher 구문을 생성하고 있습니다...</p>
-              </motion.div>
+              </m.div>
             )}
 
             {phase === 'confirm' && (
-              <motion.div
+              <m.div
                 key="confirm"
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -331,11 +331,11 @@ export default function NeoConfirmSheet({ open, onOpenChange }: NeoConfirmSheetP
                     발행 실행
                   </Button>
                 </div>
-              </motion.div>
+              </m.div>
             )}
 
             {phase === 'pushing' && (
-              <motion.div
+              <m.div
                 key="pushing"
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -347,11 +347,11 @@ export default function NeoConfirmSheet({ open, onOpenChange }: NeoConfirmSheetP
                   currentIndex={currentStepIndex}
                   totalSteps={steps.length}
                 />
-              </motion.div>
+              </m.div>
             )}
 
             {phase === 'result' && pushResult && (
-              <motion.div
+              <m.div
                 key="result"
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -380,7 +380,7 @@ export default function NeoConfirmSheet({ open, onOpenChange }: NeoConfirmSheetP
                       : undefined
                   }
                 />
-              </motion.div>
+              </m.div>
             )}
           </AnimatePresence>
         </div>

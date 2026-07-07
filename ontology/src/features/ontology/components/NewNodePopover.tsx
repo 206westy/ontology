@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo, useRef, Fragment } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { m, AnimatePresence } from 'motion/react';
 import { X, Paperclip, ClipboardPaste, ArrowRight, ArrowLeft, Check, Trash2, Loader2, ChevronRight, ChevronLeft, Link2, Plus, Table, AlertTriangle, Wand2, Circle, CircleDot } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -1411,7 +1411,7 @@ export default function NewNodePopover() {
       aria-label="새 노드 생성"
     >
       <AnimatePresence mode="wait">
-        <motion.div
+        <m.div
           key={phase === 'input' ? `input-${activeTab}` : phase}
           {...popoverAnimation}
           className={`absolute bg-white dark:bg-card border border-border rounded-xl shadow-lg p-4 ${
@@ -2275,7 +2275,7 @@ export default function NewNodePopover() {
               </div>
             </>
           )}
-        </motion.div>
+        </m.div>
       </AnimatePresence>
 
       {/* PRD-K M3: 이탈 가드 — 실수 1클릭으로 LLM 결과 전량 소실 방지 */}

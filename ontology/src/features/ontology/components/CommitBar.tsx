@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { motion } from 'motion/react';
+import { m } from 'motion/react';
 import { useQuery } from '@tanstack/react-query';
 import { Undo2, List, ArrowUpCircle, GitCommitHorizontal, Loader2, History, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -177,7 +177,7 @@ export default function CommitBar() {
           </span>
           {' · 변경 '}
           {/* PRD-K M3 (A5): 확정 직후 카운트 증가를 시각적으로 확인시키는 펄스 */}
-          <motion.span
+          <m.span
             key={pendingChanges.length}
             initial={{ scale: 1.35 }}
             animate={{ scale: 1 }}
@@ -186,7 +186,7 @@ export default function CommitBar() {
             data-testid="pending-count"
           >
             {pendingChanges.length}
-          </motion.span>
+          </m.span>
           {'건 · '}
           <span className={unpushedCount > 0 || hasChanges ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'}>
             {unpushedCount > 0

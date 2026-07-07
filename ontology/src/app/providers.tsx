@@ -8,7 +8,14 @@ import {
   QueryClientProvider,
 } from '@tanstack/react-query';
 import { ThemeProvider } from 'next-themes';
+import { LazyMotion } from 'motion/react';
 import { Toaster } from 'sonner';
+
+// PRD-Perf(LazyMotion): 애니메이션 기능 번들(domAnimation)을 비동기 청크로 분리.
+// 컴포넌트는 m.* 을 쓰므로 초기 번들에는 motion 코어(~5KB)만 남는다.
+// strict: motion.* 잔존 사용을 개발 중 즉시 드러낸다(전부 m.* 으로 전환됨).
+const loadMotionFeatures = () =>
+  import('motion/react').then((mod) => mod.domAnimation);
 
 function makeQueryClient() {
   return new QueryClient({
@@ -56,7 +63,9 @@ export default function Providers({ children }: { children: React.ReactNode }) {
       disableTransitionOnChange
     >
       <QueryClientProvider client={queryClient}>
-        {children}
+        <LazyMotion features={loadMotionFeatures} strict>
+          {children}
+        </LazyMotion>
         <Toaster position="bottom-right" richColors closeButton />
       </QueryClientProvider>
     </ThemeProvider>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useCallback } from 'react';
-import { motion } from 'motion/react';
+import { m } from 'motion/react';
 import { X, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useOntologyStore } from '../hooks/useOntologyStore';
@@ -96,7 +96,7 @@ export default function HierarchyPopover() {
       aria-modal="true"
       aria-label="계층 이동"
     >
-      <motion.div
+      <m.div
         {...popoverAnimation}
         className="absolute w-[340px] max-w-[360px] bg-white dark:bg-card border border-border rounded-xl shadow-lg p-4"
         style={{
@@ -151,7 +151,7 @@ export default function HierarchyPopover() {
             <Check className="w-3 h-3" />
           </Button>
         </div>
-      </motion.div>
+      </m.div>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { motion, AnimatePresence } from 'motion/react';
+import { m, AnimatePresence } from 'motion/react';
 import { Sparkles, Loader2 } from 'lucide-react';
 import { aiGlow } from '@/lib/motion-presets';
 
@@ -34,7 +34,7 @@ export default function AutocompleteSuggestions({
   return (
     <div className="relative">
       {/* AI trigger button */}
-      <motion.button
+      <m.button
         type="button"
         className="flex items-center gap-1 text-[10px] h-5 px-2 rounded-full gradient-brand text-white font-medium shadow-sm hover:shadow-md transition-shadow"
         onClick={(e) => {
@@ -62,12 +62,12 @@ export default function AutocompleteSuggestions({
           <Sparkles className="w-3 h-3" />
         )}
         <span>{label}</span>
-      </motion.button>
+      </m.button>
 
       {/* Dropdown */}
       <AnimatePresence>
         {visible && (suggestions.length > 0 || isLoading || error) && (
-          <motion.div
+          <m.div
             initial={{ opacity: 0, y: -4, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -4, scale: 0.97 }}
@@ -123,7 +123,7 @@ export default function AutocompleteSuggestions({
                 {`\uCD94\uCC9C \uACB0\uACFC\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4.`}
               </div>
             )}
-          </motion.div>
+          </m.div>
         )}
       </AnimatePresence>
     </div>

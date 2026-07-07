@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { m, AnimatePresence } from 'motion/react';
 import { ChevronRight, Copy, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -52,7 +52,7 @@ export default function CypherPreview({ cypher }: CypherPreviewProps) {
 
       <AnimatePresence>
         {isOpen && (
-          <motion.div
+          <m.div
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
@@ -76,7 +76,7 @@ export default function CypherPreview({ cypher }: CypherPreviewProps) {
                 )}
               </Button>
             </div>
-          </motion.div>
+          </m.div>
         )}
       </AnimatePresence>
     </div>

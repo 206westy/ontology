@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useCallback, useRef, useEffect, memo } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { m, AnimatePresence } from 'motion/react';
 import { useDebounce } from 'react-use';
 import { Search, ChevronRight, Plus, Circle } from 'lucide-react';
 import Image from 'next/image';
@@ -186,7 +186,7 @@ const TreeItem = memo(function TreeItem({ item, searchQuery, onContextMenu }: { 
           접힘 시 자식 언마운트(대형 트리 렌더 비용 절감)는 그대로 유지. */}
       <AnimatePresence>
         {isExpanded && hasChildren && (
-          <motion.div
+          <m.div
             initial={{ opacity: 0, y: -4 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
@@ -195,7 +195,7 @@ const TreeItem = memo(function TreeItem({ item, searchQuery, onContextMenu }: { 
             {item.children.map((child) => (
               <TreeItem key={child.id} item={child} searchQuery={searchQuery} onContextMenu={onContextMenu} />
             ))}
-          </motion.div>
+          </m.div>
         )}
       </AnimatePresence>
     </div>

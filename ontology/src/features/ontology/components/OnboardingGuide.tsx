@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { m, AnimatePresence } from 'motion/react';
 import { X, ArrowRight, MousePointerClick, GripHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { overlay } from '@/lib/motion-presets';
@@ -82,7 +82,7 @@ export default function OnboardingGuide() {
   return (
     <AnimatePresence>
       {visible && (
-        <motion.div
+        <m.div
           key="onboarding-overlay"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -96,7 +96,7 @@ export default function OnboardingGuide() {
             <div className="absolute inset-0 bg-black/60" />
 
             {/* Highlight cutout */}
-            <motion.div
+            <m.div
               key={currentStep}
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -112,7 +112,7 @@ export default function OnboardingGuide() {
           </div>
 
           {/* Tooltip card */}
-          <motion.div
+          <m.div
             key={`tooltip-${currentStep}`}
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
@@ -182,8 +182,8 @@ export default function OnboardingGuide() {
                 </Button>
               </div>
             </div>
-          </motion.div>
-        </motion.div>
+          </m.div>
+        </m.div>
       )}
     </AnimatePresence>
   );

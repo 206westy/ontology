@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { m, AnimatePresence } from 'motion/react';
 import {
   Sparkles,
   FileText,
@@ -146,7 +146,7 @@ function DropZoneOverlay({ active }: { active: boolean }) {
   return (
     <AnimatePresence>
       {active && (
-        <motion.div
+        <m.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -162,7 +162,7 @@ function DropZoneOverlay({ active }: { active: boolean }) {
               AI가 자동으로 구조화합니다
             </p>
           </div>
-        </motion.div>
+        </m.div>
       )}
     </AnimatePresence>
   );
@@ -255,7 +255,7 @@ export default function EmptyState({ onDoubleClick }: EmptyStateProps) {
       <DropZoneOverlay active={isDragOver} />
 
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-        <motion.div
+        <m.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={transition}
@@ -308,7 +308,7 @@ export default function EmptyState({ onDoubleClick }: EmptyStateProps) {
               AI 자동 구조화
             </span>
           </div>
-        </motion.div>
+        </m.div>
       </div>
 
       {/* Template confirmation dialog */}
