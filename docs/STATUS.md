@@ -53,7 +53,7 @@ docs/
 | 문서 | 범위 | 비고 |
 |------|------|------|
 | PRD-perf-remediation.md | 클라이언트 성능 종합 개선 | 3관점 감사(perf/react/db) 종합. M0 데이터 슬림화(embedding 컬럼 제외·포커스 재요청 차단·커밋 페이지네이션)/M1 상호작용 캐스케이드 차단(트리 구독·드래그 히스토리 분리·배지 지연·검색 디바운스·keep-diff)/M2 번들 슬림화(그래프 dynamic import·motion 분리·optimizePackageImports)/M3 임베딩 라이프사이클(콘텐트 해시 가드·서버 전용·인스턴스 지연 로드)/M4 RSC 부분 도입(옵션·규칙 예외 승인 필요). 비즈니스 로직 불변 원칙 |
-| PRD-L.md | 구성요소 간소화 & 확신-초안 확정 | 온톨로지 7요소 2관점 코드 추적(2026-07-07) 근거. 원칙=사용자 판단↓·기계 구조 풍부함 유지·확정은 신뢰도 트리아지. L1 공리+제약→단일 규칙 / L2 관계 카테고리 5→3레이어(시멘틱/다이나믹/키네틱) / L3 관계유형+관계 단일 액션(데이터모델 TBox/ABox 보존) / L4 클래스·인스턴스 확신-초안+원탭 전환 / L5 속성·속성값 확정 정리 / L6 신뢰도 트리아지 확정(고신뢰 자동수락·저신뢰 표면화, categoryConfidence 용도 전환). PRD-I/K 위에 얹음. 미결 3건(diagnostic 레이어 귀속·공리 흡수/강등·RelationType 유지) 승인 대기 |
+| PRD-L.md | 팔란티어 3레이어 정리 & 확신-초안 확정 (L-1.1) | 온톨로지 7요소 2관점 코드 추적(2026-07-07) 근거. **팔란티어 온톨로지 3레이어(Semantic 지식·Kinetic 행동·Dynamic 자동화) 도입**해 재조직. 그린필드 전제(테스트 데이터 폐기→drop&recreate). L1 공리+제약→Dynamic 단일 "규칙"(자유서술=설명 메모 흡수) / L2 관계 5분류→Semantic(structural·causal·descriptive)/Kinetic(diagnostic·procedural) 2레이어(`category`→`layer` 정본 교체·정체성서 제외·diagnostic/procedural 구분 프롬프트 삭제로 토큰·오분류↓) / L3 관계유형+관계 단일 액션(TBox/ABox 데이터모델 보존) / L4 클래스·인스턴스 확신-초안+원탭 전환 / L5 속성·속성값 / L6 신뢰도 트리아지(categoryConfidence→확정 트리아지 신호로 전환). 스코프=(가) 조직·태깅·규칙 통합까지, Dynamic 자동화 실행은 후속. 확정 5건 로그, 미결 2건(descriptive 흡수 방식·Dynamic UI 노출). PRD-I/K 위에 얹음, perf-remediation 후 착수 예정 |
 
 아래 항목은 전용 문서 없이 v6 로드맵 내부에 기술. 자세한 건 `진행전/README.md` 참고.
 

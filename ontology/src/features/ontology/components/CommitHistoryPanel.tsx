@@ -190,7 +190,7 @@ export default function CommitHistoryPanel({ open, onOpenChange }: CommitHistory
         {!isLoading && !error && commitList.length > 0 && (
           <div className="flex items-center gap-3 py-2 px-1 border-b border-border">
             <span className="text-xs text-muted-foreground">
-              총 {commitList.length}건
+              최근 {commitList.length}건
             </span>
             <span className="text-[10px] text-muted-foreground">
               수동 {commitList.filter((c) => !c.isAutoSave).length} / 자동 {commitList.filter((c) => c.isAutoSave).length}

@@ -37,11 +37,18 @@ export async function GET(request: NextRequest) {
       allAxiomClasses,
       allConstraints,
     ] = await Promise.all([
-      db.query.classes.findMany({ orderBy: (c, { asc }) => [asc(c.name)] }),
+      // PRD-Perf M0-1: embedding 은 라운드트립 계약에서 소비되지 않음 — export 에서 제외.
+      db.query.classes.findMany({
+        columns: { embedding: false },
+        orderBy: (c, { asc }) => [asc(c.name)],
+      }),
       db.query.properties.findMany({
         orderBy: (p, { asc }) => [asc(p.sortOrder)],
       }),
-      db.query.instances.findMany({ orderBy: (i, { asc }) => [asc(i.name)] }),
+      db.query.instances.findMany({
+        columns: { embedding: false },
+        orderBy: (i, { asc }) => [asc(i.name)],
+      }),
       db.query.instanceValues.findMany(),
       db.query.relationTypes.findMany({
         orderBy: (r, { asc }) => [asc(r.name)],

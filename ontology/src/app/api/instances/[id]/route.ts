@@ -3,6 +3,7 @@ import { getDb } from '@/lib/drizzle';
 import { instances } from '@/lib/drizzle/schema';
 import { updateInstanceSchema } from '@/features/ontology/lib/schemas';
 import { eq, sql } from 'drizzle-orm';
+import { omit } from 'es-toolkit';
 import { handleApiError } from '@/lib/api-error';
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -39,7 +40,8 @@ export async function PATCH(request: NextRequest, ctx: RouteContext) {
       return NextResponse.json({ error: 'Instance not found' }, { status: 404 });
     }
 
-    return NextResponse.json(row);
+    // PRD-Perf M0-1: returning() 은 전 컬럼 반환 — 서버 전용 embedding 벡터는 응답에서 제거.
+    return NextResponse.json(omit(row, ['embedding']));
   } catch (err) {
     return handleApiError(err);
   }

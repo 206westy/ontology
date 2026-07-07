@@ -17,6 +17,9 @@ function makeQueryClient() {
         // With SSR, we usually want to set some default staleTime
         // above 0 to avoid refetching immediately on the client
         staleTime: 60 * 1000,
+        // PRD-Perf M0-2: 데이터 권위는 zustand 스토어 + useApiSync 명시 invalidate.
+        // 포커스 복귀마다 전체 온톨로지(8쿼리)를 재요청할 이유가 없다.
+        refetchOnWindowFocus: false,
       },
     },
   });

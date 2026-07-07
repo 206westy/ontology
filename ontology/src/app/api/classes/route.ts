@@ -21,9 +21,11 @@ export async function GET(request: NextRequest) {
           ? isNull(classes.parentId)
           : eq(classes.parentId, parentId);
 
+    // PRD-Perf M0-1: 1536차원 embedding 은 서버 전용(dedup/RAG) 자산 — 클라이언트 응답에서 제외.
     const rows = await db.query.classes.findMany({
       where: condition,
-      with: { children: true, properties: true },
+      columns: { embedding: false },
+      with: { children: { columns: { embedding: false } }, properties: true },
       orderBy: (c, { asc }) => [asc(c.name)],
       limit,
       offset,

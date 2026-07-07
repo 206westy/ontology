@@ -5,6 +5,20 @@ import { createCommitSchema } from '@/features/ontology/lib/schemas';
 import { desc, eq, asc, and, isNull } from 'drizzle-orm';
 import { handleApiError } from '@/lib/api-error';
 import { getCurrentUser } from '@/lib/supabase/auth-server';
+import { parsePagination } from '@/lib/pagination';
+
+// PRD-Perf M0-3: autosave 로 커밋이 단조 증가 — 무제한 조회를 기본 최근 50건으로 바운드.
+const DEFAULT_COMMITS_LIMIT = 50;
+
+// PRD-Perf M0-3: 목록에서 스냅샷(jsonb 전체 엔티티)은 이름 표시에만 쓰인다.
+// 형태(객체|null)는 유지하고 name 만 남겨 페이로드를 상수화한다.
+function projectSnapshotName(snapshot: unknown): { name: string } | null {
+  if (snapshot && typeof snapshot === 'object' && 'name' in snapshot) {
+    const name = (snapshot as Record<string, unknown>).name;
+    if (typeof name === 'string') return { name };
+  }
+  return null;
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -26,15 +40,28 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ ids: rows.map((r) => r.id), count: rows.length });
     }
 
+    const { limit, offset } = parsePagination(searchParams);
+
     const rows = await db.query.commits.findMany({
       with: { details: true },
       orderBy: [desc(commits.createdAt)],
+      limit: limit ?? DEFAULT_COMMITS_LIMIT,
+      offset,
       ...(autoSaveFilter != null
         ? { where: (c: any, { eq }: any) => eq(c.isAutoSave, autoSaveFilter === 'true') }
         : {}),
     });
 
-    return NextResponse.json(rows);
+    const slim = rows.map((row) => ({
+      ...row,
+      details: row.details.map((d) => ({
+        ...d,
+        beforeSnapshot: projectSnapshotName(d.beforeSnapshot),
+        afterSnapshot: projectSnapshotName(d.afterSnapshot),
+      })),
+    }));
+
+    return NextResponse.json(slim);
   } catch (err) {
     return handleApiError(err);
   }

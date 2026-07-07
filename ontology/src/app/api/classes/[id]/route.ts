@@ -3,6 +3,7 @@ import { getDb } from '@/lib/drizzle';
 import { classes } from '@/lib/drizzle/schema';
 import { updateClassSchema } from '@/features/ontology/lib/schemas';
 import { eq, sql } from 'drizzle-orm';
+import { omit } from 'es-toolkit';
 import { handleApiError } from '@/lib/api-error';
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -12,13 +13,15 @@ export async function GET(_request: NextRequest, ctx: RouteContext) {
 
   try {
     const db = await getDb();
+    // PRD-Perf M0-1: embedding 은 서버 전용 — 본체·연관 행 모두 응답에서 제외.
     const row = await db.query.classes.findFirst({
       where: eq(classes.id, id),
+      columns: { embedding: false },
       with: {
-        children: true,
+        children: { columns: { embedding: false } },
         properties: { orderBy: (p, { asc }) => [asc(p.sortOrder)] },
-        instances: true,
-        parent: true,
+        instances: { columns: { embedding: false } },
+        parent: { columns: { embedding: false } },
       },
     });
 
@@ -64,7 +67,8 @@ export async function PATCH(request: NextRequest, ctx: RouteContext) {
       return NextResponse.json({ error: 'Class not found' }, { status: 404 });
     }
 
-    return NextResponse.json(row);
+    // PRD-Perf M0-1: returning() 은 전 컬럼 반환 — 서버 전용 embedding 벡터는 응답에서 제거.
+    return NextResponse.json(omit(row, ['embedding']));
   } catch (err) {
     return handleApiError(err);
   }

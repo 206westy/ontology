@@ -12,15 +12,18 @@ export async function GET(request: NextRequest) {
 
   try {
     const db = await getDb();
+    // PRD-Perf M0-1: 1536차원 embedding 은 서버 전용(dedup/RAG) 자산 — 클라이언트 응답에서 제외.
     const rows = classId
       ? await db.query.instances.findMany({
           where: eq(instances.classId, classId),
+          columns: { embedding: false },
           with: { values: true },
           orderBy: (i, { asc }) => [asc(i.name)],
           limit,
           offset,
         })
       : await db.query.instances.findMany({
+          columns: { embedding: false },
           with: { values: true },
           orderBy: (i, { asc }) => [asc(i.name)],
           limit,
