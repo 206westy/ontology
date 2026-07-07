@@ -110,6 +110,23 @@ function safeKey(name: string): string {
   return name.replace(/`/g, '');
 }
 
+// 관계명 → Neo4j 관계 타입 절(clause).
+// ASCII 는 UPPER_SNAKE 식별자로 그대로(기존 규약·기존 그래프 데이터 호환).
+// 한글 등 비-ASCII 는 문자를 보존하고 백틱으로 감싼다 — 그래야 서로 다른 관계가
+// 구분된다. (기존 버그: 비-ASCII 를 전부 '_' 로 치환 → 교체함/변경함/포함함 …이
+// 모두 '___' 로 충돌해 관계 종류를 잃었다. Neo4j 는 백틱 타입에 유니코드를 허용.)
+function relTypeClause(relName: string): string {
+  const hasNonAscii = /[^\x00-\x7F]/.test(relName);
+  const hasAlnum = /[a-zA-Z0-9]/.test(relName);
+  if (!hasNonAscii && hasAlnum) {
+    // 예: 'located-at' → LOCATED_AT (백틱 불필요, 기존 동작 유지)
+    return relName.replace(/[^a-zA-Z0-9_]/g, '_').toUpperCase();
+  }
+  // 유니코드(한글 등): 문자 보존 + 백틱. 내부 백틱은 제거(주입 방지).
+  const token = relName.trim().replace(/`/g, '');
+  return token ? `\`${token}\`` : 'RELATED_TO';
+}
+
 // instance_values 타입 캐스팅 — text 를 dataType 에 맞춰 변환.
 function castExpr(dataType: string, paramRef: string): string {
   switch (dataType) {
@@ -271,13 +288,13 @@ function edgeUpsert(
 ): CypherStatement {
   const snap = detail.afterSnapshot as Record<string, unknown>;
   const relName = (snap.relationTypeName as string) ?? 'RELATED_TO';
-  const safeRelName = relName.replace(/[^a-zA-Z0-9_]/g, '_').toUpperCase();
+  const relClause = relTypeClause(relName);
   const attr = attrParams('edges', detail.targetId, context);
   return {
     // MERGE on id → 재푸시 중복 0. domain/range·cardinality·출처 반영.
     // PRD-F P4-1: category 판정 확신도(_catconf)를 관계 속성으로 운반한다. myATHENA
     // traversal 은 저신뢰(_catconf < 0.7)를 "포함하되 비우선"으로 처리한다(드롭 아님).
-    query: `MATCH (a {id: $sourceId}), (b {id: $targetId}) MERGE (a)-[r:${safeRelName} {id: $id}]->(b) SET r.relationTypeId = $relationTypeId, r.bridge = $bridge, r.min_cardinality = toInteger($minCardinality), r.max_cardinality = toInteger($maxCardinality), r.sourceKind = $sourceKind, r.targetKind = $targetKind, r._catconf = $catconf, r.${SRC} = $src, r.${CONF} = $conf, r.${SRC_REF} = $srcRef`,
+    query: `MATCH (a {id: $sourceId}), (b {id: $targetId}) MERGE (a)-[r:${relClause} {id: $id}]->(b) SET r.relationTypeId = $relationTypeId, r.bridge = $bridge, r.min_cardinality = toInteger($minCardinality), r.max_cardinality = toInteger($maxCardinality), r.sourceKind = $sourceKind, r.targetKind = $targetKind, r._catconf = $catconf, r.${SRC} = $src, r.${CONF} = $conf, r.${SRC_REF} = $srcRef`,
     params: {
       id: detail.targetId,
       sourceId: snap.sourceId ?? '',
@@ -362,8 +379,28 @@ export function buildCypherStatements(
     return (tableOrder[a.targetTable] ?? 99) - (tableOrder[b.targetTable] ?? 99);
   });
 
+  // 방어적 스킵: ADD/MOD 인데 afterSnapshot 이 없는 손상 레코드는 upsert 생성 시
+  // null 역참조로 전체 push 를 500 시킨다. 이런 레코드는 조용히 크래시시키지 말고
+  // 건너뛴다(유효한 나머지 변경은 정상 반영). afterSnapshot 을 역참조하는 테이블만 대상.
+  const NEEDS_AFTER = new Set([
+    'classes',
+    'instances',
+    'edges',
+    'relation_types',
+    'instance_values',
+  ]);
+
   for (const detail of sorted) {
     const { operation, targetTable } = detail;
+
+    if (
+      operation !== 'DEL' &&
+      detail.afterSnapshot == null &&
+      NEEDS_AFTER.has(targetTable)
+    ) {
+      // 손상/불완전 레코드 — 반영할 데이터가 없어 스킵.
+      continue;
+    }
 
     if (targetTable === 'classes') {
       if (operation === 'ADD') {

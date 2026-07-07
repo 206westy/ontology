@@ -1,6 +1,7 @@
 import React from 'react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useOntologyStore } from '@/features/ontology/hooks/useOntologyStore';
 
 // Mock motion/react to render plain elements
@@ -27,7 +28,11 @@ vi.mock('sonner', () => ({
 
 // Mock API
 vi.mock('@/features/ontology/api', () => ({
-  commitsApi: { create: vi.fn() },
+  commitsApi: {
+    create: vi.fn(),
+    unpushed: vi.fn().mockResolvedValue({ ids: [], count: 0 }),
+  },
+  embeddingsApi: { process: vi.fn().mockResolvedValue({}) },
 }));
 
 // Mock NeoConfirmSheet to avoid complex deps
@@ -53,6 +58,18 @@ vi.mock('@/components/ui/scroll-area', () => ({
 // Must import after mock
 import CommitBar from '@/features/ontology/components/CommitBar';
 
+// useQuery(미반영 카운트)를 위해 QueryClientProvider 로 감싼다.
+function renderBar() {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={client}>
+      <CommitBar />
+    </QueryClientProvider>,
+  );
+}
+
 function resetStore() {
   useOntologyStore.setState({
     classes: [],
@@ -77,7 +94,7 @@ describe('CommitBar', () => {
   });
 
   it('should show 0 changes when no pending changes', () => {
-    render(<CommitBar />);
+    renderBar();
     expect(screen.getByText('변경사항 0건')).toBeInTheDocument();
   });
 
@@ -85,19 +102,19 @@ describe('CommitBar', () => {
     useOntologyStore.getState().addClass({ name: 'A' });
     useOntologyStore.getState().addClass({ name: 'B' });
 
-    render(<CommitBar />);
+    renderBar();
     expect(screen.getByText('변경사항 2건')).toBeInTheDocument();
   });
 
   it('should show summary with class count', () => {
     useOntologyStore.getState().addClass({ name: 'X' });
 
-    render(<CommitBar />);
+    renderBar();
     expect(screen.getByText('+1')).toBeInTheDocument();
   });
 
   it('should disable buttons when no changes', () => {
-    render(<CommitBar />);
+    renderBar();
 
     const undoBtn = screen.getByText('되돌리기').closest('button');
     const changeListBtn = screen.getByText('변경 내역').closest('button');
@@ -111,7 +128,7 @@ describe('CommitBar', () => {
   it('should enable buttons when there are changes', () => {
     useOntologyStore.getState().addClass({ name: 'EnableTest' });
 
-    render(<CommitBar />);
+    renderBar();
 
     const undoBtn = screen.getByText('되돌리기').closest('button');
     const changeListBtn = screen.getByText('변경 내역').closest('button');
@@ -127,7 +144,7 @@ describe('CommitBar', () => {
     useOntologyStore.getState().addProperty({ name: 'p1', classId });
     useOntologyStore.getState().addInstance({ name: 'i1', classId });
 
-    render(<CommitBar />);
+    renderBar();
     // All three are ADD operations, so summary shows +3
     expect(screen.getByText('+3')).toBeInTheDocument();
   });
@@ -137,7 +154,7 @@ describe('CommitBar', () => {
     useOntologyStore.getState().addClass({ name: 'A' });
     useOntologyStore.getState().addClass({ name: 'B' });
 
-    render(<CommitBar />);
+    renderBar();
     const addSpan = screen.getByText('+2');
     expect(addSpan.className).toContain('emerald');
   });
@@ -146,7 +163,7 @@ describe('CommitBar', () => {
     const id = useOntologyStore.getState().addClass({ name: 'Old' });
     useOntologyStore.getState().updateClass(id, { name: 'New' });
 
-    render(<CommitBar />);
+    renderBar();
     const modSpan = screen.getByText('~1');
     expect(modSpan.className).toContain('amber');
   });
@@ -155,7 +172,7 @@ describe('CommitBar', () => {
     const id = useOntologyStore.getState().addClass({ name: 'Gone' });
     useOntologyStore.getState().removeClass(id);
 
-    render(<CommitBar />);
+    renderBar();
     const delSpan = screen.getByText('-1');
     expect(delSpan.className).toContain('red');
   });
@@ -166,7 +183,7 @@ describe('CommitBar', () => {
     useOntologyStore.getState().updateClass(id2, { name: 'Edited' });
     useOntologyStore.getState().removeClass(id1);
 
-    render(<CommitBar />);
+    renderBar();
     expect(screen.getByText('+2')).toBeInTheDocument(); // 2 ADDs
     expect(screen.getByText('~1')).toBeInTheDocument(); // 1 MOD
     expect(screen.getByText('-1')).toBeInTheDocument(); // 1 DEL
@@ -175,7 +192,7 @@ describe('CommitBar', () => {
   // Push button opens NeoConfirmSheet
   it('should have push button that does not clear changes directly', () => {
     useOntologyStore.getState().addClass({ name: 'Test' });
-    render(<CommitBar />);
+    renderBar();
     const pushBtn = screen.getByText('반영').closest('button');
     expect(pushBtn).not.toBeDisabled();
     const changesBefore = useOntologyStore.getState().pendingChanges.length;

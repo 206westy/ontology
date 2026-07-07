@@ -26,6 +26,10 @@ export default function GraphCanvas() {
   const instances = useOntologyStore((s) => s.instances);
   const openPopover = useOntologyStore((s) => s.openPopover);
   const updateClass = useOntologyStore((s) => s.updateClass);
+  const partitions = useOntologyStore((s) => s.partitions);
+  const currentPartitionId = useOntologyStore((s) => s.currentPartitionId);
+  const showAllPartitions = useOntologyStore((s) => s.showAllPartitions);
+  const toggleShowAllPartitions = useOntologyStore((s) => s.toggleShowAllPartitions);
   // PRD-H H8-c (M2): 패턴 시드 생성 후 머지 미리보기 시트 트리거(store 구동).
   const entityResolutionOpen = useOntologyStore((s) => s.entityResolutionOpen);
   const closeEntityResolution = useOntologyStore((s) => s.closeEntityResolution);
@@ -76,6 +80,19 @@ export default function GraphCanvas() {
     return <EmptyState onDoubleClick={onEmptyDoubleClick} />;
   }
 
+  // 현재 워크스페이스(구획)만 비어있는지 판정 — 전체 그래프엔 노드가 있으나
+  // 지금 보는 구획엔 없어 캔버스가 텅 빈 경우("여기가 비었나/고장났나" 혼란 방지).
+  // 인스턴스는 부모 클래스의 구획을 상속하므로 classId→class.partition 으로 판정한다.
+  const classPartition = new Map(classes.map((c) => [c.id, c.partitionId]));
+  const inWorkspace = (pid?: string) =>
+    showAllPartitions || !pid || pid === currentPartitionId;
+  const workspaceEmpty =
+    !showAllPartitions &&
+    !classes.some((c) => inWorkspace(c.partitionId)) &&
+    !instances.some((i) => inWorkspace(classPartition.get(i.classId)));
+  const currentWorkspaceName =
+    partitions.find((p) => p.id === currentPartitionId)?.name ?? '현재 워크스페이스';
+
   return (
     <div className="flex-1 relative" data-testid="graph-canvas">
       {/* Cytoscape 캔버스 — Cytoscape가 컨테이너 position을 relative로 덮어쓰므로
@@ -89,6 +106,44 @@ export default function GraphCanvas() {
           backgroundSize: '20px 20px',
         }}
       />
+
+      {/* 현재 워크스페이스만 비었을 때 안내 오버레이(전체 그래프엔 노드 존재) */}
+      {workspaceEmpty && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
+          <div className="pointer-events-auto max-w-sm rounded-xl border border-border bg-card/95 backdrop-blur-sm shadow-elevation-2 px-5 py-4 text-center space-y-2">
+            <p className="text-sm font-semibold text-foreground">
+              &ldquo;{currentWorkspaceName}&rdquo; 워크스페이스는 비어 있습니다
+            </p>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              다른 워크스페이스에는 데이터가 있습니다. 노드를 추가하거나 전체 구획을 보세요.
+            </p>
+            <div className="flex items-center justify-center gap-2 pt-1">
+              <button
+                type="button"
+                className="text-[11px] px-2.5 py-1 rounded-md bg-primary text-primary-foreground hover:opacity-90 transition-opacity"
+                onClick={() =>
+                  openPopover({
+                    type: 'newNode',
+                    position: {
+                      x: window.innerWidth / 2,
+                      y: window.innerHeight / 2,
+                    },
+                  })
+                }
+              >
+                새 노드 만들기
+              </button>
+              <button
+                type="button"
+                className="text-[11px] px-2.5 py-1 rounded-md border border-border hover:bg-muted transition-colors"
+                onClick={() => toggleShowAllPartitions(true)}
+              >
+                전체 구획 보기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 범례 (PRD §7) — 좌하단 고정 */}
       <GraphLegend />

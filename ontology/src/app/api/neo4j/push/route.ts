@@ -239,6 +239,26 @@ export async function POST(request: NextRequest) {
 
     // 1. Fetch commit details from Supabase
     const db = await getDb();
+
+    // PRD-J M4: Neo4j push 는 main 커밋 전용. 브랜치 커밋은 main 엔티티에 적용되지
+    // 않은 상태라 push 하면 운영 그래프가 스테이징과 어긋난다(드리프트) — 차단.
+    const branchCommits = await db.query.commits.findMany({
+      columns: { id: true, branchId: true },
+      where: inArray(commits.id, commitIds),
+    });
+    const nonMain = branchCommits.filter((c) => c.branchId !== null);
+    if (nonMain.length > 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `브랜치 커밋 ${nonMain.length}건은 발행할 수 없습니다.`,
+          suggestion:
+            '브랜치 변경은 병합 요청으로 main에 병합한 뒤, 병합 커밋을 발행하세요.',
+        },
+        { status: 400 },
+      );
+    }
+
     const details = await db.query.commitDetails.findMany({
       where: inArray(commitDetails.commitId, commitIds),
     });

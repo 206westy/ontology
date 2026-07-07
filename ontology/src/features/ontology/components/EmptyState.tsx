@@ -25,6 +25,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { toast } from 'sonner';
 import { importExportApi } from '../api';
 import { TEMPLATES, buildImportPayload } from '../constants/templates';
 import type { TemplateMetadata } from '../constants/templates';
@@ -194,6 +195,16 @@ export default function EmptyState({ onDoubleClick }: EmptyStateProps) {
 
   const handleConfirmLoad = useCallback(async () => {
     if (!confirmTemplate) return;
+    // PRD-J M2: 템플릿 가져오기는 main 엔티티 테이블에 직접 쓴다(서버 import).
+    // 브랜치 모드에서 실행하면 격리를 우회하므로 차단한다.
+    const currentBranch = useOntologyStore.getState().currentBranch;
+    if (currentBranch) {
+      toast.error('브랜치에서는 템플릿을 불러올 수 없습니다', {
+        description: 'main으로 돌아간 뒤 템플릿을 불러오세요.',
+      });
+      setConfirmTemplate(null);
+      return;
+    }
     const templateId = confirmTemplate.id;
     setConfirmTemplate(null);
     setLoadingId(templateId);

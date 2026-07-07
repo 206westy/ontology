@@ -32,6 +32,13 @@ export function useApiSync() {
           syncedRef.current.add(change.id);
         }
 
+        // PRD-J M2: 브랜치 모드에서는 엔티티 API 동기화를 중단한다(main 작업본 보호).
+        // 변경은 pendingChanges → 브랜치 커밋으로만 기록되고, 병합(M3)에서 main 에 반영된다.
+        // synced 마킹은 위에서 이미 했으므로 main 복귀 후에도 재전송되지 않는다.
+        if (state.currentBranch) {
+          return;
+        }
+
         if (newChanges.length > 0) {
           // 이전 동기화가 끝난(=커밋된) 뒤 다음 배치를 보낸다(FK 경쟁 방지).
           syncQueueRef.current = syncQueueRef.current

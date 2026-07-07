@@ -17,11 +17,14 @@ import {
   ShieldCheck,
   Loader2,
   GitMerge,
+  GitPullRequest,
   Activity,
   Wand2,
 } from 'lucide-react';
 import FilterPanel from './FilterPanel';
 import PartitionSwitcher from './PartitionSwitcher';
+import BranchSwitcher from './BranchSwitcher';
+import MergeRequestSheet from './MergeRequestSheet';
 import ValidationResultsPanel from './ValidationResultsPanel';
 import EntityResolutionSheet from './EntityResolutionSheet';
 import HealthDashboardSheet from './HealthDashboardSheet';
@@ -52,6 +55,8 @@ export default function Toolbar() {
   const [showValidation, setShowValidation] = useState(false);
   const [showEntityResolution, setShowEntityResolution] = useState(false);
   const [showHealth, setShowHealth] = useState(false);
+  // PRD-J M3: 병합 요청 패널.
+  const [showMergeRequests, setShowMergeRequests] = useState(false);
 
   // Allow CommandPalette (and other components) to open these sheets via events.
   useEffect(() => {
@@ -212,6 +217,22 @@ export default function Toolbar() {
       {/* Partition switcher (PRD-B B-3) */}
       <PartitionSwitcher />
 
+      {/* Branch switcher (PRD-J M2) — 구획=도메인 분리, 브랜치=작업 격리 */}
+      <BranchSwitcher />
+
+      {/* Merge requests (PRD-J M3) */}
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-7 text-xs gap-1"
+        onClick={() => setShowMergeRequests(true)}
+        title="병합 요청 — 브랜치 변경을 검토하고 main으로 병합"
+        data-testid="mr-open-btn"
+      >
+        <GitPullRequest className="w-3.5 h-3.5" />
+        병합
+      </Button>
+
       <div className="flex-1" />
 
       {/* Right side actions */}
@@ -319,6 +340,9 @@ export default function Toolbar() {
 
       {/* Health Dashboard (P0-3) */}
       <HealthDashboardSheet open={showHealth} onOpenChange={setShowHealth} />
+
+      {/* PRD-J M3: 병합 요청 패널 */}
+      <MergeRequestSheet open={showMergeRequests} onOpenChange={setShowMergeRequests} />
     </div>
   );
 }

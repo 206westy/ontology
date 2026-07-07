@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'motion/react';
 import { Loader2, ShieldAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -40,6 +41,7 @@ export default function NeoConfirmSheet({ open, onOpenChange }: NeoConfirmSheetP
   const activePattern = useOntologyStore((s) => s.activePattern);
   const licenseWarning = buildPublishLicenseWarning([activePattern]);
 
+  const qc = useQueryClient();
   const [phase, setPhase] = useState<Phase>('loading');
   const [cypherPreview, setCypherPreview] = useState('');
   const [commitIds, setCommitIds] = useState<string[]>([]);
@@ -72,29 +74,49 @@ export default function NeoConfirmSheet({ open, onOpenChange }: NeoConfirmSheetP
 
     async function prepare() {
       try {
-        // 1. Commit to Supabase first
-        const opCounts = { ADD: 0, MOD: 0, DEL: 0 };
-        pendingChanges.forEach((c) => {
-          const op = c.operation as keyof typeof opCounts;
-          if (op in opCounts) opCounts[op]++;
-        });
+        // 1. 현재 편집(pendingChanges)이 있으면 먼저 커밋(Supabase 스테이징).
+        let ids: string[] = [];
+        if (pendingChanges.length > 0) {
+          const opCounts = { ADD: 0, MOD: 0, DEL: 0 };
+          pendingChanges.forEach((c) => {
+            const op = c.operation as keyof typeof opCounts;
+            if (op in opCounts) opCounts[op]++;
+          });
 
-        const commitResult = await commitsApi.create({
-          message: `${opCounts.ADD} added, ${opCounts.MOD} modified, ${opCounts.DEL} deleted`,
-          isAutoSave: false,
-          details: pendingChanges.map((c) => ({
-            operation: c.operation as 'ADD' | 'MOD' | 'DEL',
-            targetTable: c.targetTable,
-            targetId: c.targetId,
-          })),
-        }) as { id: string };
+          const commitResult = (await commitsApi.create({
+            message: `${opCounts.ADD} added, ${opCounts.MOD} modified, ${opCounts.DEL} deleted`,
+            isAutoSave: false,
+            details: pendingChanges.map((c) => ({
+              operation: c.operation as 'ADD' | 'MOD' | 'DEL',
+              targetTable: c.targetTable,
+              targetId: c.targetId,
+            })),
+          })) as { id: string };
+          if (cancelled) return;
+          ids.push(commitResult.id);
+        }
 
+        // 2. 미반영 커밋 전체를 합친다(autosave/이전 저장으로 스테이징엔 있으나
+        //    Neo4j 로 반영 안 된 "고아 커밋" 포함). 이게 반영본이 비던 진짜 원인.
+        try {
+          const unpushed = await commitsApi.unpushed();
+          ids = [...new Set([...ids, ...unpushed.ids])];
+        } catch {
+          // 미반영 조회 실패해도 방금 만든 커밋은 반영 진행.
+        }
         if (cancelled) return;
 
-        const ids = [commitResult.id];
+        if (ids.length === 0) {
+          toast.info('반영할 변경이 없습니다', {
+            description: '모든 변경이 이미 Neo4j(반영본)에 반영되어 있습니다.',
+          });
+          onOpenChange(false);
+          return;
+        }
+
         setCommitIds(ids);
 
-        // 2. DryRun to get cypher preview and steps
+        // 3. DryRun to get cypher preview and steps
         const preview = await neo4jApi.push({ commitIds: ids, dryRun: true });
         if (cancelled) return;
 
@@ -164,6 +186,8 @@ export default function NeoConfirmSheet({ open, onOpenChange }: NeoConfirmSheetP
         clearChangesWithoutHistory();
         // PRD-I (M4): 발행(published) 성공 시점 기록 — 라이프사이클 표시용.
         markPublished();
+        // 미반영 커밋을 전부 반영했으니 카운트/히스토리 갱신(반영본 push 후 상태 동기화).
+        qc.invalidateQueries({ queryKey: ['commits'] });
       }
 
       // H2: Neo4j 반영은 됐으나 스테이징 플래그 갱신이 실패한 부분 성공을 알린다.
@@ -190,7 +214,7 @@ export default function NeoConfirmSheet({ open, onOpenChange }: NeoConfirmSheetP
       });
       setPhase('result');
     }
-  }, [commitIds, steps.length, markPublished]);
+  }, [commitIds, steps.length, markPublished, qc]);
 
   const handleClose = useCallback(() => {
     onOpenChange(false);

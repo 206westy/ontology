@@ -8,45 +8,74 @@ import { LLM_MODELS } from '@/lib/llm/models';
 import { text2CypherRequestSchema } from '@/features/ontology/lib/schemas';
 import { handleApiError } from '@/lib/api-error';
 
-// Extract Neo4j schema for LLM context
+// Extract Neo4j schema for LLM context.
+// 데이터 스캔(MATCH (n))만으로 스키마를 만들면 그래프가 비어 있을 때 스키마가
+// 통째로 사라져 LLM 이 "스키마 없음 → 무차별 속성 스캔"으로 폴백한다. 그래서
+// db.labels()/db.relationshipTypes()/db.propertyKeys() 로 라벨/관계 "계약"을
+// 먼저 확보하고(빈 그래프에서도 유지됨), 데이터가 있으면 라벨별 실제 속성/관계
+// 패턴을 덧붙인다.
 async function getNeo4jSchema(): Promise<string> {
   const driver = getNeo4jDriver();
   const session = driver.session();
 
+  const first = <T>(rows: { get: (k: string) => unknown }[], key: string): T[] =>
+    rows.length ? ((rows[0].get(key) as T[]) ?? []) : [];
+
   try {
-    // Node labels and properties
+    const [labelsRes, relTypesRes, propKeysRes] = await Promise.all([
+      session.run(`CALL db.labels() YIELD label RETURN collect(label) AS labels`),
+      session.run(
+        `CALL db.relationshipTypes() YIELD relationshipType RETURN collect(relationshipType) AS rels`,
+      ),
+      session.run(
+        `CALL db.propertyKeys() YIELD propertyKey RETURN collect(propertyKey) AS keys`,
+      ),
+    ]);
+
+    const labels = first<string>(labelsRes.records, 'labels');
+    const relTypes = first<string>(relTypesRes.records, 'rels');
+    const propKeys = first<string>(propKeysRes.records, 'keys');
+
+    // 데이터가 있으면 라벨별 실제 속성 집합(빈 그래프면 0행 → 계약만 남음).
     const nodeResult = await session.run(`
       MATCH (n)
-      WITH DISTINCT labels(n) AS nodeLabels, keys(n) AS propKeys, n
-      UNWIND nodeLabels AS label
-      UNWIND propKeys AS key
-      WITH label, key, n[key] AS sampleValue
+      UNWIND labels(n) AS label
+      WITH label, keys(n) AS ks
+      UNWIND ks AS key
       RETURN label, collect(DISTINCT key) AS properties
       ORDER BY label
     `);
+    const propsByLabel = new Map<string, string[]>();
+    for (const r of nodeResult.records) {
+      propsByLabel.set(r.get('label') as string, (r.get('properties') as string[]) ?? []);
+    }
 
-    const nodes = nodeResult.records.map((r) => {
-      const label = r.get('label');
-      const props = r.get('properties') as string[];
-      return `${label} {${props.join(', ')}}`;
-    });
-
-    // Relationship types and directions
+    // 관계 패턴(있을 때만).
     const relResult = await session.run(`
       MATCH (a)-[r]->(b)
       RETURN DISTINCT labels(a)[0] AS startLabel, type(r) AS relType, labels(b)[0] AS endLabel
       ORDER BY startLabel, relType, endLabel
     `);
-
-    const rels = relResult.records.map(
+    const relPatterns = relResult.records.map(
       (r) =>
         `(:${r.get('startLabel')})-[:${r.get('relType')}]->(:${r.get('endLabel')})`,
     );
 
-    const parts = ['Node properties:'];
-    parts.push(...nodes);
-    parts.push('', 'Relationships:');
-    parts.push(...rels);
+    const parts: string[] = [];
+    parts.push('Node labels: ' + (labels.length ? labels.join(', ') : '(none)'));
+    parts.push('Relationship types: ' + (relTypes.length ? relTypes.join(', ') : '(none)'));
+    parts.push('Property keys: ' + (propKeys.length ? propKeys.join(', ') : '(none)'));
+
+    if (propsByLabel.size > 0) {
+      parts.push('', 'Node properties (observed):');
+      for (const [label, props] of propsByLabel) {
+        parts.push(`${label} {${props.join(', ')}}`);
+      }
+    }
+    if (relPatterns.length > 0) {
+      parts.push('', 'Relationship patterns (observed):');
+      parts.push(...relPatterns);
+    }
 
     return parts.join('\n');
   } finally {
@@ -124,6 +153,21 @@ export async function POST(request: NextRequest) {
       providerOptions: { openai: { reasoningEffort: 'medium', textVerbosity: 'low' } },
       maxOutputTokens: 30000,
       system: `You are a Neo4j Cypher expert. Given a user's natural language question and a Neo4j graph schema, generate a syntactically correct Cypher query.
+
+CRITICAL — this graph uses a META-MODEL. Read carefully:
+- The ONLY node labels are: Class, Instance, RelationType (and the shared label Concept on Class/Instance).
+- Domain concepts the user names (e.g. "Chamber", "Engineer", "Equipment", 한글 이름 포함) are NOT labels. They are stored as the \`name\` PROPERTY of a :Class or :Instance node.
+  - WRONG: MATCH (c:Chamber) ...            ← "Chamber" label does not exist, always returns nothing.
+  - RIGHT: MATCH (n) WHERE toLower(n.name) CONTAINS toLower('Chamber') ...
+- Match concept nodes by \`name\` using case-insensitive, partial matching (toLower + CONTAINS) so casing/한글/부분 이름이 모두 걸린다. Use exact equality only when the user clearly wants an exact name.
+- Relationship types: IS_A (class→parent), INSTANCE_OF (instance→class), plus domain relations stored as UPPER_SNAKE_CASE types (e.g. "controls" → CONTROLS). Prefer the schema's observed relationship types; when unsure, use a variable-length/any-type pattern -[r]-.
+
+Defensive querying (avoid dropping neighbors when the anchor is not found):
+- Find the anchor node first, THEN expand:
+    MATCH (anchor) WHERE toLower(anchor.name) CONTAINS toLower($term)
+    OPTIONAL MATCH (anchor)-[r]-(neighbor)
+    RETURN anchor, r, neighbor LIMIT 50
+- Do NOT make the whole result depend on a specific label or an exact name — that silently returns 0 rows when the label/name doesn't match the meta-model.
 
 Rules:
 - Only generate READ queries (MATCH, RETURN, etc.). Never generate write queries (CREATE, DELETE, SET, MERGE, etc.)

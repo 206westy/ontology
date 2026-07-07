@@ -23,6 +23,9 @@ import type {
 
 export function useLoadOntology() {
   const loadOntology = useOntologyStore((s) => s.loadOntology);
+  // PRD-J M2: 브랜치 체크아웃 중에는 main 데이터로 스토어를 덮어쓰면 안 된다.
+  // (React Query 리페치가 브랜치 작업 상태를 main 으로 되돌리는 사고 방지)
+  const currentBranch = useOntologyStore((s) => s.currentBranch);
 
   const classesQuery = useClasses();
   const instancesQuery = useAllInstances();
@@ -81,6 +84,8 @@ export function useLoadOntology() {
 
   useEffect(() => {
     if (!allLoaded || latestUpdatedAt === 0) return;
+    // PRD-J M2: 브랜치 모드에서는 main 로드를 중단(체크아웃 상태 보호).
+    if (currentBranch) return;
     // Only sync to Zustand when React Query data is newer than the last sync
     if (latestUpdatedAt <= lastSyncedAt.current) return;
     lastSyncedAt.current = latestUpdatedAt;
@@ -98,6 +103,7 @@ export function useLoadOntology() {
   }, [
     allLoaded,
     latestUpdatedAt,
+    currentBranch,
     classesQuery.data,
     instancesQuery.data,
     propertiesQuery.data,

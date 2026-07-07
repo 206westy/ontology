@@ -247,4 +247,33 @@ describe('createCommitSchema', () => {
     });
     expect(result.success).toBe(false);
   });
+
+  // PRD-J M1: 브랜치 커밋
+  it('should accept branchId (branch commit)', () => {
+    const result = createCommitSchema.safeParse({
+      message: 'branch work',
+      branchId: '550e8400-e29b-41d4-a716-446655440001',
+      details: [],
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.branchId).toBe('550e8400-e29b-41d4-a716-446655440001');
+    }
+  });
+
+  it('should default branchId to undefined (main commit) when omitted', () => {
+    const result = createCommitSchema.safeParse({ message: 'main', details: [] });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.branchId ?? null).toBeNull();
+    }
+  });
+
+  it('should reject non-uuid branchId', () => {
+    const result = createCommitSchema.safeParse({
+      branchId: 'not-a-uuid',
+      details: [],
+    });
+    expect(result.success).toBe(false);
+  });
 });

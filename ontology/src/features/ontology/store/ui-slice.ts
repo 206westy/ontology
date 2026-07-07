@@ -2,8 +2,9 @@
 
 import type { UiSlice, SliceCreator } from './types';
 import { DEFAULT_PARTITION_ID } from '../lib/types';
+import { writeWorkspaceSelection } from './workspace-persistence';
 
-export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
+export const createUiSlice: SliceCreator<UiSlice> = (set, get) => ({
   selectedNodeId: null,
   selectedNodeType: null,
   popoverState: null,
@@ -14,6 +15,8 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
   editMode: 'read' as const,
   currentPartitionId: DEFAULT_PARTITION_ID,
   showAllPartitions: false,
+  // PRD-J M2: null = main. 세션 상태(새로고침 시 main 으로 복귀 — 안전 기본값).
+  currentBranch: null,
   zoomAction: null,
   aiExpandRequest: null,
   activePattern: null,
@@ -96,8 +99,19 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
 
   setToolMode: (mode) => set({ toolMode: mode }),
   setEditMode: (mode) => set({ editMode: mode }),
-  selectPartition: (partitionId) => set({ currentPartitionId: partitionId, showAllPartitions: false }),
-  toggleShowAllPartitions: (show) => set({ showAllPartitions: show }),
+  setCurrentBranch: (branch) => set({ currentBranch: branch }),
+  selectPartition: (partitionId) => {
+    writeWorkspaceSelection({ partitionId, showAll: false });
+    set({ currentPartitionId: partitionId, showAllPartitions: false });
+  },
+  toggleShowAllPartitions: (show) => {
+    // show=true → 전체 보기 저장. show=false → 현재 구획을 유지해 저장(구획 유실 방지).
+    writeWorkspaceSelection({
+      partitionId: show ? null : get().currentPartitionId,
+      showAll: show,
+    });
+    set({ showAllPartitions: show });
+  },
   triggerZoom: (action) => set({ zoomAction: action }),
   clearZoomAction: () => set({ zoomAction: null }),
 

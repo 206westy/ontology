@@ -361,20 +361,116 @@ export const axiomClassesRelations = relations(axiomClasses, ({ one }) => ({
   }),
 }));
 
-// ─── commits ───────────────────────────────────────────────
-export const commits = pgTable('commits', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  message: text('message').default(''),
-  pushedToNeo4j: boolean('pushed_to_neo4j').notNull().default(false),
-  pushedAt: timestamp('pushed_at', { withTimezone: true }),
-  isAutoSave: boolean('is_auto_save').notNull().default(false),
-  createdAt: timestamp('created_at', { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-});
+// ─── branches (PRD-J M1: 온톨로지 GitFlow) ─────────────────
+// 브랜치 = 분기 시점 그래프 스냅샷(base_snapshot) + 이후 커밋 체인.
+// 엔티티 테이블은 항상 main 작업본. 'main'은 예약(행 없음, commits.branchId NULL 규약).
+export const branches = pgTable(
+  'branches',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    name: text('name').notNull(),
+    description: text('description').notNull().default(''),
+    authorId: uuid('author_id'),
+    authorEmail: text('author_email'),
+    baseCommitId: uuid('base_commit_id').references((): any => commits.id, {
+      onDelete: 'set null',
+    }),
+    baseSnapshot: jsonb('base_snapshot').notNull(),
+    status: text('status').notNull().default('active'),
+    mergedAt: timestamp('merged_at', { withTimezone: true }),
+    mergedBy: uuid('merged_by'),
+    mergeCommitId: uuid('merge_commit_id').references((): any => commits.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    unique('uq_branch_name').on(t.name),
+    index('idx_branches_status').on(t.status),
+    check('chk_branch_status', sql`${t.status} IN ('active', 'merged', 'abandoned')`),
+    check('chk_branch_name_not_main', sql`lower(${t.name}) <> 'main'`),
+  ],
+);
 
-export const commitsRelations = relations(commits, ({ many }) => ({
+export const branchesRelations = relations(branches, ({ many }) => ({
+  commits: many(commits),
+  mergeRequests: many(mergeRequests),
+}));
+
+// ─── merge_requests (PRD-J M3: 브랜치→main 리뷰 게이트) ─────
+export const mergeRequests = pgTable(
+  'merge_requests',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    branchId: uuid('branch_id')
+      .notNull()
+      .references(() => branches.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    description: text('description').notNull().default(''),
+    authorId: uuid('author_id'),
+    authorEmail: text('author_email'),
+    status: text('status').notNull().default('open'),
+    reviewerId: uuid('reviewer_id'),
+    reviewerEmail: text('reviewer_email'),
+    reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+    mergedAt: timestamp('merged_at', { withTimezone: true }),
+    mergeCommitId: uuid('merge_commit_id').references((): any => commits.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index('idx_mr_status').on(t.status),
+    index('idx_mr_branch').on(t.branchId),
+    check(
+      'chk_mr_status',
+      sql`${t.status} IN ('open', 'approved', 'merged', 'closed')`,
+    ),
+  ],
+);
+
+export const mergeRequestsRelations = relations(mergeRequests, ({ one }) => ({
+  branch: one(branches, {
+    fields: [mergeRequests.branchId],
+    references: [branches.id],
+  }),
+}));
+
+// ─── commits ───────────────────────────────────────────────
+export const commits = pgTable(
+  'commits',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    message: text('message').default(''),
+    pushedToNeo4j: boolean('pushed_to_neo4j').notNull().default(false),
+    pushedAt: timestamp('pushed_at', { withTimezone: true }),
+    isAutoSave: boolean('is_auto_save').notNull().default(false),
+    // PRD-J M1: NULL = main 커밋. 값 있으면 브랜치 커밋(main 미적용, 병합으로만 반영).
+    branchId: uuid('branch_id').references((): any => branches.id, {
+      onDelete: 'set null',
+    }),
+    authorId: uuid('author_id'),
+    authorEmail: text('author_email'),
+    parentCommitId: uuid('parent_commit_id').references((): any => commits.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index('idx_commits_branch').on(t.branchId)],
+);
+
+export const commitsRelations = relations(commits, ({ many, one }) => ({
   details: many(commitDetails),
+  branch: one(branches, {
+    fields: [commits.branchId],
+    references: [branches.id],
+  }),
 }));
 
 // ─── commit_details ────────────────────────────────────────
@@ -390,6 +486,8 @@ export const commitDetails = pgTable(
     targetId: uuid('target_id').notNull(),
     beforeSnapshot: jsonb('before_snapshot'),
     afterSnapshot: jsonb('after_snapshot'),
+    // PRD-J M2: 커밋 내 변경 순번(브랜치 재생·병합의 결정적 적용 순서). 과거 행은 NULL.
+    seq: integer('seq'),
   },
   (t) => [
     index('idx_cd_commit').on(t.commitId),

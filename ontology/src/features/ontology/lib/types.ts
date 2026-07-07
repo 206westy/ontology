@@ -140,6 +140,26 @@ export interface Commit {
   pushedToNeo4j: boolean;
   pushedAt: string | null;
   isAutoSave: boolean;
+  // PRD-J M1: null = main 커밋. 작성자는 서버 세션에서 주입(과거 커밋은 null 가능).
+  branchId?: string | null;
+  authorId?: string | null;
+  authorEmail?: string | null;
+  parentCommitId?: string | null;
+  createdAt: string;
+}
+
+// PRD-J M1: 온톨로지 브랜치 (베이스 스냅샷 + 커밋 체인)
+export interface OntologyBranch {
+  id: string;
+  name: string;
+  description: string;
+  authorId: string | null;
+  authorEmail: string | null;
+  baseCommitId: string | null;
+  status: 'active' | 'merged' | 'abandoned';
+  mergedAt: string | null;
+  mergedBy: string | null;
+  mergeCommitId: string | null;
   createdAt: string;
 }
 

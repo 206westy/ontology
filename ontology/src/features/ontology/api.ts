@@ -18,7 +18,13 @@ import type {
   BridgeSuggestion,
   CreateBridgeInput,
 } from './lib/bridge/cross-partition';
-import type { OntologyEdge } from './lib/types';
+import type {
+  OntologyEdge,
+  OntologyBranch,
+  Commit,
+  CommitDetail,
+} from './lib/types';
+import type { BranchSnapshot } from './lib/branch-replay';
 import type {
   CreateClassInput,
   UpdateClassInput,
@@ -437,6 +443,115 @@ export const llmAutocompleteApi = {
     }).then((r) => handleResponse(r)),
 };
 
+// ─── Branches (PRD-J M2) ────────────────────────────────────
+export interface BranchDetailResponse {
+  branch: OntologyBranch & { baseSnapshot: BranchSnapshot };
+  commits: (Commit & { details: CommitDetail[] })[];
+}
+
+export const branchesApi = {
+  list: (status: 'active' | 'all' = 'active'): Promise<OntologyBranch[]> =>
+    fetch(`/api/branches?status=${status}`).then((r) => handleResponse(r)),
+  create: (data: { name: string; description?: string }): Promise<OntologyBranch> =>
+    fetch('/api/branches', {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify(data),
+    }).then((r) => handleResponse(r)),
+  // 체크아웃용 상세: 베이스 스냅샷 + 커밋 체인(오래된 순, details 포함).
+  get: (id: string): Promise<BranchDetailResponse> =>
+    fetch(`/api/branches/${id}`).then((r) => handleResponse(r)),
+  updateStatus: (id: string, status: 'active' | 'abandoned') =>
+    fetch(`/api/branches/${id}`, {
+      method: 'PATCH',
+      headers: jsonHeaders,
+      body: JSON.stringify({ status }),
+    }).then((r) => handleResponse(r)),
+};
+
+// ─── Merge Requests (PRD-J M3) ──────────────────────────────
+export interface MergeRequestRow {
+  id: string;
+  branchId: string;
+  title: string;
+  description: string;
+  authorId: string | null;
+  authorEmail: string | null;
+  status: 'open' | 'approved' | 'merged' | 'closed';
+  reviewerEmail: string | null;
+  reviewedAt: string | null;
+  mergedAt: string | null;
+  mergeCommitId: string | null;
+  createdAt: string;
+  branch?: { id: string; name: string; status: string };
+}
+
+export interface MergePlanConflict {
+  key: string;
+  targetTable: string;
+  targetId: string;
+  targetName: string;
+  reason: 'mod-mod' | 'mod-del' | 'del-mod' | 'add-add';
+  mine: MergeNetChange;
+  theirs: MergeNetChange;
+}
+
+export interface MergeNetChange {
+  key: string;
+  operation: 'ADD' | 'MOD' | 'DEL';
+  targetTable: string;
+  targetId: string;
+  beforeSnapshot: Record<string, unknown> | null;
+  afterSnapshot: Record<string, unknown> | null;
+}
+
+export interface MergeRequestDetail {
+  mergeRequest: MergeRequestRow;
+  branch: OntologyBranch;
+  plan: {
+    autoApply: MergeNetChange[];
+    conflicts: MergePlanConflict[];
+    identical: MergeNetChange[];
+  };
+  stats: {
+    mine: number;
+    theirs: number;
+    autoApply: number;
+    conflicts: number;
+    identical: number;
+  };
+}
+
+export const mergeRequestsApi = {
+  list: (status?: string): Promise<MergeRequestRow[]> =>
+    fetch(`/api/merge-requests${status ? `?status=${status}` : ''}`).then((r) =>
+      handleResponse(r),
+    ),
+  create: (data: { branchId: string; title: string; description?: string }) =>
+    fetch('/api/merge-requests', {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify(data),
+    }).then((r) => handleResponse<MergeRequestRow>(r)),
+  get: (id: string): Promise<MergeRequestDetail> =>
+    fetch(`/api/merge-requests/${id}`).then((r) => handleResponse(r)),
+  review: (id: string, status: 'approved' | 'closed' | 'open') =>
+    fetch(`/api/merge-requests/${id}`, {
+      method: 'PATCH',
+      headers: jsonHeaders,
+      body: JSON.stringify({ status }),
+    }).then((r) => handleResponse<MergeRequestRow>(r)),
+  merge: (
+    id: string,
+    resolutions: { key: string; choice: 'mine' | 'theirs' }[] = [],
+  ): Promise<{ success: boolean; mergeCommitId: string; applied: number }> =>
+    fetch(`/api/merge-requests/${id}/merge`, {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify({ resolutions }),
+    }).then((r) => handleResponse(r)),
+};
+
 // ─── Commits ───────────────────────────────────────────────
 export const commitsApi = {
   list: (params?: { autoSave?: boolean }) => {
@@ -451,6 +566,9 @@ export const commitsApi = {
       headers: jsonHeaders,
       body: JSON.stringify(data),
     }).then((r) => handleResponse(r)),
+  // Neo4j 반영 안 된 커밋 ID(오래된 순) — "반영본 채우기"용.
+  unpushed: (): Promise<{ ids: string[]; count: number }> =>
+    fetch('/api/commits?unpushed=true').then((r) => handleResponse(r)),
 };
 
 // ─── Neo4j ────────────────────────────────────────────────

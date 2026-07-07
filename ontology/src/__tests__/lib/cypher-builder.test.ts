@@ -113,6 +113,28 @@ describe('buildCypherStatements', () => {
     expect(stmts[0].query).not.toContain('located-at');
   });
 
+  it('preserves distinct Korean relation types with backticks (no `___` collapse)', () => {
+    const mk = (id: string, relName: string): CommitDetail => ({
+      operation: 'ADD',
+      targetTable: 'edges',
+      targetId: id,
+      afterSnapshot: {
+        sourceId: classId,
+        targetId: parentId,
+        relationTypeId: relTypeId,
+        relationTypeName: relName,
+      },
+    });
+    const a = buildCypherStatements([mk('11111111-1111-1111-1111-111111111111', '포함함')]);
+    const b = buildCypherStatements([mk('22222222-2222-2222-2222-222222222222', '교체함')]);
+    // 한글은 백틱으로 감싸 유효한 타입 + 문자 보존.
+    expect(a[0].query).toContain('MERGE (a)-[r:`포함함`');
+    expect(b[0].query).toContain('MERGE (a)-[r:`교체함`');
+    // 서로 다른 관계는 서로 다른 타입이어야 한다(기존 버그: 둘 다 '___').
+    expect(a[0].query).not.toContain('___');
+    expect(a[0].query).not.toEqual(b[0].query);
+  });
+
   it('sorts ADD before MOD before DEL', () => {
     const details: CommitDetail[] = [
       {

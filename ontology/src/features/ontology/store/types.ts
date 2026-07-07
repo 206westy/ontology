@@ -111,6 +111,10 @@ export interface UiSlice {
   // PRD-B B-3: 현재 구획 + 전체 보기 토글
   currentPartitionId: string | null;
   showAllPartitions: boolean;
+  // PRD-J M2: 현재 체크아웃된 브랜치(null = main).
+  // 브랜치 모드에서는 엔티티 라이브 싱크(useApiSync)와 main 로드(useLoadOntology)가
+  // 중단되고, 커밋은 branchId 를 달고 저장된다(main 엔티티 미적용).
+  currentBranch: { id: string; name: string } | null;
   zoomAction: 'in' | 'out' | 'fit' | null;
 
   // 노드 기준 AI 확장 요청 — 진입점(컨텍스트 메뉴/패널 버튼)이 설정하고
@@ -180,6 +184,8 @@ export interface UiSlice {
 
   setToolMode: (mode: 'select' | 'pan') => void;
   setEditMode: (mode: 'read' | 'edit') => void;
+  // PRD-J M2: 브랜치 체크아웃 상태 전환(데이터 적재는 useBranches 훅이 담당).
+  setCurrentBranch: (branch: { id: string; name: string } | null) => void;
   selectPartition: (partitionId: string | null) => void;
   toggleShowAllPartitions: (show: boolean) => void;
   triggerZoom: (action: 'in' | 'out' | 'fit') => void;

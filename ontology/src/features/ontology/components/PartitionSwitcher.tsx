@@ -54,6 +54,7 @@ export default function PartitionSwitcher() {
           onClick={() => {
             toggleShowAllPartitions(true);
             setOpen(false);
+            toast.info('전체 구획을 표시합니다');
           }}
           className={`w-full flex items-center gap-2 px-2 py-1.5 text-xs rounded-md hover:bg-muted ${showAllPartitions ? 'text-primary font-medium' : 'text-foreground'}`}
         >
@@ -74,6 +75,7 @@ export default function PartitionSwitcher() {
                 onClick={() => {
                   selectPartition(p.id);
                   setOpen(false);
+                  toast.info(`"${p.name}" 워크스페이스로 전환`);
                 }}
                 className={`w-full flex items-center gap-2 px-2 py-1.5 text-xs rounded-md hover:bg-muted ${active ? 'text-primary font-medium' : 'text-foreground'}`}
               >

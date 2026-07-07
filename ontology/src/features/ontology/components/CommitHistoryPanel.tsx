@@ -9,6 +9,8 @@ import {
   Loader2,
   GitCommitHorizontal,
   Bot,
+  User,
+  GitBranch,
 } from 'lucide-react';
 import {
   Sheet,
@@ -254,6 +256,15 @@ export default function CommitHistoryPanel({ open, onOpenChange }: CommitHistory
                                   Auto
                                 </Badge>
                               )}
+                              {commit.branchId && (
+                                <Badge
+                                  variant="outline"
+                                  className="h-4 text-[9px] px-1 font-mono shrink-0 bg-sky-100 text-sky-700 border-sky-300 dark:bg-sky-900/40 dark:text-sky-400 dark:border-sky-700"
+                                  title="브랜치 커밋 (main 미적용, 병합으로 반영)"
+                                >
+                                  <GitBranch className="w-2.5 h-2.5" />
+                                </Badge>
+                              )}
                               {detailCount > 0 && (
                                 <Badge variant="secondary" className="h-4 text-[9px] px-1 font-mono shrink-0">
                                   {detailCount}
@@ -266,8 +277,14 @@ export default function CommitHistoryPanel({ open, onOpenChange }: CommitHistory
                           </AccordionTrigger>
                           <AccordionContent className="pb-2 pt-0">
                             <div className="ml-5 space-y-0.5">
-                              <div className="text-[10px] text-muted-foreground mb-1.5">
+                              <div className="text-[10px] text-muted-foreground mb-1.5 flex items-center flex-wrap gap-x-2">
                                 {formatFullTime(commit.createdAt)}
+                                {commit.authorEmail && (
+                                  <span className="inline-flex items-center gap-0.5" title={`작성자: ${commit.authorEmail}`}>
+                                    <User className="w-2.5 h-2.5" />
+                                    {commit.authorEmail.split('@')[0]}
+                                  </span>
+                                )}
                                 {commit.pushedToNeo4j && (
                                   <Badge variant="outline" className="h-3.5 text-[8px] px-1 ml-2 bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-900/40 dark:text-emerald-400 dark:border-emerald-700">
                                     Neo4j 반영됨

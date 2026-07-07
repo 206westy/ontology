@@ -10,7 +10,10 @@
     "lint": "next lint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "neo4j:verify": "node scripts/neo4j-verify.mjs",
+    "neo4j:bootstrap": "node --experimental-strip-types scripts/neo4j-bootstrap.mjs",
+    "neo4j:resync": "node --experimental-strip-types --import ./scripts/register-alias.mjs scripts/neo4j-resync.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.48",

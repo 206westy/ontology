@@ -265,6 +265,8 @@ const operationEnum = z.enum(['ADD', 'MOD', 'DEL']);
 export const createCommitSchema = z.object({
   message: z.string().optional().default(''),
   isAutoSave: z.boolean().optional().default(false),
+  // PRD-J M1: 커밋이 속한 브랜치(null/생략 = main). 작성자는 서버가 세션에서 주입.
+  branchId: z.string().uuid().nullable().optional(),
   details: z.array(
     z.object({
       operation: operationEnum,

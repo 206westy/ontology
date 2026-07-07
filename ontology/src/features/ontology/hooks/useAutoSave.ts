@@ -76,6 +76,8 @@ export function useAutoSave() {
       await commitsApi.create({
         message,
         isAutoSave: true,
+        // PRD-J M2: 브랜치 모드면 브랜치 커밋으로 저장(main 미적용).
+        branchId: state.currentBranch?.id ?? null,
         details: pendingChanges.map((c) => ({
           operation: c.operation as 'ADD' | 'MOD' | 'DEL',
           targetTable: c.targetTable,
@@ -91,7 +93,10 @@ export function useAutoSave() {
         retryTimerRef.current = null;
       }
       // PRD-E P2-2: 커밋 후 임베딩 생성 트리거 (논블로킹).
-      void embeddingsApi.process().catch(() => {});
+      // PRD-J M2: 브랜치 엔티티는 Supabase 에 없으므로 브랜치 모드에선 스킵.
+      if (!state.currentBranch) {
+        void embeddingsApi.process().catch(() => {});
+      }
       setStatus('saved');
       toast.success('자동 저장 완료', {
         description: message,
@@ -169,6 +174,7 @@ export function useAutoSave() {
       const payload = JSON.stringify({
         message,
         isAutoSave: true,
+        branchId: state.currentBranch?.id ?? null,
         details: state.pendingChanges.map((c) => ({
           operation: c.operation,
           targetTable: c.targetTable,

@@ -13,6 +13,7 @@ import type {
 } from '../lib/types';
 import { DEFAULT_PARTITION_ID } from '../lib/types';
 import type { EntitySlice, SliceCreator } from './types';
+import { readWorkspaceSelection } from './workspace-persistence';
 import { uuid } from '../lib/uuid';
 import { stableEntityId, stableEdgeId } from '../lib/identity';
 import { planAssistantActions } from '../lib/plan-actions';
@@ -849,9 +850,23 @@ export const createEntitySlice: SliceCreator<EntitySlice> = (set, get) => ({
     return { ok: true };
   },
 
-  loadOntology: (data) =>
+  loadOntology: (data) => {
+    // 워크스페이스(구획) 선택 복원 — 마지막으로 보던 구획이 아직 존재하면 그대로,
+    // 삭제됐으면 기본 구획으로 폴백. persist 없이 매 로드마다 기본으로 리셋되던 문제 해소.
+    const persisted = readWorkspaceSelection();
+    const partitionIds = new Set((data.partitions ?? []).map((p) => p.id));
+    let currentPartitionId = DEFAULT_PARTITION_ID;
+    let showAllPartitions = false;
+    if (persisted?.showAll) {
+      showAllPartitions = true;
+    } else if (persisted?.partitionId && partitionIds.has(persisted.partitionId)) {
+      currentPartitionId = persisted.partitionId;
+    }
+
     set({
       ...data,
+      currentPartitionId,
+      showAllPartitions,
       pendingChanges: [],
       selectedNodeId: null,
       selectedNodeType: null,
@@ -865,5 +880,6 @@ export const createEntitySlice: SliceCreator<EntitySlice> = (set, get) => ({
       focusDepth: 1,
       focusNodeId: null,
       highlightNodeIds: [],
-    }),
+    });
+  },
 });
