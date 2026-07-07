@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef, Fragment } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Paperclip, ClipboardPaste, ArrowRight, ArrowLeft, Check, Trash2, Loader2, ChevronRight, Link2, Circle, Plus, Table, AlertTriangle, Wand2 } from 'lucide-react';
+import { X, Paperclip, ClipboardPaste, ArrowRight, ArrowLeft, Check, Trash2, Loader2, ChevronRight, Link2, Plus, Table, AlertTriangle, Wand2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -240,7 +240,8 @@ export default function NewNodePopover() {
   const properties = useOntologyStore((s) => s.properties);
   const edges = useOntologyStore((s) => s.edges);
 
-  const [activeTab, setActiveTab] = useState<'quick' | 'text' | 'csv'>('quick');
+  // PRD-K M2 (A1): 킬러 기능(자연어→AI 구조화)이 첫 화면 — 더블클릭 진입 기본 탭은 text.
+  const [activeTab, setActiveTab] = useState<'quick' | 'text' | 'csv'>('text');
   const [phase, setPhase] = useState<'input' | 'loading' | 'preview'>('input');
   const [inputText, setInputText] = useState('');
   const [parsed, setParsed] = useState<ParsedResult | null>(null);
@@ -265,9 +266,30 @@ export default function NewNodePopover() {
   // S4: Critic 검수에서 사용자가 무시한 이슈 키 집합(읽기전용 자문 — 확정 차단 안 함).
   const [ignoredCritic, setIgnoredCritic] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(false);
-  const [loadingProgress, setLoadingProgress] = useState(0);
-  const [loadingSteps, setLoadingSteps] = useState<{ label: string; status: 'pending' | 'running' | 'done' }[]>([]);
+  // PRD-K M2 (A6): 가짜 진행률 대신 정직한 표시 — 실제 파이프라인 단계 안내 + 경과시간.
+  const [elapsedSec, setElapsedSec] = useState(0);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const elapsedIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // PRD-K M2 (A10): "파일" 버튼이 여는 숨김 파일 선택 input.
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const stopElapsedTimer = useCallback(() => {
+    if (elapsedIntervalRef.current) {
+      clearInterval(elapsedIntervalRef.current);
+      elapsedIntervalRef.current = null;
+    }
+  }, []);
+
+  const startElapsedTimer = useCallback(() => {
+    stopElapsedTimer();
+    setElapsedSec(0);
+    const startedAt = Date.now();
+    elapsedIntervalRef.current = setInterval(() => {
+      setElapsedSec(Math.floor((Date.now() - startedAt) / 1000));
+    }, 1000);
+  }, [stopElapsedTimer]);
+
+  useEffect(() => stopElapsedTimer, [stopElapsedTimer]);
 
   // 팝오버를 헤더로 드래그해 옮길 수 있게 한다(하단에서 가려질 때 위로 이동).
   const drag = useDraggable();
@@ -395,8 +417,9 @@ export default function NewNodePopover() {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
+    stopElapsedTimer();
     setPhase('input');
-    setActiveTab('quick');
+    setActiveTab('text');
     setInputText('');
     setParsed(null);
     setEnrichments([]);
@@ -412,8 +435,7 @@ export default function NewNodePopover() {
     setDedup(new Map());
     setDedupLoading(false);
     setIsLoading(false);
-    setLoadingProgress(0);
-    setLoadingSteps([]);
+    setElapsedSec(0);
     setQuickName('');
     setQuickDesc('');
     setQuickType('class');
@@ -424,7 +446,7 @@ export default function NewNodePopover() {
     classAC.clear();
     setShowClassAC(false);
     closePopover();
-  }, [closePopover, classAC]);
+  }, [closePopover, classAC, stopElapsedTimer]);
 
   // Esc key handler
   useEffect(() => {
@@ -439,16 +461,17 @@ export default function NewNodePopover() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, resetAndClose]);
 
+  // 취소 시 입력 텍스트는 그대로 보존된 입력 화면으로 복귀한다(PRD-K M2).
   const handleCancelLoading = useCallback(() => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
+    stopElapsedTimer();
     setPhase('input');
     setIsLoading(false);
-    setLoadingProgress(0);
-    setLoadingSteps([]);
-  }, []);
+    setElapsedSec(0);
+  }, [stopElapsedTimer]);
 
   if (!isOpen) return null;
 
@@ -489,6 +512,53 @@ export default function NewNodePopover() {
     const seed = activeTab === 'csv' ? csvText : inputText;
     openGuided(seed);
     resetAndClose();
+  };
+
+  // PRD-K M2 (A10): 동작하지 않던 "파일/붙여넣기" 버튼 구현 — 파일 텍스트 삽입 + 클립보드 읽기.
+  const appendToInput = (text: string) => {
+    setInputText((prev) => (prev.trim() ? `${prev}\n${text}` : text));
+  };
+
+  const handleFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      const text = await file.text();
+      if (!text.trim()) {
+        toast.info('빈 파일입니다', { description: '텍스트가 있는 파일을 선택해 주세요.' });
+        return;
+      }
+      appendToInput(text);
+    } catch {
+      toast.error('파일을 읽지 못했습니다', {
+        description: '텍스트 파일(.txt, .md, .csv)인지 확인해 주세요.',
+      });
+    }
+  };
+
+  const handlePasteFromClipboard = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (!text.trim()) {
+        toast.info('클립보드가 비어 있습니다');
+        return;
+      }
+      appendToInput(text);
+    } catch {
+      toast.error('클립보드를 읽지 못했습니다', {
+        description: '브라우저 권한을 확인하거나 Ctrl+V로 직접 붙여넣어 주세요.',
+      });
+    }
+  };
+
+  // PRD-K M2 (A1): 짧은 한 단어 입력이면 "빠른 추가로 충분해요" 힌트로 Quick 유도(강제 없음).
+  const trimmedInput = inputText.trim();
+  const suggestQuick =
+    trimmedInput.length > 0 && trimmedInput.length <= 20 && !/\s/.test(trimmedInput);
+  const handleSwitchToQuick = () => {
+    setQuickName(trimmedInput);
+    setActiveTab('quick');
   };
 
   // A-3: detect enrichment gaps for the freshly-extracted subgraph (+ adjacent
@@ -585,46 +655,14 @@ export default function NewNodePopover() {
 
     if (kind === 'csv') setInputText(source);
 
-    const isLargeInput = source.length >= 100;
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
-    if (isLargeInput) {
-      const steps = [
-        { label: kind === 'csv' ? 'CSV 파싱' : '텍스트 파싱', status: 'pending' as const },
-        { label: kind === 'csv' ? '컬럼·행 구조 분석' : '엔티티 추출', status: 'pending' as const },
-        { label: '관계 추론', status: 'pending' as const },
-        { label: '기존 온톨로지와 매칭', status: 'pending' as const },
-        { label: '계층 구조 최적화', status: 'pending' as const },
-      ];
-      setLoadingSteps(steps);
-      setLoadingProgress(0);
-      setPhase('loading');
-    }
-
+    // PRD-K M2 (A6·A7): 입력 길이와 무관하게 동일한 로딩 화면. 가짜 %-진행률 대신
+    // 실제 파이프라인 단계(엔티티 추출→관계 추론)를 안내하고 경과시간을 표시한다.
+    setPhase('loading');
+    startElapsedTimer();
     setIsLoading(true);
-
-    // Simulate step progress for large inputs
-    let stepInterval: ReturnType<typeof setInterval> | null = null;
-    if (isLargeInput) {
-      let stepIdx = 0;
-      stepInterval = setInterval(() => {
-        if (controller.signal.aborted) return;
-        setLoadingSteps((prev) => {
-          const next = [...prev];
-          if (stepIdx > 0 && stepIdx <= next.length) {
-            next[stepIdx - 1] = { ...next[stepIdx - 1], status: 'done' };
-          }
-          if (stepIdx < next.length) {
-            next[stepIdx] = { ...next[stepIdx], status: 'running' };
-          }
-          return next;
-        });
-        setLoadingProgress(Math.min(90, Math.round(((stepIdx + 1) / 5) * 100)));
-        stepIdx++;
-        if (stepIdx > 5 && stepInterval) clearInterval(stepInterval);
-      }, 600);
-    }
 
     try {
       const result: LlmParseResult = await llmApi.parse({
@@ -639,9 +677,7 @@ export default function NewNodePopover() {
 
       if (controller.signal.aborted) return;
 
-      if (stepInterval) clearInterval(stepInterval);
-      setLoadingProgress(100);
-      setLoadingSteps((prev) => prev.map((s) => ({ ...s, status: 'done' as const })));
+      stopElapsedTimer();
 
       const mapped = mapParseResult(
         result,
@@ -664,7 +700,7 @@ export default function NewNodePopover() {
     } catch {
       if (controller.signal.aborted) return;
 
-      if (stepInterval) clearInterval(stepInterval);
+      stopElapsedTimer();
 
       // CSV has no sensible row-by-row fallback (mockParse would make one class
       // per row). Surface the failure and return to input instead.
@@ -684,6 +720,7 @@ export default function NewNodePopover() {
       setPhase('preview');
       void runGapDetection(result);
     } finally {
+      stopElapsedTimer();
       setIsLoading(false);
       abortControllerRef.current = null;
     }
@@ -1208,13 +1245,14 @@ export default function NewNodePopover() {
 
               <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'quick' | 'text' | 'csv')}>
                 <TabsList className="w-full h-8 mb-3">
-                  <TabsTrigger value="quick" className="flex-1 text-xs h-6 gap-1">
-                    <Plus className="w-3 h-3" />
-                    빠른 입력
-                  </TabsTrigger>
+                  {/* PRD-K M2 (A1): 자연어 입력이 첫 탭 — Quick 은 두 번째로 이동(제거 아님) */}
                   <TabsTrigger value="text" className="flex-1 text-xs h-6 gap-1">
                     <ClipboardPaste className="w-3 h-3" />
                     텍스트 입력
+                  </TabsTrigger>
+                  <TabsTrigger value="quick" className="flex-1 text-xs h-6 gap-1">
+                    <Plus className="w-3 h-3" />
+                    빠른 입력
                   </TabsTrigger>
                   <TabsTrigger value="csv" className="flex-1 text-xs h-6 gap-1">
                     <Table className="w-3 h-3" />
@@ -1370,12 +1408,49 @@ export default function NewNodePopover() {
                     형식 제한 없음 — LLM이 자동 구조화합니다
                   </p>
 
+                  {/* PRD-K M2 (A1): 짧은 한 단어는 Quick 경로가 더 빠르다는 힌트(강제 없음) */}
+                  {suggestQuick && (
+                    <button
+                      type="button"
+                      onClick={handleSwitchToQuick}
+                      data-testid="suggest-quick"
+                      className="mb-3 flex w-full items-center gap-2 rounded-lg border border-border bg-muted/40 px-2.5 py-2 text-left transition-colors hover:bg-muted"
+                    >
+                      <Plus className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                      <span className="text-xs text-foreground">
+                        이름 하나라면 빠른 추가로 충분해요
+                      </span>
+                      <span className="ml-auto flex shrink-0 items-center gap-0.5 text-xs font-medium text-primary">
+                        빠른 입력으로
+                        <ArrowRight className="h-3 w-3" />
+                      </span>
+                    </button>
+                  )}
+
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".txt,.md,.csv,.tsv,.json,text/*"
+                    className="hidden"
+                    data-testid="text-file-input"
+                    onChange={handleFileSelected}
+                  />
                   <div className="flex items-center gap-2 mb-3">
-                    <Button variant="ghost" size="sm" className="h-8 text-xs gap-1 text-muted-foreground">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 text-xs gap-1 text-muted-foreground"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
                       <Paperclip className="w-3 h-3" />
                       파일
                     </Button>
-                    <Button variant="ghost" size="sm" className="h-8 text-xs gap-1 text-muted-foreground">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 text-xs gap-1 text-muted-foreground"
+                      onClick={handlePasteFromClipboard}
+                    >
                       <ClipboardPaste className="w-3 h-3" />
                       붙여넣기
                     </Button>
@@ -1459,43 +1534,37 @@ export default function NewNodePopover() {
               </div>
 
               <p className="text-xs text-muted-foreground mb-4">
-                AI가 입력을 분석하고 있습니다
+                {activeTab === 'csv'
+                  ? 'AI가 표의 컬럼·값·구조를 분석하고 있습니다'
+                  : 'AI가 입력을 분석하고 있습니다'}
               </p>
 
-              {/* Progress bar */}
+              {/* 정직한 로딩(PRD-K M2): 실제 파이프라인 단계 안내 + 경과시간 — 인위적 %는 없다 */}
               <div className="mb-4">
                 <div className="h-2 rounded-full bg-muted overflow-hidden">
                   <div
-                    className="h-full rounded-full transition-all duration-300 ease-out"
-                    style={{
-                      width: `${loadingProgress}%`,
-                      backgroundColor: 'hsl(var(--progress-fill))',
-                    }}
+                    className="h-full w-full rounded-full animate-pulse"
+                    style={{ backgroundColor: 'hsl(var(--progress-fill))' }}
                   />
                 </div>
-                <span className="text-[11px] font-mono text-muted-foreground mt-1 block text-right">
-                  {loadingProgress}%
+                <span
+                  className="text-[11px] font-mono text-muted-foreground mt-1 block text-right"
+                  data-testid="loading-elapsed"
+                >
+                  경과 {elapsedSec}초
                 </span>
               </div>
 
-              {/* Step checklist */}
               <div className="space-y-1.5 mb-4">
-                {loadingSteps.map((step, i) => (
-                  <div key={i} className="flex items-center gap-2 text-xs">
-                    {step.status === 'done' && (
-                      <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                    )}
-                    {step.status === 'running' && (
-                      <Loader2 className="w-3.5 h-3.5 text-primary animate-spin shrink-0" />
-                    )}
-                    {step.status === 'pending' && (
-                      <Circle className="w-3.5 h-3.5 text-muted-foreground/40 shrink-0" />
-                    )}
-                    <span className={step.status === 'pending' ? 'text-muted-foreground' : 'text-foreground'}>
-                      {step.label}
-                    </span>
-                  </div>
-                ))}
+                <div className="flex items-center gap-2 text-xs">
+                  <Loader2 className="w-3.5 h-3.5 text-primary animate-spin shrink-0" />
+                  <span className="text-foreground">
+                    {activeTab === 'csv' ? '컬럼·행 구조 분석 → 관계 추론' : '엔티티 추출 → 관계 추론'}
+                  </span>
+                </div>
+                <p className="text-[11px] text-muted-foreground/70 pl-[22px]">
+                  입력 분량에 따라 수십 초가 걸릴 수 있어요. 취소해도 입력은 그대로 남습니다.
+                </p>
               </div>
 
               <div className="flex items-center justify-between">
