@@ -5,6 +5,7 @@ import { createEdgeSchema } from '@/features/ontology/lib/schemas';
 import { eq, or } from 'drizzle-orm';
 import { handleApiError } from '@/lib/api-error';
 import { recordAttribution } from '@/lib/attribution';
+import { recordRelationUsage } from '@/lib/relation-glossary';
 import { parsePagination } from '@/lib/pagination';
 
 export async function GET(request: NextRequest) {
@@ -68,6 +69,12 @@ export async function POST(request: NextRequest) {
       sourceType: parsed.data.sourceType,
       evidence: parsed.data.evidence,
       confidence: parsed.data.confidence,
+    });
+
+    // PRD-L M6 (L7) 보강: 관계 이름 사용을 어휘집에 재등장 기록(비치명).
+    await recordRelationUsage(db, {
+      relationTypeId: row.relationTypeId,
+      sourceRef: 'edge',
     });
 
     return NextResponse.json(row, { status: 201 });

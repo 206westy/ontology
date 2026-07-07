@@ -4,6 +4,7 @@ import { getDb } from '@/lib/drizzle';
 import { edges } from '@/lib/drizzle/schema';
 import { handleApiError } from '@/lib/api-error';
 import { recordAttribution } from '@/lib/attribution';
+import { recordRelationUsage } from '@/lib/relation-glossary';
 import {
   buildBridgeSuggestions,
   createBridgeSchema,
@@ -128,6 +129,12 @@ export async function POST(request: NextRequest) {
       sourceType: 'inferred',
       evidence: data.evidence ?? null,
       confidence: data.confidence ?? null,
+    });
+
+    // PRD-L M6 (L7) 보강: 브릿지도 관계 이름 사용 — 어휘집 재등장 기록(비치명).
+    await recordRelationUsage(db, {
+      relationTypeId: row.relationTypeId,
+      sourceRef: 'bridge',
     });
 
     return NextResponse.json(row, { status: 201 });

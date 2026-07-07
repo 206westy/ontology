@@ -8,7 +8,7 @@ vi.mock('@/features/ontology/lib/embedding', () => ({
   embedOne: vi.fn().mockRejectedValue(new Error('no api key')),
 }));
 
-import { recordRelationTerm } from '@/lib/relation-glossary';
+import { recordRelationTerm, recordRelationUsage } from '@/lib/relation-glossary';
 
 // unique(normalized_term) upsert 를 인메모리로 흉내내는 가짜 db.
 // recordRelationTerm 이 실제로 쓰는 체인만 구현: insert().values().onConflictDoUpdate().returning().
@@ -131,6 +131,69 @@ describe('recordRelationTerm — 지속 누적(단조 성장)', () => {
   });
 });
 
+describe('recordRelationUsage — 엣지 생성(재사용 포함)도 재등장으로 축적', () => {
+  // 가짜 db 에 relationTypes 조회를 얹는다(usage 는 id→이름/레이어 해소 후 기록).
+  function withRelationTypes(
+    base: ReturnType<typeof createFakeGlossaryDb>,
+    types: Record<string, { name: string; layer: string }>,
+  ) {
+    base.db.query = {
+      relationTypes: {
+        findFirst: async ({ where }: { where: unknown }) => {
+          // eq(relationTypes.id, X) 의 X 를 흉내 — 테스트에서는 id 를 직접 못 꺼내므로
+          // 마지막 호출 id 를 클로저로 전달하는 대신, 단일 타입 시나리오로 검증한다.
+          void where;
+          const first = Object.values(types)[0];
+          return first ?? null;
+        },
+      },
+    };
+    return base;
+  }
+
+  it('기존 유형 재사용 엣지가 반복되면 어휘집 1행의 occurrence 가 계속 자란다', async () => {
+    const base = createFakeGlossaryDb();
+    const { db, store } = withRelationTypes(base, {
+      rt1: { name: '점검함', layer: 'kinetic' },
+    });
+
+    // 새 relation_type INSERT 없이 엣지만 3번 생성되는 시나리오.
+    await recordRelationUsage(db, { relationTypeId: 'rt1', sourceRef: 'edge' });
+    await recordRelationUsage(db, { relationTypeId: 'rt1', sourceRef: 'edge' });
+    await recordRelationUsage(db, { relationTypeId: 'rt1', sourceRef: 'edge' });
+
+    expect(store.size).toBe(1);
+    const row = [...store.values()][0];
+    expect(row.term).toBe('점검함');
+    expect(row.layer).toBe('kinetic');
+    expect(row.occurrenceCount).toBe(3);
+  });
+
+  it('유형 미존재(id 해소 실패)·db 오류는 비치명', async () => {
+    const base = createFakeGlossaryDb();
+    base.db.query = {
+      relationTypes: { findFirst: async () => null },
+    };
+    await expect(
+      recordRelationUsage(base.db, { relationTypeId: 'nope' }),
+    ).resolves.toBeUndefined();
+    expect(base.store.size).toBe(0);
+
+    const badDb = {
+      query: {
+        relationTypes: {
+          findFirst: async () => {
+            throw new Error('db down');
+          },
+        },
+      },
+    } as any;
+    await expect(
+      recordRelationUsage(badDb, { relationTypeId: 'rt1' }),
+    ).resolves.toBeUndefined();
+  });
+});
+
 // 소스 레벨 검증: vitest 는 앱 루트(cwd)에서 실행되므로 src 기준 상대경로로 읽는다.
 const readSrc = (relFromSrc: string): string =>
   readFileSync(resolve(process.cwd(), 'src', relFromSrc), 'utf8');
@@ -164,5 +227,25 @@ describe('⑤ 재주입 금지 게이트 + 초크포인트 배선', () => {
     expect(files.batch).toContain("sourceRef: 'batch'");
     expect(files.import).toContain("sourceRef: 'import'");
     expect(files.merge).toContain("sourceRef: 'merge'");
+  });
+
+  it('엣지 생성 초크포인트는 모두 recordRelationUsage(사용 기록)를 호출한다', () => {
+    const files: Record<string, string> = {
+      edges: readSrc('app/api/edges/route.ts'),
+      bridges: readSrc('app/api/bridges/route.ts'),
+      batch: readSrc('app/api/batch/route.ts'),
+      import: readSrc('app/api/import/route.ts'),
+      merge: readSrc('app/api/merge-requests/[id]/merge/route.ts'),
+    };
+
+    for (const src of Object.values(files)) {
+      expect(src).toContain('recordRelationUsage(');
+    }
+
+    expect(files.edges).toContain("sourceRef: 'edge'");
+    expect(files.bridges).toContain("sourceRef: 'bridge'");
+    expect(files.batch).toContain("sourceRef: 'edge'");
+    expect(files.import).toContain("sourceRef: 'import-edge'");
+    expect(files.merge).toContain("sourceRef: 'merge-edge'");
   });
 });

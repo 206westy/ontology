@@ -14,7 +14,11 @@ import { DEFAULT_PARTITION_ID, toRelationLayer } from '@/features/ontology/lib/t
 import { mapAttributionSourceType } from '@/lib/attribution';
 import { eq, sql } from 'drizzle-orm';
 import { handleApiError } from '@/lib/api-error';
-import { recordRelationTerm, type RelationLayer } from '@/lib/relation-glossary';
+import {
+  recordRelationTerm,
+  recordRelationUsage,
+  type RelationLayer,
+} from '@/lib/relation-glossary';
 
 // 생성 의존 순서: 다른 엔티티가 참조하는 것이 먼저.
 const CREATE_ORDER = [
@@ -76,6 +80,8 @@ async function applyCreates(
   results: OpResult[],
   // PRD-L M6 (L7): 생성된 관계유형 이름·레이어 수집 → 트랜잭션 커밋 후 어휘집 기록.
   recordedRelations: Array<{ name: string; layer: RelationLayer }>,
+  // PRD-L M6 (L7) 보강: 생성된 엣지의 관계유형 사용도 수집(재사용 유형도 어휘집이 자라야 함).
+  usedRelationTypeIds: string[],
 ) {
   const byType = new Map<string, Array<BatchOperation & { __idx: number }>>();
   for (const op of creates) {
@@ -242,6 +248,8 @@ async function applyCreates(
         results.push({ index: op.__idx, type, action: 'create', success: true, id });
         const a = attributionFor('edges', id, op.data as Record<string, unknown>);
         if (a) attrRows.push(a);
+        // PRD-L M6 (L7) 보강: 엣지가 쓴 관계유형 id 수집(커밋 후 사용 기록).
+        usedRelationTypeIds.push(str((op.data as Record<string, unknown>).relationTypeId));
       });
     }
   }
@@ -320,10 +328,11 @@ export async function POST(request: NextRequest) {
     const db = await getDb();
     const results: OpResult[] = [];
     const recordedRelations: Array<{ name: string; layer: RelationLayer }> = [];
+    const usedRelationTypeIds: string[] = [];
 
     await db.transaction(async (tx) => {
       try {
-        await applyCreates(tx, creates, results, recordedRelations);
+        await applyCreates(tx, creates, results, recordedRelations, usedRelationTypeIds);
         for (const op of updates) await applyMutation(tx, op, results);
         for (const op of deletes) await applyMutation(tx, op, results);
       } catch (err) {
@@ -336,6 +345,10 @@ export async function POST(request: NextRequest) {
     // PRD-L M6 (L7): 커밋 성공 후 관계 어휘집 사후 기록(비치명 — recordRelationTerm 내부에서 흡수).
     for (const rel of recordedRelations) {
       await recordRelationTerm(db, { name: rel.name, layer: rel.layer, sourceRef: 'batch' });
+    }
+    // PRD-L M6 (L7) 보강: 엣지 생성 = 관계 이름 "사용"도 재등장으로 기록(재사용 유형 포함 지속 성장).
+    for (const rtId of usedRelationTypeIds) {
+      await recordRelationUsage(db, { relationTypeId: rtId, sourceRef: 'edge' });
     }
 
     results.sort((a, b) => a.index - b.index);

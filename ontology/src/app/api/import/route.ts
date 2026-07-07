@@ -11,7 +11,7 @@ import {
 } from '@/lib/drizzle/schema';
 import { importRequestSchema } from '@/features/ontology/lib/schemas';
 import { handleApiError } from '@/lib/api-error';
-import { recordRelationTerm } from '@/lib/relation-glossary';
+import { recordRelationTerm, recordRelationUsage } from '@/lib/relation-glossary';
 
 // PRD-L M1: 과거 export 페이로드의 axioms/axiomClasses 키는 스키마 검증에서
 // 무시되어(zod 알 수 없는 키 strip) 에러 없이 통과한다 — 하위호환.
@@ -211,6 +211,13 @@ async function insertOntology(
       name,
       layer: rt.layer === 'kinetic' ? 'kinetic' : 'semantic',
       sourceRef: 'import',
+    });
+  }
+  // PRD-L M6 (L7) 보강: 임포트된 엣지의 관계 사용도 재등장으로 기록(비치명).
+  for (const edge of ontology.edges) {
+    await recordRelationUsage(db, {
+      relationTypeId: edge.relationTypeId as string,
+      sourceRef: 'import-edge',
     });
   }
 

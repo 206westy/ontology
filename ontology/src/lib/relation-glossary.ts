@@ -1,6 +1,6 @@
 import { eq, sql } from 'drizzle-orm';
 import type { getDb } from '@/lib/drizzle';
-import { relationGlossary } from '@/lib/drizzle/schema';
+import { relationGlossary, relationTypes } from '@/lib/drizzle/schema';
 import { embedOne } from '@/features/ontology/lib/embedding';
 
 // PRD-L M6 (L7): 성장형 관계 어휘집 기록 헬퍼(서버 전용).
@@ -58,6 +58,30 @@ export async function recordRelationTerm(
     await backfillEmbeddingAndSimilar(db, row.id, name.trim());
   } catch {
     // 비치명: 로깅만(호출부의 관계 생성은 이미 성공했다).
+  }
+}
+
+// PRD-L M6 (L7) 보강: 관계 "사용"(엣지 생성) 기반 기록.
+// 유형이 재사용될 때도 어휘집이 계속 자라야 하므로(occurrence_count 재등장 의미),
+// 엣지 생성 초크포인트에서 relationTypeId 를 이름/레이어로 해소해 기록한다.
+// 모든 실패는 비치명 — 엣지 생성을 막지 않는다.
+export async function recordRelationUsage(
+  db: Db,
+  { relationTypeId, sourceRef }: { relationTypeId: string; sourceRef?: string },
+): Promise<void> {
+  try {
+    const rt = await db.query.relationTypes.findFirst({
+      where: eq(relationTypes.id, relationTypeId),
+      columns: { name: true, layer: true },
+    });
+    if (!rt) return;
+    await recordRelationTerm(db, {
+      name: rt.name,
+      layer: rt.layer === 'kinetic' ? 'kinetic' : 'semantic',
+      sourceRef,
+    });
+  } catch {
+    // 비치명.
   }
 }
 

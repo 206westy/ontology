@@ -11,7 +11,7 @@ import {
   latestMainCommitId,
 } from '@/lib/merge-executor';
 import { applyResolutions } from '@/features/ontology/lib/merge-diff';
-import { recordRelationTerm } from '@/lib/relation-glossary';
+import { recordRelationTerm, recordRelationUsage } from '@/lib/relation-glossary';
 
 // PRD-J M3: 병합 실행.
 // 1) 3-way 계획 계산 → 2) 해소 반영, 미해소 충돌 있으면 409 →
@@ -152,6 +152,14 @@ export async function POST(
         layer: after.layer === 'kinetic' ? 'kinetic' : 'semantic',
         sourceRef: 'merge',
       });
+    }
+    // PRD-L M6 (L7) 보강: 병합으로 유입된 엣지의 관계 사용도 재등장으로 기록(비치명).
+    for (const change of effective) {
+      if (change.targetTable !== 'edges' || change.operation !== 'ADD') continue;
+      const after = (change.afterSnapshot ?? {}) as Record<string, unknown>;
+      const rtId = after.relationTypeId as string | undefined;
+      if (!rtId) continue;
+      await recordRelationUsage(db, { relationTypeId: rtId, sourceRef: 'merge-edge' });
     }
 
     return NextResponse.json({
