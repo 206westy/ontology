@@ -23,14 +23,19 @@ export async function PATCH(request: NextRequest, ctx: RouteContext) {
     }
 
     const db = await getDb();
-    // PRD-E P2-2: name/description 변경 시 임베딩 무효화 → 워커가 재생성.
-    const invalidateEmbedding =
-      parsed.data.name !== undefined || parsed.data.description !== undefined;
+    // PRD-E P2-2 + PRD-Perf M3-1: 임베딩 텍스트(name/description)가 "실제로 바뀔 때만"
+    // 무효화 → 워커가 재생성. 같은 값 재저장(autosave 등)은 재임베딩을 유발하지 않는다.
+    // IS DISTINCT FROM 비교를 UPDATE 안에서 수행해 추가 왕복 없이 판정한다.
+    const nameProvided = parsed.data.name !== undefined;
+    const descProvided = parsed.data.description !== undefined;
+    const textChanged = sql`(${nameProvided ? sql`${instances.name} IS DISTINCT FROM ${parsed.data.name}` : sql`false`} OR ${descProvided ? sql`${instances.description} IS DISTINCT FROM ${parsed.data.description}` : sql`false`})`;
     const [row] = await db
       .update(instances)
       .set({
         ...parsed.data,
-        ...(invalidateEmbedding ? { embedding: null } : {}),
+        ...(nameProvided || descProvided
+          ? { embedding: sql`CASE WHEN ${textChanged} THEN NULL ELSE ${instances.embedding} END` }
+          : {}),
         updatedAt: sql`now()`,
       })
       .where(eq(instances.id, id))

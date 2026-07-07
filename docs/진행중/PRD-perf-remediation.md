@@ -161,11 +161,11 @@ first-load JS에서 무거운 것을 지연 로드로 분리.
 ### M3 — 임베딩 라이프사이클 정합 + 인스턴스 지연 로드 🟡
 임베딩을 "서버 전용 벡터 자산"으로 명문화하고, 불필요 재계산과 대량 초기 로드를 제거.
 
-**Task M3-1 — 콘텐트 해시 재임베딩 가드 (임베딩 (b))**
-- 대상: `classes/[id]/route.ts:57`(및 instances 대응부)의 `invalidateEmbedding` 로직, `embeddings/process/route.ts`.
-- 방법: 임베딩 텍스트(`buildEmbeddingText` = name+description)의 해시를 저장(예: `embedding_source_hash` 컬럼 추가, 마이그레이션 1종). 쓰기 시 해시 불변이면 `embedding: null` 무효화를 **건너뜀** → 텍스트가 실제로 안 바뀌면 OpenAI 호출 0회. 워커는 기존대로 `IS NULL`만 처리.
+**Task M3-1 — 콘텐트 실변경 재임베딩 가드 (임베딩 (b))** *(구현 시 단순화: 해시 컬럼 대신 SQL 비교 — 완료)*
+- 대상: `classes/[id]/route.ts`(및 instances 대응부)의 `invalidateEmbedding` 로직.
+- 방법(채택): UPDATE 문 안에서 `embedding = CASE WHEN name/description IS DISTINCT FROM 신규값 THEN NULL ELSE embedding END` — **마이그레이션·추가 왕복 없이** 텍스트가 실제로 바뀔 때만 무효화. 같은 값 재저장(autosave 등)은 재임베딩 0회. 워커는 기존대로 `IS NULL`만 처리. (원안 `embedding_source_hash` 컬럼은 동일 목표를 더 복잡하게 달성하므로 폐기.)
 - 미러: `embedding-policy.md`의 단일 정책(모델·차원 불변).
-- 검증: name/description 외 필드(예: 위치)만 바꾼 저장에서 재임베딩 미발생. 텍스트 변경 시에만 재큐잉.
+- 검증: name/description 외 필드(예: 위치)만 바꾼 저장 또는 동일 텍스트 재저장에서 재임베딩 미발생. 텍스트 변경 시에만 재큐잉.
 
 **Task M3-2 — 임베딩 서버 전용 명문화 (임베딩 (a) 보강)**
 - 방법: `embedding.ts` 및 라우트에 서버 전용 주석/경계 확인, 클라이언트 타입에서 `embedding` 필드 제거(선택). M0-1과 함께 "벡터는 API 계약에 안 나간다"를 코드·타입으로 못박음.
