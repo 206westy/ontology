@@ -9,6 +9,47 @@ import {
   SIGN_IN_PATH,
 } from '@/features/auth/constants';
 
+// PRD-M 후속(발행 지연): getUser() 는 Auth 서버 HTTPS 왕복(~0.4-0.7s, 시드니)이라
+// /api 요청마다 물면 모든 API 가 그만큼 느려진다. 같은 세션 쿠키가 짧은 TTL 안에
+// 재검증을 통과한 이력이 있으면 원격 재검증을 생략한다.
+// 보안 트레이드오프(문서화): 서버측 세션 무효화(강제 로그아웃)가 최대 TTL(60s)
+// 지연 반영된다. 쿠키 자체가 bearer 자격증명이므로 새로운 공격면은 없다.
+// 페이지 라우트는 캐시하지 않는다(리프레시·리다이렉트 의미 보존).
+const API_AUTH_TTL_MS = 60_000;
+const API_AUTH_MAX_ENTRIES = 1000;
+const verifiedApiAuth = new Map<string, number>();
+
+function apiAuthKey(request: NextRequest): string | null {
+  const parts = request.cookies
+    .getAll()
+    .filter((c) => c.name.includes('-auth-token'))
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((c) => `${c.name}=${c.value}`);
+  return parts.length > 0 ? parts.join(';') : null;
+}
+
+function hasFreshApiAuth(request: NextRequest): boolean {
+  const key = apiAuthKey(request);
+  if (!key) return false;
+  const verifiedAt = verifiedApiAuth.get(key);
+  if (verifiedAt === undefined) return false;
+  if (Date.now() - verifiedAt > API_AUTH_TTL_MS) {
+    verifiedApiAuth.delete(key);
+    return false;
+  }
+  return true;
+}
+
+function rememberApiAuth(request: NextRequest): void {
+  const key = apiAuthKey(request);
+  if (!key) return;
+  if (verifiedApiAuth.size >= API_AUTH_MAX_ENTRIES) {
+    const oldest = verifiedApiAuth.keys().next().value;
+    if (oldest !== undefined) verifiedApiAuth.delete(oldest);
+  }
+  verifiedApiAuth.set(key, Date.now());
+}
+
 /**
  * 세션 리프레시 + 라우트 게이팅.
  *
@@ -19,6 +60,11 @@ import {
  */
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
+
+  // /api 단기 검증 캐시 히트 → 원격 재검증 생략 (위 주석의 트레이드오프 참조)
+  if (request.nextUrl.pathname.startsWith('/api/') && hasFreshApiAuth(request)) {
+    return supabaseResponse;
+  }
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -58,6 +104,7 @@ export async function updateSession(request: NextRequest) {
     if (!user) {
       return jsonUnauthorized(supabaseResponse);
     }
+    rememberApiAuth(request); // 검증 통과 세션만 캐시 (미인증은 매번 재검증)
     return supabaseResponse;
   }
 

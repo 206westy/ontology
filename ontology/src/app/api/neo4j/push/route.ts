@@ -240,15 +240,30 @@ export async function POST(request: NextRequest) {
 
     const { commitIds, dryRun } = parsed.data;
 
+    // PRD-M 후속: 발행 지연 계측 — 단계별 소요를 한 줄로 남긴다(시드니 왕복 추적).
+    const t0 = performance.now();
+    const marks: string[] = [];
+    const mark = (label: string) =>
+      marks.push(`${label}=${Math.round(performance.now() - t0)}ms`);
+
     // 1. Fetch commit details from Supabase
     const db = await getDb();
+    mark('getDb');
+
+    // PRD-J M4 가드용 커밋 조회와 detail 조회는 서로 독립 — 병렬 1왕복으로 합친다.
+    const [branchCommits, details] = await Promise.all([
+      db.query.commits.findMany({
+        columns: { id: true, branchId: true, pushedToNeo4j: true },
+        where: inArray(commits.id, commitIds),
+      }),
+      db.query.commitDetails.findMany({
+        where: inArray(commitDetails.commitId, commitIds),
+      }),
+    ]);
+    mark('commits+details');
 
     // PRD-J M4: Neo4j push 는 main 커밋 전용. 브랜치 커밋은 main 엔티티에 적용되지
     // 않은 상태라 push 하면 운영 그래프가 스테이징과 어긋난다(드리프트) — 차단.
-    const branchCommits = await db.query.commits.findMany({
-      columns: { id: true, branchId: true, pushedToNeo4j: true },
-      where: inArray(commits.id, commitIds),
-    });
     const nonMain = branchCommits.filter((c) => c.branchId !== null);
     if (nonMain.length > 0) {
       return NextResponse.json(
@@ -261,10 +276,6 @@ export async function POST(request: NextRequest) {
         { status: 400 },
       );
     }
-
-    const details = await db.query.commitDetails.findMany({
-      where: inArray(commitDetails.commitId, commitIds),
-    });
 
     // PRD-E P3-1: 커밋별 결정적 해시(_SyncState 기록용 — drift 감지)
     const commitHashes: Record<string, string> = {};
@@ -309,9 +320,31 @@ export async function POST(request: NextRequest) {
       ? compressDetails(validDetails)
       : validDetails;
 
+    // PRD-M M3 드리프트용 Neo4j 미보유 임베딩 조회는 context(Supabase)와 독립 —
+    // 시드니 왕복 뒤에 숨도록 병렬로 시작한다. 전용 세션을 열고 스스로 닫는다.
+    const missingEmbeddingPromise = dryRun
+      ? null
+      : (async (): Promise<string[]> => {
+          const probe = getNeo4jDriver().session();
+          try {
+            const res = await probe.run(
+              `MATCH (n:Concept) WHERE n.embedding IS NULL RETURN n.id AS id LIMIT 2000`,
+            );
+            return res.records
+              .map((r) => r.get('id') as unknown)
+              .filter((id): id is string => typeof id === 'string');
+          } catch (e) {
+            console.error('[Neo4j Push] 드리프트 조회 실패(발행 계속):', e);
+            return [];
+          } finally {
+            await probe.close();
+          }
+        })();
+
     // PRD-E P1-3: 무손실 운반 context 구성 후 Cypher 생성 (압축 후 → 조회량 절감)
     // PRD-M M2: 같은 형태 구문을 UNWIND 로 병합해 왕복 횟수를 구문 형태 수로 줄인다.
     const context = await buildPushContext(db, effectiveDetails);
+    mark('context');
     const statements = buildBatchedCypherStatements(effectiveDetails, context, {
       compress: false,
     });
@@ -330,6 +363,7 @@ export async function POST(request: NextRequest) {
         description: s.description,
         status: 'pending' as const,
       }));
+      console.log(`[Neo4j Push] dryRun 타이밍: ${marks.join(' → ')}`);
       return NextResponse.json({
         success: true,
         commitIds,
@@ -348,13 +382,10 @@ export async function POST(request: NextRequest) {
       // 재수정 전까지 Neo4j 에 벡터가 실리지 않는다. 미보유 노드를 읽어 Supabase
       // 벡터를 UNWIND 1문장으로 동기화한다. 부가 보정이라 실패해도 발행은 진행.
       try {
-        const missingRes = await session.run(
-          `MATCH (n:Concept) WHERE n.embedding IS NULL RETURN n.id AS id LIMIT 2000`,
-        );
         const covered = new Set(Object.keys(context.embeddings ?? {}));
-        const missingIds = missingRes.records
-          .map((r) => r.get('id') as unknown)
-          .filter((id): id is string => typeof id === 'string' && !covered.has(id));
+        const missingIds = ((await missingEmbeddingPromise) ?? []).filter(
+          (id) => !covered.has(id),
+        );
         if (missingIds.length > 0) {
           const embRows = (await db.execute(sql`
             SELECT id::text AS id, embedding::text::jsonb AS embedding FROM classes
@@ -374,6 +405,7 @@ export async function POST(request: NextRequest) {
       } catch (driftErr) {
         console.error('[Neo4j Push] 임베딩 드리프트 보정 실패(발행은 계속):', driftErr);
       }
+      mark('drift');
 
       await session.executeWrite(async (tx) => {
         for (let i = 0; i < statements.length; i++) {
@@ -407,6 +439,7 @@ export async function POST(request: NextRequest) {
           },
         );
       });
+      mark('neo4jTx');
 
       // 5. Mark commits as pushed in Supabase — 단일 왕복(commitId 당 1회 → IN 한 번).
       // H2: 이 업데이트는 Neo4j 트랜잭션 밖이다. Neo4j 가 이미 _SyncState 로 진실원을
@@ -445,6 +478,8 @@ export async function POST(request: NextRequest) {
       if (!flagUpdated) {
         console.error('[Neo4j Push] Supabase 동기화 플래그 갱신 실패:', flagError);
       }
+      mark('flags');
+      console.log(`[Neo4j Push] 발행 타이밍: ${marks.join(' → ')}`);
       return NextResponse.json(response);
     } catch (err) {
       // Transaction was automatically rolled back by Neo4j
