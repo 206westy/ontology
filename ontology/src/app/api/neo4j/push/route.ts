@@ -6,15 +6,26 @@ import { commits, commitDetails, properties } from '@/lib/drizzle/schema';
 import { inArray, sql } from 'drizzle-orm';
 import { getNeo4jDriver } from '@/lib/neo4j/client';
 import {
-  buildCypherStatements,
   commitDetailSchema,
-  formatCypherPreview,
   type CommitDetail,
   type PushContext,
   type PropertyMeta,
   type AttributionMeta,
   type InstanceValueMeta,
 } from '@/lib/neo4j/cypher-builder';
+import {
+  buildBatchedCypherStatements,
+  compressDetails,
+  formatBatchedCypherPreview,
+} from '@/lib/neo4j/cypher-batch';
+
+const idArray = (ids: string[]) =>
+  ids.length > 0
+    ? sql`ARRAY[${sql.join(
+        ids.map((id) => sql`${id}::uuid`),
+        sql`, `,
+      )}]`
+    : sql`ARRAY[]::uuid[]`;
 
 // PRD-E P1-3: 스냅샷만으로 알 수 없는 정보(프로퍼티 메타·instance_values·어트리뷰션)를
 // Supabase 에서 조회해 무손실 운반 context 를 구성한다.
@@ -85,14 +96,6 @@ async function buildPushContext(
   // 시드니 링크 비용은 "왕복 횟수"가 지배한다(병렬화 무효). 위 5개의 독립 읽기
   // (프로퍼티·instance_values·어트리뷰션·클래스/인스턴스 임베딩)를 UNION ALL 단일
   // 왕복으로 합친다. 누락 프로퍼티 보충(아래)만 instance_values 의존이라 분리한다.
-  const idArray = (ids: string[]) =>
-    ids.length > 0
-      ? sql`ARRAY[${sql.join(
-          ids.map((id) => sql`${id}::uuid`),
-          sql`, `,
-        )}]`
-      : sql`ARRAY[]::uuid[]`;
-
   const classArr = [...classIds];
   const instanceArr = [...instanceIds];
 
@@ -243,7 +246,7 @@ export async function POST(request: NextRequest) {
     // PRD-J M4: Neo4j push 는 main 커밋 전용. 브랜치 커밋은 main 엔티티에 적용되지
     // 않은 상태라 push 하면 운영 그래프가 스테이징과 어긋난다(드리프트) — 차단.
     const branchCommits = await db.query.commits.findMany({
-      columns: { id: true, branchId: true },
+      columns: { id: true, branchId: true, pushedToNeo4j: true },
       where: inArray(commits.id, commitIds),
     });
     const nonMain = branchCommits.filter((c) => c.branchId !== null);
@@ -299,24 +302,28 @@ export async function POST(request: NextRequest) {
       }),
     );
 
-    // PRD-E P1-3: 무손실 운반 context 구성 후 Cypher 생성
-    const context = await buildPushContext(db, validDetails);
-    const statements = buildCypherStatements(validDetails, context);
+    // PRD-M M1: 생애주기 압축. 기발행 커밋이 섞인 재푸시에서는 "배치 내 ADD 는
+    // 아직 Neo4j 에 없다"는 전제가 깨져 상쇄가 오소거를 낳으므로 압축을 건너뛴다.
+    const allowCompression = branchCommits.every((c) => !c.pushedToNeo4j);
+    const effectiveDetails = allowCompression
+      ? compressDetails(validDetails)
+      : validDetails;
 
-    if (statements.length === 0) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: '생성할 Cypher 구문이 없습니다.',
-          suggestion: '변경사항이 Neo4j에 반영 가능한 유형인지 확인해주세요.',
-        },
-        { status: 400 },
-      );
-    }
+    // PRD-E P1-3: 무손실 운반 context 구성 후 Cypher 생성 (압축 후 → 조회량 절감)
+    // PRD-M M2: 같은 형태 구문을 UNWIND 로 병합해 왕복 횟수를 구문 형태 수로 줄인다.
+    const context = await buildPushContext(db, effectiveDetails);
+    const statements = buildBatchedCypherStatements(effectiveDetails, context, {
+      compress: false,
+    });
+    // statements 가 비어도 실패가 아니다 — 배치 내 생성·삭제가 전부 상쇄된 경우로,
+    // 데이터 반영 없이 _SyncState 기록과 발행 플래그 갱신만 수행한다.
 
     // 3. Dry run: return Cypher preview without executing
     if (dryRun) {
-      const preview = formatCypherPreview(statements);
+      const preview =
+        statements.length > 0
+          ? formatBatchedCypherPreview(statements)
+          : '// 변경이 배치 내에서 상쇄되어 반영할 구문이 없습니다. (동기화 상태만 기록됩니다)';
       const steps: PushStep[] = statements.map((s, i) => ({
         index: i,
         total: statements.length,
@@ -337,6 +344,37 @@ export async function POST(request: NextRequest) {
     const steps: PushStep[] = [];
 
     try {
+      // PRD-M M3: 임베딩 드리프트 보정 — 임베딩 워커가 이전 push 이후에 채운 노드는
+      // 재수정 전까지 Neo4j 에 벡터가 실리지 않는다. 미보유 노드를 읽어 Supabase
+      // 벡터를 UNWIND 1문장으로 동기화한다. 부가 보정이라 실패해도 발행은 진행.
+      try {
+        const missingRes = await session.run(
+          `MATCH (n:Concept) WHERE n.embedding IS NULL RETURN n.id AS id LIMIT 2000`,
+        );
+        const covered = new Set(Object.keys(context.embeddings ?? {}));
+        const missingIds = missingRes.records
+          .map((r) => r.get('id') as unknown)
+          .filter((id): id is string => typeof id === 'string' && !covered.has(id));
+        if (missingIds.length > 0) {
+          const embRows = (await db.execute(sql`
+            SELECT id::text AS id, embedding::text::jsonb AS embedding FROM classes
+              WHERE id = ANY(${idArray(missingIds)}) AND embedding IS NOT NULL
+            UNION ALL
+            SELECT id::text, embedding::text::jsonb FROM instances
+              WHERE id = ANY(${idArray(missingIds)}) AND embedding IS NOT NULL
+          `)) as unknown as Array<{ id: string; embedding: number[] }>;
+          if (embRows.length > 0) {
+            statements.push({
+              query: `UNWIND $rows AS row MATCH (n:Concept {id: row.id}) SET n.embedding = row.embedding`,
+              params: { rows: embRows },
+              description: `임베딩 드리프트 보정 ${embRows.length}건`,
+            });
+          }
+        }
+      } catch (driftErr) {
+        console.error('[Neo4j Push] 임베딩 드리프트 보정 실패(발행은 계속):', driftErr);
+      }
+
       await session.executeWrite(async (tx) => {
         for (let i = 0; i < statements.length; i++) {
           const stmt = statements[i];
@@ -361,12 +399,13 @@ export async function POST(request: NextRequest) {
           }
         }
         // PRD-E P3-1: 동기화 상태 기록 (데이터와 같은 트랜잭션 → 원자적)
-        for (const commitId of commitIds) {
-          await tx.run(
-            `MERGE (s:_SyncState {commit_id: $commitId}) SET s.hash = $hash, s.pushed_at = datetime()`,
-            { commitId, hash: commitHashes[commitId] },
-          );
-        }
+        // PRD-M M2: 커밋당 1왕복 → UNWIND 1문장.
+        await tx.run(
+          `UNWIND $rows AS row MERGE (s:_SyncState {commit_id: row.commitId}) SET s.hash = row.hash, s.pushed_at = datetime()`,
+          {
+            rows: commitIds.map((id) => ({ commitId: id, hash: commitHashes[id] })),
+          },
+        );
       });
 
       // 5. Mark commits as pushed in Supabase — 단일 왕복(commitId 당 1회 → IN 한 번).

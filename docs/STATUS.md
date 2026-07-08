@@ -36,6 +36,8 @@ docs/
 | PRD-H.md | 패턴-시드 스키마-적응형 온톨로지(H1~H9) | **M1~M5 전량 구현·검증(2026-07-02)**. 학습형 패턴 캐시(비어서 시작·수렴)+발견 파이프라인 retrieve(LOV)›adapt›synthesize·출처/라이선스·패턴-시드 생성(역할 타이핑·인과 계층·진행형 애니메이션 삽입)·게이트 마운트(EmptyState "패턴으로 시작")·맥락 주입 용어 해소(`term_glossary`)·드리프트 3분기·크로스-구획 브릿지·연결성/CQ 검증·발행 라이선스 경고·HITL 리뷰 시퀀스. 마이그레이션 2종(`patterns`·`term_glossary`) 라이브. PRD-H 143테스트+전체 빌드 그린. 진행추적 `완료/PRD-H-progress.md`, 플랜 `.claude/plans/prd-h.plan.md`. **런타임 종단 완결(2026-07-02)**: 용어 재주입(`buildGlossaryInjectionBlock`→`existingSchema`)·드리프트 라이브 피드(`collectDriftElements`→`driftApi.judge`→DriftDecisionCard, 확장=승격/분기=발견 재호출) 배선 완료. 빌드 그린 |
 | PRD-L.md | 팔란티어 3레이어 정리 & 확신-초안 확정 (L-1.2) | **M1~M6 전량 구현 + 핵심 여정 라이브 검증 완료(2026-07-08 → 완료 이동).** 라이브 검증: 텍스트→파싱→미리보기에서 트리아지 밴드(자동 반영 7·검토 필요 4+사유 배지)·지식/행동 레이어 배지·NodeKindToggle 원탭 전환·자동 반영 접힘 그룹·확정 문구 전부 실화면 확인, 확정→배치 저장→**어휘집 성장 실증**. 검증 중 커버리지 갭 발견·수정(9749fb0): 유형 재사용 시 어휘집 미성장 → recordRelationUsage(엣지 생성=재등장) 5초크포인트(edges/bridges/batch/import/merge) 배선, 라이브 재실증(점검함 재사용 2건→occurrence 2·임베딩 생성). 709테스트. 미결(백로그): Dynamic 레이어 UI 노출 여부. 커밋 b8e42b1/c8afba1/a93c6c2/d4669d3/9131f3e/ac035cd, 마이그레이션 4종 라이브. M1=공리+제약→constraints.kind(enforced/memo) 단일 규칙(axioms DROP, useRules, 강제됨/설명 메모 배지). M2=category(5)→layer(semantic지식/kinetic행동), categoryConfidence 완전 삭제, Stage2 프롬프트 ~1450자→330자(-77%), 정체성(stableEdgeId·dedup키)에서 분류 제외. M3=add_relation 단일 액션(유형 자동생성+엣지, TBox/ABox 보존), ConstraintsPanel '관계' 라벨. M4=NodeKindToggle 공통 어포던스(평문 질문+원탭 전환, 3곳 문구 수렴 소스 테스트 고정), Stage1 확신 커밋 1줄. M5=confirm-triage(<0.7/Critic/미해소→review), 자동반영 접힘+검토필요 사유배지 표면화, 반영 모델 불변, L5 속성규칙 2블록→1(-190자). M6=relation_glossary(사후 정합 전용·재주입 금지 소스 게이트, 초크포인트 4곳: api/batch/import/merge, 재등장=occurrence_count+1·원본 보존, similar_to 후보 링크만)+GET API. **라이브 누적 실증 완료**(3라운드: 새이름→행증가, 재등장→1행 카운트2, layer 보존). 테스트 657→706(+49), 각 마일스톤 lint·빌드 그린. |
 
+| PRD-M.md | Docker Neo4j 복귀 + 발행 파이프라인 고속화 | **M0~M4 당일 구현·라이브 검증 완료(2026-07-08).** M0=Docker `neo4j-onto`(5.26) 재기동+unless-stopped+스키마 부트스트랩+MCP 무수정 재연결 검증, Desktop 폐기. M1=생애주기 압축(`compressDetails`: ADD…DEL 상쇄·MOD 병합), M2=UNWIND 배칭(`cypher-batch.ts`, 템플릿 우선순위·상한 1000행)+_SyncState 1문장, M3=임베딩 드리프트 보정(미보유 노드→Supabase 벡터 동기화), M4=배칭 프리뷰 요약. 압축 가드: 기발행 커밋 섞이면 압축 생략. **라이브 실증: detail 194건→UNWIND 5구문**, 발행 성공·상쇄 정확. 724테스트(+15)·lint·빌드 그린. 잔여 관찰: 발행 지연의 대부분은 Supabase 읽기 왕복(회사망) — 별도 주제 |
+
 추가 (이번 세션, 별도 메모리): 노드 기준 AI 확장 진입점, RLS 보안 락다운(14테이블 deny-all).
 
 ### 구현 완료 기준 이동 (2026-07-08)
@@ -63,7 +65,7 @@ docs/
 
 | 문서 | 상태 | 남은 일 |
 |------|------|---------|
-| PRD-M.md | Docker Neo4j 복귀 + 발행 고속화 | 2026-07-08 착수. M0=Docker 복귀(Desktop 폐기), M1=생애주기 압축, M2=UNWIND 배칭, M3=임베딩 드리프트 보정, M4=프리뷰/측정 |
+| (없음) | — | — |
 
 ## 🔴 진행전 (`진행전/`)
 
