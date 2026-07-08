@@ -4,13 +4,11 @@
 
 ## 전용 PRD
 
-- **PRD-K.md — 핵심 여정 UI 친화화**: 더블클릭 입력→AI 구조화→컨펌→상세 수정→발행 여정의 가시성·크기·스크롤·피드백 개선(M1~M5). 코드 근거 33건 기반.
+- **PRD-N.md — 구획 지능 & 접지·운영추론**: `완료/v5-prd-B.md`(B-5·B-6)와 `완료/v6-roadmap.md`(Phase 2~4)의 미개발분을 2026-07-08 코드베이스 대조로 선별 승계한 통합 PRD. 승계·폐기 판정 근거는 PRD-N §0 대장 참고.
+  - M1 = AI 자동 구획 제안(HITL) — 구 PRD-B B-5
+  - M2 = 추론 격리(Text2Cypher/RAG 구획 스코프) — 구 PRD-B B-6
+  - M3 = Grounder(개념↔실데이터 접지) — 구 v6 Phase2
+  - M4 = Operator(진단형 RAG+근거경로) — 구 v6 Phase3
+  - M5 = Steward 잔여(계보·버전 정책, 후순위) — 구 v6 Phase4
 
-## v6 로드맵 후반 단계 (전용 문서 없음, `../진행중/v6-roadmap.md` 참고)
-
-- **v6 Phase2 — Grounder**: 데이터 그라운딩(인스턴스/외부 데이터 연결). 미착수.
-- **v6 Phase3 — Operator**: 운영 추론. `/api/rag/entrypoint` 스캐폴드만 존재, 본 로직 미착수.
-- **v6 Phase4 — Steward**: 지속 거버넌스. 미착수.
-- **PRD-B B-5 — AI 자동 구획 제안**: `/api/llm/partition/suggest` 미구현.
-
-착수 시 해당 항목을 `../진행중/`으로, 완료 시 `../완료/`로 이동하고 `../STATUS.md`를 갱신할 것.
+착수 시 해당 문서를 `../진행중/`으로, 완료 시 `../완료/`로 이동하고 `../STATUS.md`를 갱신할 것.

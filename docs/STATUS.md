@@ -50,25 +50,26 @@ docs/
 | PRD-perf-remediation.md | 클라이언트 성능 종합 개선 | **M0~M3 구현 완료(2026-07-07).** 3관점 감사(perf/react/db) 종합, 비즈니스 로직 불변. M0=embedding 응답 100% 제외·refetchOnWindowFocus off·커밋 최근50+스냅샷 name-only. M1=TreeItem 행별 구독+memo·드래그 위치 zundo 제외+재빌드 스킵·배지 useDeferredValue·검색 150ms 디바운스·syncCytoscape keep-diff·height 애니메이션 제거. M2=GraphCanvas dynamic(cytoscape+레이아웃 체인 분리)·SplashScreen motion→CSS·optimizePackageImports·@tiptap 제거 — **/ First Load JS 670→451kB(-33%)**. M3=재임베딩 IS DISTINCT FROM 가드(동일 텍스트 재저장 시 OpenAI 호출 0회). **추가(사용자 컨펌, 2026-07-07)**: LazyMotion 전환(m.* + domAnimation 지연 로드, 451→429kB) + M3-3 인스턴스 지연 로드(스키마 우선 2단계, mergeInstancesData 리셋 없는 병합·로컬 보존·undo 스냅샷 미기록, 계약 테스트 3건). 658테스트·lint·빌드 그린. **보류(사용자 결정)**: M4 RSC 부분 도입. **후속**: 라이브 체감 검증 |
 | perf-roundtrip-notes.md | DB 왕복 성능 최적화(핸드오프 노트) | 측정·분석 완료. 최적화 구현은 **PRD-perf-remediation로 상위 통합·완료** → 노트도 완료 이동 |
 
+### 승계 종료 이동 (2026-07-08)
+
+> 아래 2건은 2026-07-08 코드베이스 전수 대조로 **구현된 부분은 확인, 미개발 잔여는 `진행전/PRD-N.md`로 선별 승계**하고 원 문서는 완료(역사 문서) 처리. 승계·폐기 판정 근거는 PRD-N §0 대장 참고.
+
+| 문서 | 범위 | 비고 |
+|------|------|------|
+| v5-prd-B.md | 구획(Named Graph) | B-1(데이터모델)·B-3(전환 UI) 구현 확인. B-2(랜딩+라우팅)·B-4(EmptyState 정리)는 PRD-H/I/K가 전제를 대체해 **폐기**(템플릿→새 구획 시딩만 PRD-N M1에 흡수). B-5(AI 자동 구획)→PRD-N M1, B-6(추론 격리)→PRD-N M2 승계 |
+| v6-roadmap.md | AI 역할 사다리(Critic 척추) | P1 Critic **사실상 완료** — critic 엔진 8종 룰+confirm 트리아지(PRD-L)+HealthScoreBadge 상시(Toolbar)+재사용 강제(용어해소·relation_glossary·dedup)+calibration/골든셋(PRD-F)이 Phase 1 완료 정의 4항목 전부 흡수. P2 Grounder→PRD-N M3, P3 Operator→PRD-N M4, P4 Steward 잔여(계보·버전 정책)→PRD-N M5 승계 |
+
 ## 🟡 진행중 (`진행중/`)
 
 | 문서 | 상태 | 남은 일 |
 |------|------|---------|
-| v5-prd-B.md | 구획(Named Graph) | 테이블·FK·Neo4j 브리지·PartitionSwitcher 구현됨. 랜딩/라우팅 일부 미확정, AI 자동 구획 제안(B-5) 미구현 |
-| v6-roadmap.md | AI 역할 전환(Critic 척추) | Phase1 Critic 일부 시작(`/api/critic/review`+`lib/critic/*`). Phase2~4 미착수 → 아래 |
+| PRD-M.md | Docker Neo4j 복귀 + 발행 고속화 | 2026-07-08 착수. M0=Docker 복귀(Desktop 폐기), M1=생애주기 압축, M2=UNWIND 배칭, M3=임베딩 드리프트 보정, M4=프리뷰/측정 |
 
 ## 🔴 진행전 (`진행전/`)
 
 | 문서 | 범위 | 비고 |
 |------|------|------|
-| (없음) | — | — |
-
-아래 항목은 전용 문서 없이 v6 로드맵 내부에 기술. 자세한 건 `진행전/README.md` 참고.
-
-- v6 Phase2 Grounder — 데이터 그라운딩
-- v6 Phase3 Operator — 운영 추론(RAG entrypoint만 스캐폴드)
-- v6 Phase4 Steward — 지속 거버넌스
-- PRD-B B-5 — AI 자동 구획 제안
+| PRD-N.md | 구획 지능 & 접지·운영추론 | v5-prd-B(B-5·B-6)+v6-roadmap(P2~P4) 미개발분을 2026-07-08 코드 대조로 선별 승계. M1=AI 자동 구획 제안(HITL, connectivity·BridgeSuggestCard 재사용)+템플릿 시딩 구획 귀속, M2=Text2Cypher/RAG 구획 스코프(전체 질의 opt-in), M3=Grounder(바인딩률·신선도 헬스 통합·CSV 재바인딩, 현 자산 한정), M4=Operator(진단형 RAG+근거경로+가드레일, 읽기 전용), M5=Steward 잔여(계보 뷰·버전 태그, 후순위) |
 
 ## ⚠️ 테스트 부채 (기능 결함 아님)
 
