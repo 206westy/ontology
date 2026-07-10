@@ -57,7 +57,7 @@ export default function GovernanceProposalCard({
       applied={applied}
       preview={
         detail ? (
-          <p className="text-[10px] text-muted-foreground font-mono">{detail}</p>
+          <p className="text-xs text-muted-foreground font-mono">{detail}</p>
         ) : undefined
       }
       actions={
@@ -65,7 +65,7 @@ export default function GovernanceProposalCard({
           <Button
             variant="ghost"
             size="sm"
-            className="h-6 px-2 text-[10px] gap-0.5"
+            className="h-6 px-2 text-xs gap-0.5"
             onClick={onIgnore}
             disabled={applied}
           >
@@ -75,7 +75,7 @@ export default function GovernanceProposalCard({
           <Button
             variant={applied ? 'default' : 'outline'}
             size="sm"
-            className="h-6 px-2 text-[10px] gap-0.5"
+            className="h-6 px-2 text-xs gap-0.5"
             onClick={onApprove}
             disabled={applied || applying}
           >

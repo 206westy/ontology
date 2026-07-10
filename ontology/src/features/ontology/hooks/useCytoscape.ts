@@ -13,9 +13,11 @@ import { resolveThemeColors } from '../constants/colors';
 import type { OntologyClass, OntologyInstance, OntologyEdge, RelationType } from '../lib/types';
 import { buildStylesheet } from '../lib/cytoscape-style';
 import { buildElements, syncCytoscape } from '../lib/to-cytoscape-elements';
-import { registerCytoscapeExtensions, runFcose, runDagre, runIncrementalFcose, buildColaOptions, seedNodesNearNeighbors } from '../lib/fcose-layout';
+import { registerCytoscapeExtensions, runDagre, runClusteredLayout, seedNodesNearNeighbors, buildColaOptions } from '../lib/fcose-layout';
 import type { Layouts } from 'cytoscape';
+import { detectCommunities, assignClusterColors, assignClusterBorderStyles, type ClusterEdge } from '../lib/graph-cluster';
 import { getNHopNeighborIds } from '../lib/graph-filter';
+import { graphApi } from '../api';
 import type { ContextMenuTarget } from '../components/GraphContextMenu';
 
 const DRAG_HIERARCHY_PROXIMITY = 60;
@@ -60,9 +62,12 @@ export function useCytoscape(): UseCytoscapeResult {
   const pulseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const fittedRef = useRef(false);
-  // cola 지속 물리 — 인터랙션 시 깨우고(run) 멈추면 재움(stop)
+  // cola 라이브 물리 — 로드 시 좌표 정돈 + 드래그 시 이웃 반응(자기조직화). 워프는 handleDisconnected:false로 차단.
   const colaRef = useRef<Layouts | null>(null);
   const colaSleepRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 의미 유사 엣지(서버 임베딩 kNN) — 구조 엣지와 합쳐 군집 산출. 첫 도착 시 재배치 1회.
+  const semanticEdgesRef = useRef<ClusterEdge[]>([]);
+  const semanticAppliedRef = useRef(false);
   // PRD-Perf M1-2: 직전 동기화 입력 — 위치-전용 변경(드래그 영속) 감지용.
   const prevSyncRef = useRef<{
     classes: OntologyClass[];
@@ -97,7 +102,7 @@ export function useCytoscape(): UseCytoscapeResult {
   const focusModeNodeId = useOntologyStore((s) => s.focusModeNodeId);
   const focusDepth = useOntologyStore((s) => s.focusDepth);
 
-  // cola 깨우기: 시뮬레이션 시작(없으면) — restart=true면 신규 요소 포함 위해 재시작.
+  // cola 깨우기: 시뮬레이션 시작(없으면). restart=true면 신규 요소 포함 위해 재시작(현재 좌표에서).
   const wakeCola = useCallback((restart = false) => {
     const cy = cyRef.current;
     if (!cy || cy.destroyed()) return;
@@ -115,7 +120,7 @@ export function useCytoscape(): UseCytoscapeResult {
     }
   }, []);
 
-  // cola 재우기: idle 일정 시간 후 시뮬레이션 정지 → CPU 0 (노트북 팬 방지).
+  // cola 재우기: idle 일정 시간 후 정지 → CPU 0.
   const sleepCola = useCallback((delay = 1600) => {
     if (colaSleepRef.current) clearTimeout(colaSleepRef.current);
     colaSleepRef.current = setTimeout(() => {
@@ -133,6 +138,35 @@ export function useCytoscape(): UseCytoscapeResult {
     colaRef.current?.stop();
     colaRef.current = null;
   }, []);
+
+  // 군집 색 재계산 + 노드 데이터(clusterColor) 배선. 구조 변경/테마 변경 시 호출.
+  // 색은 의미 없던 타입색을 대체 — Louvain 커뮤니티마다 골든앵글 고유색(관련끼리 같은 색).
+  const applyClusterColors = useCallback(() => {
+    const cy = cyRef.current;
+    if (!cy || cy.destroyed() || cy.nodes().length === 0) return;
+    const nodeIds = cy.nodes().map((n) => n.id());
+    const idSet = new Set(nodeIds);
+    const realEdges: ClusterEdge[] = cy
+      .edges()
+      .filter((e: EdgeSingular) => idSet.has(e.source().id()) && idSet.has(e.target().id()))
+      .map((e: EdgeSingular) => ({ source: e.source().id(), target: e.target().id() }));
+    // 구조 엣지 ∪ 의미 유사 엣지 → 관련 의미끼리 같은 군집·색.
+    const semantic = semanticEdgesRef.current.filter((e) => idSet.has(e.source) && idSet.has(e.target));
+    const community = detectCommunities(nodeIds, [...realEdges, ...semantic]);
+    const isDark = resolvedTheme === 'dark';
+    const colors = assignClusterColors(community, isDark);
+    const borders = assignClusterBorderStyles(community); // 색각 대비용 비색상 2차 채널
+    cy.batch(() => {
+      cy.nodes().forEach((n) => {
+        const c = community.get(n.id());
+        if (c === undefined) return;
+        const color = colors.get(c);
+        if (color) n.data('clusterColor', color);
+        // 테두리 패턴은 테두리가 또렷한 클래스 노드에만(작은 인스턴스 점에선 무의미).
+        if (n.data('kind') === 'class') n.data('clusterBorder', borders.get(c));
+      });
+    });
+  }, [resolvedTheme]);
 
   // ── 인스턴스 생성 / 정리 ────────────────────────────────────────
   const initCy = useCallback(() => {
@@ -257,11 +291,12 @@ export function useCytoscape(): UseCytoscapeResult {
       setContextMenuTarget({ type: 'pane', position: { x: oe.clientX, y: oe.clientY } });
     });
 
-    // 라이브 물리(cola): 노드를 잡으면 시뮬레이션 깨우고(이웃이 밀려남), 드래그 중 유지.
+    // 라이브 물리: 노드를 잡으면 시뮬레이션을 깨워 이웃이 자연스럽게 반응(자기조직화).
+    // 워프는 buildColaOptions의 handleDisconnected:false + randomize:false로 차단됨.
     cy.on('grab', 'node', () => wakeCola());
     cy.on('drag', 'node', () => wakeCola());
 
-    // 드래그 종료: 위치 영속 + (편집 모드) 근접 시 계층 팝오버 + cola 안정화 후 재움
+    // 드래그 종료: 위치 영속 + (편집 모드) 근접 시 계층 팝오버 + 잠깐 더 정렬 후 재움.
     cy.on('dragfree', 'node', (e: EventObject) => {
       const node = e.target as NodeSingular;
       if (node.data('kind') === 'class') {
@@ -271,7 +306,7 @@ export function useCytoscape(): UseCytoscapeResult {
       if (useOntologyStore.getState().editMode === 'edit' && node.data('kind') === 'class') {
         maybeOpenHierarchy(cy, node);
       }
-      sleepCola(); // 놓으면 잠깐 더 정렬되다가 멈춤(CPU 절약)
+      sleepCola();
     });
 
     // 줌 → LOD + 줌% 표시. 줌아웃 시 비허브 라벨만 숨김(허브는 라벨 유지) — PRD §4.1
@@ -373,11 +408,14 @@ export function useCytoscape(): UseCytoscapeResult {
       initializedRef.current = true;
       const noSavedPositions = classes.every((c) => !c.positionX && !c.positionY);
       if (noSavedPositions) {
-        runFcose(cy, { randomize: true });
+        // 최초: 군집 시드 + fcose 1회 완화 → 관련 노드끼리 뭉친 채 정렬된 초기 배치.
+        runClusteredLayout(cy, { animate: false, extraEdges: semanticEdgesRef.current });
       } else {
+        // 저장 좌표 복원됨. 좌표 없는 노드(인스턴스 등)만 이웃 근처 시드 → 나머지는 아래 cola가 정돈.
         const originIds = cy.nodes().filter((n) => n.position('x') === 0 && n.position('y') === 0).map((n) => n.id());
-        runIncrementalFcose(cy, originIds);
+        if (originIds.length > 0) seedNodesNearNeighbors(cy, originIds);
       }
+      applyClusterColors();
       // 레이아웃 후 다음 프레임에 resize + fit (초기 0-size 보정)
       requestAnimationFrame(() => {
         if (cy.destroyed()) return;
@@ -387,13 +425,55 @@ export function useCytoscape(): UseCytoscapeResult {
           fittedRef.current = true;
         }
       });
+      // 저장/시드 좌표를 라이브 물리로 정돈(겹침 해소·군집 응집) 후 재움 → 진입 시 "자동 배치".
+      wakeCola();
+      sleepCola(2800);
     } else if (added.length > 0) {
-      // 신규 노드는 이웃 근처에 시드 후 cola 물리로 자연스럽게 합류 → 안정되면 재움
+      // 신규 노드는 이웃 근처 시드 + 라이브 물리로 자연스럽게 합류 → 안정되면 재움.
       seedNodesNearNeighbors(cy, added);
       wakeCola(true);
       sleepCola(2800);
     }
-  }, [classes, instances, edges, relationTypes, wakeCola, sleepCola]);
+  }, [classes, instances, edges, relationTypes, applyClusterColors, wakeCola, sleepCola]);
+
+  // 군집 색 유지: 구조(노드/엣지) 변화·테마 변화 시 재계산해 clusterColor 데이터 갱신.
+  useEffect(() => {
+    applyClusterColors();
+  }, [classes.length, instances.length, edges.length, applyClusterColors]);
+
+  // 의미 유사 엣지 fetch(디바운스): 서버 임베딩 kNN → 구조 군집에 의미 링크 병합.
+  // 엣지가 없어도 의미가 가까운 노드가 같은 군집·색이 된다. 실패 시 조용히 구조 군집 폴백.
+  useEffect(() => {
+    const cy = cyRef.current;
+    if (!cy) return;
+    const ids = cy.nodes().map((n) => n.id());
+    if (ids.length === 0) return;
+    const timer = setTimeout(() => {
+      graphApi
+        .semanticEdges(ids)
+        .then((res) => {
+          semanticEdgesRef.current = res.edges ?? [];
+          applyClusterColors();
+          // 첫 도착 + 신규 그래프(저장 좌표 없음)면 의미 반영 배치로 1회 재정렬.
+          // 저장 좌표가 있는 복귀 사용자는 색만 갱신(레이아웃 보존).
+          if (!semanticAppliedRef.current && semanticEdgesRef.current.length > 0) {
+            semanticAppliedRef.current = true;
+            const noSaved = useOntologyStore.getState().classes.every((c) => !c.positionX && !c.positionY);
+            const c = cyRef.current;
+            if (noSaved && c && !c.destroyed()) {
+              runClusteredLayout(c, { animate: true, extraEdges: semanticEdgesRef.current });
+              applyClusterColors();
+              wakeCola();
+              sleepCola(2200);
+            }
+          }
+        })
+        .catch(() => {
+          /* 임베딩 미가용/네트워크 실패 → 구조 군집 유지 */
+        });
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [classes.length, instances.length, edges.length, applyClusterColors, wakeCola, sleepCola]);
 
   // 인스턴스 접힘 동기화: 클래스별 인스턴스 수가 임계치를 넘으면(또는 사용자가 접으면) 접고,
   // 사용자가 펼친 클래스는 펼친다. 접힌 인스턴스는 display:none → 렌더·cola에서 제외.
@@ -548,12 +628,15 @@ export function useCytoscape(): UseCytoscapeResult {
     cyRef.current?.style(buildStylesheet(resolveThemeColors()));
   }, [resolvedTheme]);
 
-  // "레이아웃 정리" — cola 정지 후 fcose 일회성 정렬(structured tidy).
+  // "레이아웃 정리" — 군집 시드 + fcose 1회 재정렬 + 군집색 갱신(structured tidy).
   const relayout = useCallback(() => {
     if (!cyRef.current) return;
     stopCola();
-    runFcose(cyRef.current, { randomize: true });
-  }, [stopCola]);
+    runClusteredLayout(cyRef.current, { animate: true, extraEdges: semanticEdgesRef.current });
+    applyClusterColors();
+    wakeCola();
+    sleepCola(2200);
+  }, [applyClusterColors, stopCola, wakeCola, sleepCola]);
   const layoutHierarchy = useCallback(() => {
     if (!cyRef.current) return;
     stopCola();

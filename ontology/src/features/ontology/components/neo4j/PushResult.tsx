@@ -36,8 +36,8 @@ export default function PushResult({
   if (success) {
     return (
       <div className="flex flex-col items-center py-6 space-y-4">
-        <div className="w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center">
-          <Check className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+        <div className="w-12 h-12 rounded-full bg-success/10 flex items-center justify-center">
+          <Check className="w-6 h-6 text-success" />
         </div>
         <div className="text-center space-y-1">
           <p className="text-sm font-semibold text-foreground">
@@ -68,13 +68,13 @@ export default function PushResult({
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center shrink-0">
-          <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+        <div className="w-10 h-10 rounded-full bg-warning/10 flex items-center justify-center shrink-0">
+          <AlertTriangle className="w-5 h-5 text-warning" />
         </div>
         <div>
           <p className="text-sm font-semibold text-foreground">푸시 부분 실패</p>
           <p className="text-xs text-muted-foreground font-mono">
-            <span className="text-emerald-600 dark:text-emerald-400">{successCount}/{totalQueries} 성공</span>
+            <span className="text-success">{successCount}/{totalQueries} 성공</span>
             {' · '}
             <span className="text-destructive">{failedCount}건 실패</span>
           </p>

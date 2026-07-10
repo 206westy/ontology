@@ -11,9 +11,9 @@ import { computeHealth } from '../lib/metrics/health';
 // "입력 전후 델타"가 눈에 보인다. 클릭 시 건강도 대시보드를 연다.
 
 function scoreColor(score: number): string {
-  if (score >= 80) return 'border-emerald-400 text-emerald-600';
-  if (score >= 50) return 'border-amber-400 text-amber-600';
-  return 'border-red-400 text-red-600';
+  if (score >= 80) return 'border-success text-success';
+  if (score >= 50) return 'border-warning text-warning';
+  return 'border-destructive text-destructive';
 }
 
 export default function HealthScoreBadge() {
@@ -45,7 +45,7 @@ export default function HealthScoreBadge() {
     >
       <Badge
         variant="outline"
-        className={`h-6 text-[11px] px-1.5 gap-1 tabular-nums ${scoreColor(report.score)}`}
+        className={`h-6 text-xs px-1.5 gap-1 tabular-nums ${scoreColor(report.score)}`}
       >
         <Gauge className="w-3 h-3" />
         {report.score}

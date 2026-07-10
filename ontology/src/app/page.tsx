@@ -77,6 +77,9 @@ const LAYOUT_KEY = 'ontology-studio-layout';
 
 export default function Home() {
   const { isLoading, isError } = useLoadOntology();
+  // 스키마 로딩이 끝나면(=첫 페인트 가능) 스플래시를 조기 종료해 고정 지연을 없앤다.
+  // 에러여도 ready 로 간주 — 스플래시가 아니라 에러 화면이 원인을 보여줘야 한다.
+  const splashReady = !isLoading;
   const { showDeleteDialog, requestDelete, confirmDelete, cancelDelete } = useKeyboardShortcuts();
   useApiSync();
   useUrlSelectionSync();
@@ -110,7 +113,12 @@ export default function Home() {
   }, [aiExpandRequest, rightPanelRef]);
 
   if (!splashDone) {
-    return <SplashScreen onComplete={() => setSplashDone(true)} />;
+    return (
+      <SplashScreen
+        ready={splashReady}
+        onComplete={() => setSplashDone(true)}
+      />
+    );
   }
 
   if (isLoading) {

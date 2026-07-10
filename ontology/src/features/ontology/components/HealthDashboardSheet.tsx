@@ -134,13 +134,13 @@ export default function HealthDashboardSheet({
             <Activity className="w-4 h-4 text-primary" />
             온톨로지 건강도
           </SheetTitle>
-          <SheetDescription className="text-[11px]">
+          <SheetDescription className="text-xs">
             working 그래프의 품질 지표와 검증 위반을 한눈에 확인합니다.
           </SheetDescription>
         </SheetHeader>
 
         <div className="flex items-center justify-end py-2">
-          <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2" onClick={load} disabled={loading}>
+          <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={load} disabled={loading}>
             {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : '새로고침'}
           </Button>
         </div>
@@ -206,26 +206,26 @@ export default function HealthDashboardSheet({
               <ConnectivityCqSection connectivity={connectivity} cq={cqPassRate} />
 
               <div>
-                <h3 className="text-[11px] font-semibold text-muted-foreground mb-1.5">검증 위반</h3>
+                <h3 className="text-xs font-semibold text-muted-foreground mb-1.5">검증 위반</h3>
                 <ViolationList result={validation} onJump={handleJump} />
               </div>
 
               {structureIssues.length > 0 && (
                 <div>
-                  <h3 className="text-[11px] font-semibold text-muted-foreground mb-1.5">
+                  <h3 className="text-xs font-semibold text-muted-foreground mb-1.5">
                     구조 점검 ({structureIssues.length})
                   </h3>
                   <div className="space-y-1">
                     {structureIssues.map((it) => (
                       <div
                         key={it.edgeId}
-                        className="flex items-center gap-2 py-1.5 px-2 rounded border border-amber-500/30 bg-amber-500/10 group"
+                        className="flex items-center gap-2 py-1.5 px-2 rounded border border-warning/30 bg-warning/10 group"
                       >
-                        <span className="shrink-0 rounded px-1 text-[9px] font-medium bg-amber-500/20 text-amber-700 dark:text-amber-400">
+                        <span className="shrink-0 rounded px-1 text-xs font-medium bg-warning/20 text-warning">
                           {it.kind === 'self_loop' ? '자기 루프' : '중복'}
                         </span>
                         <button
-                          className="text-[11px] text-foreground truncate flex-1 text-left hover:text-primary transition-colors"
+                          className="text-xs text-foreground truncate flex-1 text-left hover:text-primary transition-colors"
                           onClick={() => handleJump(it.sourceId, it.sourceKind === 'class' ? 'classes' : 'instances')}
                         >
                           {it.label}

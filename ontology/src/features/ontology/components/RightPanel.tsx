@@ -77,13 +77,13 @@ function CollapsibleSection({ title, count, defaultOpen = true, onAdd, addLabel 
         <span className="text-sm font-semibold tracking-tight text-foreground/80">
           {title}
         </span>
-        <span className="text-[11px] font-mono text-muted-foreground ml-auto">
+        <span className="text-xs font-mono text-muted-foreground ml-auto">
           ({count})
         </span>
       </button>
       {/* 비전문가용 한 줄 설명 — 섹션이 무엇인지 용어 없이 안내 */}
       {hint && open && (
-        <p className="mt-1 ml-[18px] text-[11px] leading-snug text-muted-foreground/70">{hint}</p>
+        <p className="mt-1 ml-[18px] text-xs leading-snug text-muted-foreground/70">{hint}</p>
       )}
       {open && (
         <div className="mt-2 space-y-0.5">
@@ -248,16 +248,16 @@ function PropertyRow({
   return (
     <div className="flex items-center gap-1.5 py-1.5 px-1.5 rounded hover:bg-muted/40 transition-colors group -mx-1">
       <span className="text-xs font-mono text-primary/80 truncate flex-1">{name}</span>
-      <Badge variant="secondary" className="h-5 text-[11px] px-1.5 font-normal shrink-0">
+      <Badge variant="secondary" className="h-5 text-xs px-1.5 font-normal shrink-0">
         {DATA_TYPE_LABEL[dataType]}
       </Badge>
       {isRequired && (
-        <Badge variant="outline" className="h-5 text-[11px] px-1.5 font-normal text-amber-600 border-amber-300 shrink-0">
+        <Badge variant="outline" className="h-5 text-xs px-1.5 font-normal text-warning border-warning/40 shrink-0">
           req
         </Badge>
       )}
       {dataType === 'enum' && enumValues && (
-        <Badge variant="outline" className="h-5 text-[11px] px-1.5 font-normal text-cyan-600 border-cyan-300 shrink-0">
+        <Badge variant="outline" className="h-5 text-xs px-1.5 font-normal text-muted-foreground border-border shrink-0">
           {enumValues.length}
         </Badge>
       )}
@@ -289,11 +289,11 @@ function InheritedPropertyRow({
   return (
     <div className="flex items-center gap-1.5 py-1.5 px-1.5 rounded hover:bg-muted/40 transition-colors group -mx-1">
       <span className="text-xs font-mono text-muted-foreground truncate flex-1">{name}</span>
-      <Badge variant="secondary" className="h-5 text-[11px] px-1.5 font-normal shrink-0 opacity-60">
+      <Badge variant="secondary" className="h-5 text-xs px-1.5 font-normal shrink-0 opacity-60">
         {DATA_TYPE_LABEL[dataType]}
       </Badge>
       {isRequired && (
-        <Badge variant="outline" className="h-5 text-[11px] px-1.5 font-normal text-amber-600/60 border-amber-300/60 shrink-0">
+        <Badge variant="outline" className="h-5 text-xs px-1.5 font-normal text-warning/60 border-warning/30 shrink-0">
           req
         </Badge>
       )}
@@ -453,7 +453,7 @@ function AddPropertyInline({
         <select
           value={dataType}
           onChange={(e) => setDataType(e.target.value as DataType)}
-          className="h-6 text-[11px] bg-transparent border border-border rounded px-1 outline-none"
+          className="h-6 text-xs bg-transparent border border-border rounded px-1 outline-none"
         >
           {DATA_TYPES.map((t) => (
             <option key={t} value={t}>{DATA_TYPE_LABEL[t]}</option>
@@ -639,6 +639,7 @@ function InstanceValueRow({
   enumValues,
   value,
   onSave,
+  onSaved,
 }: {
   propertyName: string;
   dataType: DataType;
@@ -750,7 +751,7 @@ function InstanceValueRow({
     <div className="flex items-center gap-2 py-1.5 px-1.5 rounded hover:bg-muted/40 transition-colors -mx-1">
       <span className="text-xs font-mono text-primary/80 truncate min-w-[60px] shrink-0">{propertyName}</span>
       {isRequired && (
-        <span className="text-[11px] text-amber-500 shrink-0">*</span>
+        <span className="text-xs text-warning shrink-0">*</span>
       )}
       {savedFlash && <Check className="w-3 h-3 text-success shrink-0" data-testid="field-saved-check" />}
       <span className="flex-1" />
@@ -803,7 +804,7 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
       selectedInstance,
       parentClass,
       nodeName: selectedClass?.name ?? selectedInstance?.name ?? '',
-      nodeColor: selectedClass?.color ?? parentClass?.color ?? '#86efac',
+      nodeColor: selectedClass?.color ?? parentClass?.color ?? '#c4b5fd',
       nodeDescription: selectedClass?.description ?? '',
       subclasses: selectedClass ? storeClasses.filter((c) => c.parentId === id) : [],
       nodeProperties: selectedClass
@@ -978,7 +979,7 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
         {/* PRD-K M4 (B3): 화면 반대편 CommitBar 를 보지 않고도 패널 안에서 저장 상태 확인 */}
         {lastSavedAt !== null && (
           <span
-            className="flex items-center gap-0.5 text-[11px] text-muted-foreground shrink-0"
+            className="flex items-center gap-0.5 text-xs text-muted-foreground shrink-0"
             data-testid="panel-saved-status"
             title="편집 내용이 초안(스테이징)에 저장되었습니다"
           >
@@ -1064,14 +1065,14 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
                 <div className="px-4 pb-3 -mt-1 space-y-1.5">
                   <div className="flex items-center flex-wrap gap-1">
                     {selectedClass.sourceType && (
-                      <Badge variant="outline" className="text-[11px] h-5 px-1.5 text-muted-foreground">
+                      <Badge variant="outline" className="text-xs h-5 px-1.5 text-muted-foreground">
                         {sourceTypeLabel(selectedClass.sourceType)}
                       </Badge>
                     )}
                   </div>
                   {selectedClass.evidence && selectedClass.evidence !== 'existing' && (
                     <p
-                      className="text-[11px] text-muted-foreground/70 italic line-clamp-2"
+                      className="text-xs text-muted-foreground/70 italic line-clamp-2"
                       title={selectedClass.evidence}
                     >
                       &ldquo;{selectedClass.evidence}&rdquo;
@@ -1166,7 +1167,7 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
                           <span className="text-sm font-semibold tracking-tight text-muted-foreground/70">
                             {ancestorName}에서 상속된 속성
                           </span>
-                          <span className="text-[11px] font-mono text-muted-foreground/60 ml-auto">
+                          <span className="text-xs font-mono text-muted-foreground/60 ml-auto">
                             ({props.length})
                           </span>
                         </div>
@@ -1265,9 +1266,9 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
                 {nodeInstances.length > 0 ? (
                   <div className="border border-border rounded-md overflow-hidden">
                     <div className="flex items-center bg-muted/30 px-2 py-1 border-b border-border">
-                      <span className="text-[11px] font-semibold text-muted-foreground uppercase flex-1">이름</span>
+                      <span className="text-xs font-semibold text-muted-foreground uppercase flex-1">이름</span>
                       {nodeProperties.slice(0, 2).map((prop) => (
-                        <span key={prop.id} className="text-[11px] font-semibold text-muted-foreground uppercase w-16 text-right truncate">
+                        <span key={prop.id} className="text-xs font-semibold text-muted-foreground uppercase w-16 text-right truncate">
                           {prop.name}
                         </span>
                       ))}
@@ -1281,7 +1282,7 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
                           className="flex items-center gap-1.5 flex-1 min-w-0 text-left"
                           onClick={() => handleNavigate(inst.id, 'instance')}
                         >
-                          <Circle className="w-2 h-2 text-green-400 shrink-0" strokeWidth={2} />
+                          <Circle className="w-2 h-2 text-success shrink-0" strokeWidth={2} />
                           <span className="text-xs text-foreground truncate">{inst.name}</span>
                         </button>
                         {/* PRD-K M4 (B7): '—' 하드코딩 대신 실제 값 미리보기 */}
@@ -1414,7 +1415,7 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
                     ) : (
                       <ArrowLeft className="w-3 h-3 text-muted-foreground shrink-0" />
                     )}
-                    <Badge variant="secondary" className="h-5 text-[11px] px-1.5 font-normal bg-cyan-50 text-cyan-700 border-cyan-200 shrink-0">
+                    <Badge variant="secondary" className="h-5 text-xs px-1.5 font-normal bg-muted text-muted-foreground border-border shrink-0">
                       {relType?.name ?? 'relation'}
                     </Badge>
                     <button

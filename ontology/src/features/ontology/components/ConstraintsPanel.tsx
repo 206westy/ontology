@@ -88,8 +88,8 @@ const CONSTRAINT_TYPES: ConstraintTypeInfo[] = [
 
 const SEVERITY_OPTIONS = [
   { value: 'error', label: '오류', icon: AlertCircle, color: 'text-destructive' },
-  { value: 'warning', label: '경고', icon: AlertTriangle, color: 'text-amber-500' },
-  { value: 'info', label: '참고', icon: Info, color: 'text-blue-500' },
+  { value: 'warning', label: '경고', icon: AlertTriangle, color: 'text-warning' },
+  { value: 'info', label: '참고', icon: Info, color: 'text-info' },
 ] as const;
 
 function getConstraintIcon(type: ConstraintType | null) {
@@ -103,7 +103,7 @@ function RuleKindBadge({ kind }: { kind: ConstraintKind }) {
   const isEnforced = kind === 'enforced';
   return (
     <span
-      className={`inline-flex shrink-0 items-center rounded border px-1.5 py-0 text-xs ${
+      className={`inline-flex shrink-0 items-center rounded border px-1.5 py-0.5 text-xs ${
         isEnforced ? 'border-info/50 text-info' : 'border-border text-muted-foreground'
       }`}
       title={
@@ -374,7 +374,7 @@ export default function ConstraintsPanel() {
           </SelectContent>
         </Select>
         {selectedNodeId && selectedNodeType === 'class' && (
-          <p className="text-[10px] text-muted-foreground mt-1">
+          <p className="text-xs text-muted-foreground mt-1">
             선택된 클래스의 제약만 표시 중
           </p>
         )}
@@ -394,7 +394,7 @@ export default function ConstraintsPanel() {
             <p className="text-xs text-muted-foreground text-center">
               제약 조건이 없습니다
             </p>
-            <p className="text-[10px] text-muted-foreground/70 text-center mt-1">
+            <p className="text-xs text-muted-foreground/70 text-center mt-1">
               &quot;추가&quot; 버튼을 눌러 제약 조건을 생성하세요
             </p>
           </div>
@@ -419,45 +419,45 @@ export default function ConstraintsPanel() {
                         {!isMemo && (
                           <Badge
                             variant="secondary"
-                            className="h-4 text-[9px] px-1.5 font-normal shrink-0"
+                            className="h-5 text-xs px-1.5 font-normal shrink-0"
                           >
                             {CONSTRAINT_TYPES.find((t) => t.value === constraint.constraintType)?.label}
                           </Badge>
                         )}
                         {!isMemo && <SevIcon className={`w-3 h-3 shrink-0 ${sevColor}`} />}
                         {!constraint.isActive && (
-                          <Badge variant="outline" className="h-4 text-[9px] px-1 font-normal text-muted-foreground">
+                          <Badge variant="outline" className="h-5 text-xs px-1 font-normal text-muted-foreground">
                             비활성
                           </Badge>
                         )}
                       </div>
-                      <p className="text-[11px] text-foreground leading-relaxed break-words">
+                      <p className="text-xs text-foreground leading-relaxed break-words">
                         {constraint.description || '(설명 없음)'}
                       </p>
                       {/* 설명 메모는 description 만 — 타입/카디널리티 배지는 표시하지 않는다 */}
                       <div className="flex flex-wrap gap-1 mt-1.5">
                         {constraint.sourceClass && (
-                          <Badge variant="outline" className="h-4 text-[9px] px-1.5 font-normal">
+                          <Badge variant="outline" className="h-5 text-xs px-1.5 font-normal">
                             소스: {constraint.sourceClass.name}
                           </Badge>
                         )}
                         {!isMemo && constraint.targetClass && (
-                          <Badge variant="outline" className="h-4 text-[9px] px-1.5 font-normal">
+                          <Badge variant="outline" className="h-5 text-xs px-1.5 font-normal">
                             타겟: {constraint.targetClass.name}
                           </Badge>
                         )}
                         {!isMemo && constraint.relationType && (
-                          <Badge variant="outline" className="h-4 text-[9px] px-1.5 font-normal text-cyan-700 border-cyan-200">
+                          <Badge variant="outline" className="h-5 text-xs px-1.5 font-normal text-info border-info/30">
                             관계: {constraint.relationType.name}
                           </Badge>
                         )}
                         {!isMemo && constraint.property && (
-                          <Badge variant="outline" className="h-4 text-[9px] px-1.5 font-normal text-violet-700 border-violet-200">
+                          <Badge variant="outline" className="h-5 text-xs px-1.5 font-normal text-primary border-primary/30">
                             속성: {constraint.property.name}
                           </Badge>
                         )}
                         {constraint.constraintType === 'cardinality' && constraint.config && (
-                          <Badge variant="outline" className="h-4 text-[9px] px-1.5 font-normal font-mono">
+                          <Badge variant="outline" className="h-5 text-xs px-1.5 font-normal font-mono">
                             {(constraint.config as Record<string, number>).min ?? '*'}..
                             {(constraint.config as Record<string, number>).max ?? '*'}
                           </Badge>
@@ -473,7 +473,7 @@ export default function ConstraintsPanel() {
                         title={constraint.isActive ? '비활성화' : '활성화'}
                       >
                         {constraint.isActive ? (
-                          <Power className="w-3 h-3 text-green-600" />
+                          <Power className="w-3 h-3 text-success" />
                         ) : (
                           <PowerOff className="w-3 h-3 text-muted-foreground" />
                         )}
@@ -674,7 +674,7 @@ export default function ConstraintsPanel() {
                       <SelectItem key={r.id} value={r.id}>
                         <span className="flex items-center gap-2">
                           {r.name}
-                          <span className="rounded border px-1 text-[9px] leading-tight text-muted-foreground">
+                          <span className="rounded border px-1 text-xs leading-tight text-muted-foreground">
                             {RELATION_LAYER_LABEL[r.layer] ?? r.layer}
                           </span>
                         </span>

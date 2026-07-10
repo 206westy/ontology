@@ -326,7 +326,7 @@ export default function AIAssistantTab({ nodeName }: { nodeName: string }) {
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-[10px] font-medium text-muted-foreground mb-0.5">
+                    <p className="text-xs font-medium text-muted-foreground mb-0.5">
                       {msg.role === 'user' ? '나' : 'AI 어시스턴트'}
                     </p>
                     <div className="text-xs text-foreground leading-relaxed whitespace-pre-wrap break-words">
@@ -340,7 +340,7 @@ export default function AIAssistantTab({ nodeName }: { nodeName: string }) {
                             <Button
                               size="sm"
                               variant="outline"
-                              className="h-5 text-[10px] px-2"
+                              className="h-5 text-xs px-2"
                               onClick={() => requestApplyAll(msg.id, pendingIdx)}
                             >
                               모두 적용 ({pendingIdx.length})
@@ -381,7 +381,7 @@ export default function AIAssistantTab({ nodeName }: { nodeName: string }) {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-5 text-[10px] px-1.5 text-muted-foreground hover:text-destructive"
+                  className="h-5 text-xs px-1.5 text-muted-foreground hover:text-destructive"
                   onClick={handleCancel}
                 >
                   <X className="w-3 h-3 mr-0.5" />
@@ -398,7 +398,7 @@ export default function AIAssistantTab({ nodeName }: { nodeName: string }) {
               <Sparkles className="w-4 h-4 text-primary" />
             </div>
             <p className="text-xs text-muted-foreground mb-1">AI에게 요청하세요</p>
-            <p className="text-[10px] text-muted-foreground/70">
+            <p className="text-xs text-muted-foreground/70">
               예: &quot;SUPRA 하위에 ECOLITE 클래스 추가&quot; — 제안을 검토 후 적용할 수 있습니다
             </p>
           </div>
@@ -414,7 +414,7 @@ export default function AIAssistantTab({ nodeName }: { nodeName: string }) {
             <Button
               variant="ghost"
               size="sm"
-              className="h-5 text-[10px] px-1.5 text-muted-foreground hover:text-foreground"
+              className="h-5 text-xs px-1.5 text-muted-foreground hover:text-foreground"
               onClick={handleReset}
             >
               <RotateCcw className="w-2.5 h-2.5 mr-1" />
@@ -425,17 +425,17 @@ export default function AIAssistantTab({ nodeName }: { nodeName: string }) {
 
         {/* Bulk input → suggest the import (parse) flow (PATCH-2) */}
         {bulky && !loading && (
-          <div className="mb-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-2 space-y-1.5">
+          <div className="mb-2 rounded-md border border-warning/30 bg-warning/10 p-2 space-y-1.5">
             <div className="flex items-start gap-1.5">
-              <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
-              <p className="text-[10px] text-amber-700 dark:text-amber-400 leading-relaxed">
+              <AlertTriangle className="w-3.5 h-3.5 text-warning shrink-0 mt-0.5" />
+              <p className="text-xs text-warning leading-relaxed">
                 이건 문서에 가까워요. &lsquo;가져오기&rsquo;로 처리하면 더 빠르고 정확합니다.
               </p>
             </div>
             <Button
               size="sm"
               variant="outline"
-              className="h-6 w-full text-[10px] gap-1 border-amber-500/40"
+              className="h-6 w-full text-xs gap-1 border-warning/40"
               onClick={handleRouteToImport}
             >
               <Import className="w-3 h-3" />
@@ -492,14 +492,14 @@ export default function AIAssistantTab({ nodeName }: { nodeName: string }) {
                     key={i}
                     className={`flex items-start gap-2 rounded-md border px-2 py-1.5 ${
                       isSkip
-                        ? 'border-amber-500/30 bg-amber-500/10'
+                        ? 'border-warning/30 bg-warning/10'
                         : 'border-border bg-muted/30'
                     }`}
                   >
                     <span
-                      className={`shrink-0 mt-px rounded px-1 text-[10px] font-medium ${
+                      className={`shrink-0 mt-px rounded px-1 text-xs font-medium ${
                         isSkip
-                          ? 'bg-amber-500/20 text-amber-700 dark:text-amber-400'
+                          ? 'bg-warning/20 text-warning'
                           : 'bg-primary/10 text-primary'
                       }`}
                     >

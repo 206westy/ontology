@@ -53,17 +53,17 @@ export default function DriftDecisionCard({
         <>
           {extendEls.length > 0 && (
             <div className="rounded-md border border-border bg-card/60 p-1.5">
-              <p className="text-[10px] font-medium text-foreground">
+              <p className="text-xs font-medium text-foreground">
                 패턴 확장 미리보기 · v{pattern.version} → v{extendDraft.version}
               </p>
-              <p className="mt-0.5 text-[9px] text-muted-foreground">
+              <p className="mt-0.5 text-xs text-muted-foreground">
                 같은 구획 유지 · 추가: {extendEls.map(elementLabel).join(', ')}
               </p>
               <div className="mt-1.5 flex justify-end">
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-6 gap-0.5 px-2 text-[10px]"
+                  className="h-6 gap-0.5 px-2 text-xs"
                   onClick={() => onExtend(extendDraft)}
                 >
                   <PlusCircle className="h-3 w-3" />
@@ -75,10 +75,10 @@ export default function DriftDecisionCard({
 
           {forkEls.length > 0 && (
             <div className="mt-2 rounded-md border border-border bg-card/60 p-1.5">
-              <p className="text-[10px] font-medium text-foreground">
+              <p className="text-xs font-medium text-foreground">
                 새 구획으로 분리 미리보기
               </p>
-              <p className="mt-0.5 text-[9px] text-muted-foreground">
+              <p className="mt-0.5 text-xs text-muted-foreground">
                 다른 도메인 · 발견 파이프라인으로 새 패턴/구획 생성:{' '}
                 {forkEls.map(elementLabel).join(', ')}
               </p>
@@ -86,7 +86,7 @@ export default function DriftDecisionCard({
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-6 gap-0.5 px-2 text-[10px]"
+                  className="h-6 gap-0.5 px-2 text-xs"
                   onClick={() => onFork(forkEls)}
                   disabled={forking}
                 >
@@ -106,7 +106,7 @@ export default function DriftDecisionCard({
         <Button
           variant="ghost"
           size="sm"
-          className="h-6 gap-0.5 px-2 text-[10px]"
+          className="h-6 gap-0.5 px-2 text-xs"
           onClick={onIgnore}
         >
           <X className="h-3 w-3" />

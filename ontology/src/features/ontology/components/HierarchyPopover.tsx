@@ -138,7 +138,7 @@ export default function HierarchyPopover() {
             </div>
           ))}
           <div className="ml-4 text-primary font-semibold">
-            └── {sourceClass.name} <span className="text-[10px] text-muted-foreground">(new)</span>
+            └── {sourceClass.name} <span className="text-xs text-muted-foreground">(new)</span>
           </div>
         </div>
 

@@ -13,9 +13,9 @@ import {
 } from '../../lib/enrich-types';
 
 const SOURCE_BADGE_CLASS: Record<EnrichSourceType, string> = {
-  existing_graph: 'border-emerald-400 text-emerald-600',
-  session_doc: 'border-blue-400 text-blue-600',
-  web: 'border-amber-400 text-amber-600',
+  existing_graph: 'border-success/40 text-success',
+  session_doc: 'border-border text-muted-foreground',
+  web: 'border-warning/40 text-warning',
   inferred: 'border-muted-foreground/40 text-muted-foreground',
 };
 
@@ -50,14 +50,14 @@ export default function EnrichmentCard({
       title={
         <span className="flex items-center gap-1.5">
           <span className="truncate">{gap.targetName}</span>
-          <span className="ml-auto shrink-0 text-[9px] font-normal text-muted-foreground">
+          <span className="ml-auto shrink-0 text-xs font-normal text-muted-foreground">
             {SEVERITY_LABELS[gap.severity]}
           </span>
         </span>
       }
       preview={
         <>
-          <p className="text-[10px] text-muted-foreground mb-1.5">{gap.reason}</p>
+          <p className="text-xs text-muted-foreground mb-1.5">{gap.reason}</p>
 
           {proposals.length > 0 && (
             <div className="space-y-1.5">
@@ -66,23 +66,23 @@ export default function EnrichmentCard({
                   <div className="flex items-center gap-1 mb-0.5 flex-wrap">
                     <Badge
                       variant="outline"
-                      className={`text-[9px] h-4 px-1 ${SOURCE_BADGE_CLASS[p.sourceType]}`}
+                      className={`text-xs h-5 px-1 ${SOURCE_BADGE_CLASS[p.sourceType]}`}
                     >
                       {SOURCE_TYPE_LABELS[p.sourceType]}
                     </Badge>
                     {p.needsReview && (
                       <Badge
                         variant="outline"
-                        className="text-[9px] h-4 px-1 border-amber-400 text-amber-600 gap-0.5"
+                        className="text-xs h-5 px-1 border-warning/40 text-warning gap-0.5"
                       >
                         <ShieldAlert className="w-2.5 h-2.5" />
                         검증 필요
                       </Badge>
                     )}
                   </div>
-                  <p className="text-[11px]">{p.value}</p>
+                  <p className="text-xs">{p.value}</p>
                   {p.evidence && (
-                    <p className="text-[9px] text-muted-foreground/70 mt-0.5 italic">
+                    <p className="text-xs text-muted-foreground/70 mt-0.5 italic">
                       {p.evidence}
                     </p>
                   )}
@@ -97,7 +97,7 @@ export default function EnrichmentCard({
           <Button
             variant="ghost"
             size="sm"
-            className="h-6 px-2 text-[10px] gap-0.5"
+            className="h-6 px-2 text-xs gap-0.5"
             onClick={onIgnore}
           >
             <X className="w-3 h-3" />
@@ -107,7 +107,7 @@ export default function EnrichmentCard({
             <Button
               variant="outline"
               size="sm"
-              className="h-6 px-2 text-[10px] gap-0.5"
+              className="h-6 px-2 text-xs gap-0.5"
               onClick={onSource}
               disabled={sourcing}
             >
@@ -122,7 +122,7 @@ export default function EnrichmentCard({
             <Button
               variant={adopted ? 'default' : 'outline'}
               size="sm"
-              className="h-6 px-2 text-[10px] gap-0.5"
+              className="h-6 px-2 text-xs gap-0.5"
               onClick={onAdopt}
             >
               <Check className="w-3 h-3" />

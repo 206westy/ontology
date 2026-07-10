@@ -41,7 +41,7 @@ export default function FocusModeBar() {
           <button
             key={d}
             className={`
-              w-6 h-6 rounded-full text-[10px] font-mono border transition-colors
+              w-6 h-6 rounded-full text-xs font-mono border transition-colors
               ${focusDepth === d
                 ? 'bg-primary text-primary-foreground border-primary'
                 : 'bg-transparent text-muted-foreground border-border hover:border-primary/40'
@@ -53,13 +53,13 @@ export default function FocusModeBar() {
             {d}
           </button>
         ))}
-        <span className="text-[10px] text-muted-foreground">hop</span>
+        <span className="text-xs text-muted-foreground">hop</span>
       </div>
 
       <Button
         variant="ghost"
         size="sm"
-        className="h-6 text-[11px] px-2 gap-1 text-primary hover:text-primary/80"
+        className="h-6 text-xs px-2 gap-1 text-primary hover:text-primary/80"
         onClick={exitFocusMode}
       >
         <X className="w-3 h-3" />

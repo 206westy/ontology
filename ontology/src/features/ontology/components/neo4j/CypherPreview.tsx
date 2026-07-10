@@ -20,8 +20,8 @@ function highlightCypher(code: string): string {
     .replace(/>/g, '&gt;');
 
   result = result.replace(comments, '<span class="text-muted-foreground/60 italic">$1</span>');
-  result = result.replace(strings, '<span class="text-emerald-500 dark:text-emerald-400">$1</span>');
-  result = result.replace(keywords, '<span class="text-cyan-500 dark:text-cyan-400 font-semibold">$1</span>');
+  result = result.replace(strings, '<span class="text-success">$1</span>');
+  result = result.replace(keywords, '<span class="text-primary font-semibold">$1</span>');
 
   return result;
 }
@@ -60,7 +60,7 @@ export default function CypherPreview({ cypher }: CypherPreviewProps) {
             className="overflow-hidden"
           >
             <div className="relative rounded-lg border border-border bg-muted/50 p-3 mt-1">
-              <pre className="text-[11px] font-mono leading-relaxed overflow-x-auto max-h-[200px] overflow-y-auto">
+              <pre className="text-xs font-mono leading-relaxed overflow-x-auto max-h-[200px] overflow-y-auto">
                 <code dangerouslySetInnerHTML={{ __html: highlightCypher(cypher) }} />
               </pre>
               <Button
@@ -70,7 +70,7 @@ export default function CypherPreview({ cypher }: CypherPreviewProps) {
                 onClick={handleCopy}
               >
                 {copied ? (
-                  <Check className="w-3 h-3 text-emerald-500" />
+                  <Check className="w-3 h-3 text-success" />
                 ) : (
                   <Copy className="w-3 h-3 text-muted-foreground" />
                 )}

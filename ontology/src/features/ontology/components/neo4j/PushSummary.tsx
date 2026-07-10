@@ -32,9 +32,9 @@ export function computePushSummary(changes: Change[]): PushSummaryData {
 }
 
 const OP_COLORS = {
-  add: 'text-emerald-600 dark:text-emerald-400',
-  mod: 'text-amber-600 dark:text-amber-400',
-  del: 'text-red-600 dark:text-red-400',
+  add: 'text-success',
+  mod: 'text-warning',
+  del: 'text-destructive',
 } as const;
 
 const TABLE_LABELS: Record<string, string> = {
@@ -70,7 +70,7 @@ export default function PushSummary({ summary }: PushSummaryProps) {
         {activeEntries.map(([table, counts]) => (
           <div key={table} className="flex items-center gap-2 text-xs">
             <span className="text-muted-foreground w-16 shrink-0">{TABLE_LABELS[table]}</span>
-            <div className="flex items-center gap-2 font-mono text-[11px]">
+            <div className="flex items-center gap-2 font-mono text-xs">
               {counts.add > 0 && (
                 <span className={OP_COLORS.add}>+{counts.add}</span>
               )}

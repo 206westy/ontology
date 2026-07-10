@@ -14,7 +14,7 @@ export type NodeColorKey = keyof typeof NODE_COLORS;
 // 새 NODE_COLORS hex와 매칭 실패 시 구 데이터가 전부 'root'로 붕괴하는 것을 방지한다.
 // light/dark 양쪽 구 값을 모두 포함.
 const LEGACY_COLOR_KEY: Record<string, NodeColorKey> = {
-  // 구 light
+  // 구 light (초기 채도 높은 팔레트)
   '#7c3aed': 'root', '#2563eb': 'mid', '#0891b2': 'leaf', '#86efac': 'instance',
   '#d97706': 'person', '#dc2626': 'place', '#db2777': 'event', '#6366f1': 'concept',
   '#14b8a6': 'process', '#8b5cf6': 'artifact',
@@ -22,6 +22,14 @@ const LEGACY_COLOR_KEY: Record<string, NodeColorKey> = {
   '#3b82f6': 'mid', '#06b6d4': 'leaf', '#4ade80': 'instance',
   '#f59e0b': 'person', '#ef4444': 'place', '#ec4899': 'event', '#818cf8': 'concept',
   '#2dd4bf': 'process', '#a78bfa': 'artifact',
+  // 구 muted light (채도 낮춘 팔레트 — 보라 그라데이션 이전, 실사용 클래스가 여기 저장됨)
+  '#6487b4': 'root', '#5794b7': 'mid', '#4e98a2': 'leaf', '#60a97b': 'instance',
+  '#c09d59': 'person', '#c37760': 'place', '#c07296': 'event', '#8c86c1': 'concept',
+  '#499c8b': 'process', '#ae7f5b': 'artifact',
+  // 구 muted dark
+  '#809fc6': 'root', '#74a9c9': 'mid', '#62b1bc': 'leaf', '#76bc90': 'instance',
+  '#cfb277': 'person', '#d4917d': 'place', '#d08bab': 'event', '#a39ed1': 'concept',
+  '#62bcaa': 'process', '#c39979': 'artifact',
 };
 
 /** 클래스 color(hex) → colorKey. 신규 팔레트 우선, 구 팔레트 레거시 폴백, 그래도 없으면 'root'. */

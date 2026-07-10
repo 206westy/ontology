@@ -38,17 +38,17 @@ const OP_META: Record<ChangeOperation, { icon: typeof Plus; label: string; class
   ADD: {
     icon: Plus,
     label: '생성',
-    className: 'text-emerald-600 dark:text-emerald-400',
+    className: 'text-success',
   },
   MOD: {
     icon: Pencil,
     label: '수정',
-    className: 'text-amber-600 dark:text-amber-400',
+    className: 'text-warning',
   },
   DEL: {
     icon: Trash2,
     label: '삭제',
-    className: 'text-red-600 dark:text-red-400',
+    className: 'text-destructive',
   },
 };
 
@@ -111,7 +111,7 @@ function CommitDetailRow({ detail }: { detail: CommitDetail }) {
   return (
     <div className="flex items-center gap-2 py-1 px-2 rounded hover:bg-muted/50 transition-colors">
       <Icon className={`w-3 h-3 shrink-0 ${meta.className}`} />
-      <span className="text-[10px] text-muted-foreground font-mono shrink-0">{tableLabel}</span>
+      <span className="text-xs text-muted-foreground font-mono shrink-0">{tableLabel}</span>
       <span className="text-xs text-foreground truncate">{targetName}</span>
     </div>
   );
@@ -193,7 +193,7 @@ export default function CommitHistoryPanel({ open, onOpenChange }: CommitHistory
             <span className="text-xs text-muted-foreground">
               최근 {commitList.length}건
             </span>
-            <span className="text-[10px] text-muted-foreground">
+            <span className="text-xs text-muted-foreground">
               수동 {commitList.filter((c) => !c.isAutoSave).length} / 자동 {commitList.filter((c) => c.isAutoSave).length}
             </span>
           </div>
@@ -233,7 +233,7 @@ export default function CommitHistoryPanel({ open, onOpenChange }: CommitHistory
               {dateGroups.map(([dateLabel, commits]) => (
                 <div key={dateLabel}>
                   <div className="sticky top-0 bg-background/95 backdrop-blur-sm z-10 py-1.5">
-                    <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
                       {dateLabel}
                     </span>
                   </div>
@@ -251,7 +251,7 @@ export default function CommitHistoryPanel({ open, onOpenChange }: CommitHistory
                               {commit.isAutoSave && (
                                 <Badge
                                   variant="outline"
-                                  className="h-4 text-[9px] px-1 font-mono shrink-0 bg-violet-100 text-violet-700 border-violet-300 dark:bg-violet-900/40 dark:text-violet-400 dark:border-violet-700"
+                                  className="h-5 text-xs px-1 font-mono shrink-0 bg-primary/10 text-primary border-primary/30"
                                 >
                                   <Bot className="w-2.5 h-2.5 mr-0.5" />
                                   Auto
@@ -260,25 +260,25 @@ export default function CommitHistoryPanel({ open, onOpenChange }: CommitHistory
                               {commit.branchId && (
                                 <Badge
                                   variant="outline"
-                                  className="h-4 text-[9px] px-1 font-mono shrink-0 bg-sky-100 text-sky-700 border-sky-300 dark:bg-sky-900/40 dark:text-sky-400 dark:border-sky-700"
+                                  className="h-5 text-xs px-1 font-mono shrink-0 bg-muted text-muted-foreground border-border"
                                   title="브랜치 커밋 (main 미적용, 병합으로 반영)"
                                 >
                                   <GitBranch className="w-2.5 h-2.5" />
                                 </Badge>
                               )}
                               {detailCount > 0 && (
-                                <Badge variant="secondary" className="h-4 text-[9px] px-1 font-mono shrink-0">
+                                <Badge variant="secondary" className="h-5 text-xs px-1 font-mono shrink-0">
                                   {detailCount}
                                 </Badge>
                               )}
-                              <span className="text-[10px] text-muted-foreground/60 ml-auto shrink-0">
+                              <span className="text-xs text-muted-foreground/60 ml-auto shrink-0">
                                 {formatTime(commit.createdAt)}
                               </span>
                             </div>
                           </AccordionTrigger>
                           <AccordionContent className="pb-2 pt-0">
                             <div className="ml-5 space-y-0.5">
-                              <div className="text-[10px] text-muted-foreground mb-1.5 flex items-center flex-wrap gap-x-2">
+                              <div className="text-xs text-muted-foreground mb-1.5 flex items-center flex-wrap gap-x-2">
                                 {formatFullTime(commit.createdAt)}
                                 {commit.authorEmail && (
                                   <span className="inline-flex items-center gap-0.5" title={`작성자: ${commit.authorEmail}`}>
@@ -287,7 +287,7 @@ export default function CommitHistoryPanel({ open, onOpenChange }: CommitHistory
                                   </span>
                                 )}
                                 {commit.pushedToNeo4j && (
-                                  <Badge variant="outline" className="h-3.5 text-[8px] px-1 ml-2 bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-900/40 dark:text-emerald-400 dark:border-emerald-700">
+                                  <Badge variant="outline" className="h-5 text-xs px-1 ml-2 bg-success-light text-success border-success/30">
                                     Neo4j 반영됨
                                   </Badge>
                                 )}
@@ -297,7 +297,7 @@ export default function CommitHistoryPanel({ open, onOpenChange }: CommitHistory
                                   <CommitDetailRow key={detail.id} detail={detail} />
                                 ))
                               ) : (
-                                <p className="text-[10px] text-muted-foreground py-1">변경 상세 정보 없음</p>
+                                <p className="text-xs text-muted-foreground py-1">변경 상세 정보 없음</p>
                               )}
                             </div>
                           </AccordionContent>

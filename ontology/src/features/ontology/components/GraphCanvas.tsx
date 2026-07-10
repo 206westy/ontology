@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import EmptyState from './EmptyState';
 import EntityResolutionSheet from './EntityResolutionSheet';
 import GraphContextMenu, { type ContextMenuPosition } from './GraphContextMenu';
@@ -44,6 +44,42 @@ export default function GraphCanvas() {
   } = useCytoscape();
 
   const [clearAllOpen, setClearAllOpen] = useState(false);
+
+  // 접근성: 키보드로 노드 순회/선택 + 스크린리더 안내(캔버스 그래프의 a11y 공백 보완).
+  // 군집 구분의 비색상 채널은 노드 테두리 패턴(clusterBorder)이 담당한다.
+  const [ariaMsg, setAriaMsg] = useState('');
+  const kbdIdxRef = useRef(-1);
+  const handleCanvasKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
+      const cy = cyRef.current;
+      if (!cy || cy.destroyed()) return;
+      const nodes = cy.nodes().filter((n) => !n.hasClass('hidden') && !n.hasClass('collapsed'));
+      if (nodes.length === 0) return;
+      const key = e.key;
+      const move = (delta: number) => {
+        e.preventDefault();
+        const idx = (kbdIdxRef.current + delta + nodes.length) % nodes.length;
+        kbdIdxRef.current = idx;
+        const node = nodes[idx];
+        cy.animate({ center: { eles: node }, duration: 200 });
+        const name = node.data('label') ?? '노드';
+        const kind = node.data('kind') === 'instance' ? '인스턴스' : '클래스';
+        setAriaMsg(`${name}, ${kind} (${idx + 1}/${nodes.length})`);
+      };
+      if (key === 'ArrowRight' || key === 'ArrowDown') move(1);
+      else if (key === 'ArrowLeft' || key === 'ArrowUp') move(-1);
+      else if (key === 'Enter' || key === ' ') {
+        e.preventDefault();
+        const node = nodes[kbdIdxRef.current] ?? nodes[0];
+        useOntologyStore.getState().selectNode(node.id(), node.data('kind') === 'instance' ? 'instance' : 'class');
+        setAriaMsg(`${node.data('label') ?? '노드'} 선택됨`);
+      } else if (key === 'Escape') {
+        useOntologyStore.getState().clearSelection();
+        setAriaMsg('선택 해제됨');
+      }
+    },
+    [cyRef],
+  );
 
   const onEmptyDoubleClick = useCallback(
     (event: React.MouseEvent) => {
@@ -105,13 +141,22 @@ export default function GraphCanvas() {
           absolute inset-0 대신 w-full h-full로 크기 지정(부모 flex-1 높이에 맞춤). */}
       <div
         ref={setContainer}
-        className="w-full h-full"
+        className="w-full h-full outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-inset"
+        role="application"
+        tabIndex={0}
+        aria-label="온톨로지 그래프. 방향키로 노드 이동, Enter로 선택, Esc로 해제."
+        onKeyDown={handleCanvasKeyDown}
         style={{
           backgroundColor: 'hsl(var(--background))',
           backgroundImage: 'radial-gradient(hsl(var(--border)) 1px, transparent 1px)',
           backgroundSize: '20px 20px',
         }}
       />
+
+      {/* 스크린리더 안내(시각적으로 숨김) — 키보드 노드 순회/선택 상태 알림 */}
+      <div className="sr-only" aria-live="polite" role="status">
+        {ariaMsg}
+      </div>
 
       {/* 현재 워크스페이스만 비었을 때 안내 오버레이(전체 그래프엔 노드 존재) */}
       {workspaceEmpty && (
@@ -126,7 +171,7 @@ export default function GraphCanvas() {
             <div className="flex items-center justify-center gap-2 pt-1">
               <button
                 type="button"
-                className="text-[11px] px-2.5 py-1 rounded-md bg-primary text-primary-foreground hover:opacity-90 transition-opacity"
+                className="text-xs px-2.5 py-1 rounded-md bg-primary text-primary-foreground hover:opacity-90 transition-opacity"
                 onClick={() =>
                   openPopover({
                     type: 'newNode',
@@ -141,7 +186,7 @@ export default function GraphCanvas() {
               </button>
               <button
                 type="button"
-                className="text-[11px] px-2.5 py-1 rounded-md border border-border hover:bg-muted transition-colors"
+                className="text-xs px-2.5 py-1 rounded-md border border-border hover:bg-muted transition-colors"
                 onClick={() => toggleShowAllPartitions(true)}
               >
                 전체 구획 보기

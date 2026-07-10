@@ -106,15 +106,15 @@ function highlightCypherFallback(code: string): string {
   );
   result = result.replace(
     strings,
-    '<span class="text-emerald-500 dark:text-emerald-400">$1</span>',
+    '<span class="text-success">$1</span>',
   );
   result = result.replace(
     keywords,
-    '<span class="text-cyan-500 dark:text-cyan-400 font-semibold">$1</span>',
+    '<span class="text-primary font-semibold">$1</span>',
   );
   result = result.replace(
     params,
-    '<span class="text-amber-500 dark:text-amber-400">$1</span>',
+    '<span class="text-warning">$1</span>',
   );
 
   return result;
@@ -148,14 +148,14 @@ function CypherCodeBlock({ code, isDark }: { code: string; isDark: boolean }) {
   if (html) {
     return (
       <div
-        className="text-[11px] font-mono leading-relaxed overflow-x-auto max-h-[200px] overflow-y-auto [&_pre]:!bg-transparent [&_pre]:!p-0 [&_code]:!bg-transparent"
+        className="text-xs font-mono leading-relaxed overflow-x-auto max-h-[200px] overflow-y-auto [&_pre]:!bg-transparent [&_pre]:!p-0 [&_code]:!bg-transparent"
         dangerouslySetInnerHTML={{ __html: html }}
       />
     );
   }
 
   return (
-    <pre className="text-[11px] font-mono leading-relaxed overflow-x-auto max-h-[200px] overflow-y-auto whitespace-pre-wrap">
+    <pre className="text-xs font-mono leading-relaxed overflow-x-auto max-h-[200px] overflow-y-auto whitespace-pre-wrap">
       <code dangerouslySetInnerHTML={{ __html: highlightCypherFallback(code) }} />
     </pre>
   );
@@ -208,7 +208,7 @@ function addToHistory(entry: Omit<HistoryEntry, 'id' | 'timestamp'>) {
 function ResultTable({ data }: { data: unknown[] }) {
   if (data.length === 0) {
     return (
-      <p className="text-[11px] text-muted-foreground py-4 text-center">
+      <p className="text-xs text-muted-foreground py-4 text-center">
         결과가 없습니다
       </p>
     );
@@ -219,7 +219,7 @@ function ResultTable({ data }: { data: unknown[] }) {
   return (
     <div className="border border-border rounded-md overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="w-full text-[11px]">
+        <table className="w-full text-xs">
           <thead>
             <tr className="bg-muted/50 border-b border-border">
               {columns.map((col) => (
@@ -252,7 +252,7 @@ function ResultTable({ data }: { data: unknown[] }) {
         </table>
       </div>
       <div className="px-2.5 py-1 bg-muted/30 border-t border-border">
-        <span className="text-[10px] text-muted-foreground">
+        <span className="text-xs text-muted-foreground">
           {data.length}개 결과
         </span>
       </div>
@@ -270,7 +270,7 @@ function ResultJson({ data: rawData }: { data: unknown }) {
   const json = useMemo(() => JSON.stringify(rawData, null, 2), [rawData]);
 
   return (
-    <pre className="text-[11px] font-mono leading-relaxed p-3 bg-muted/30 rounded-md overflow-auto max-h-[300px] whitespace-pre-wrap break-all">
+    <pre className="text-xs font-mono leading-relaxed p-3 bg-muted/30 rounded-md overflow-auto max-h-[300px] whitespace-pre-wrap break-all">
       {json}
     </pre>
   );
@@ -331,17 +331,17 @@ function ResultGraph({ data }: { data: unknown[] }) {
   if (graphNodes.length === 0) {
     return (
       <div className="text-center py-6">
-        <p className="text-[11px] text-muted-foreground">
+        <p className="text-xs text-muted-foreground">
           그래프로 표시할 노드/관계가 없습니다
         </p>
-        <p className="text-[10px] text-muted-foreground/60 mt-1">
+        <p className="text-xs text-muted-foreground/60 mt-1">
           MATCH (n)-[r]-(m) RETURN n, r, m 형태의 쿼리를 사용하세요
         </p>
       </div>
     );
   }
 
-  const colors = ['#7c3aed', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
+  const colors = ['#7c3aed', '#8b5cf6', '#a78bfa', '#64748b', '#94a3b8', '#c4b5fd'];
 
   // Simple SVG graph visualization
   return (
@@ -392,7 +392,7 @@ function ResultGraph({ data }: { data: unknown[] }) {
         </defs>
       </svg>
       <div className="px-2.5 py-1 bg-muted/30 border-t border-border">
-        <span className="text-[10px] text-muted-foreground">
+        <span className="text-xs text-muted-foreground">
           {graphNodes.length}개 노드, {graphEdges.length}개 관계
         </span>
       </div>
@@ -608,13 +608,13 @@ export default function Text2CypherTab() {
         <div className="p-3 space-y-3">
           {/* Neo4j connection guard (production graph is the query target) */}
           {status && !status.connected && (
-            <div className="flex items-start gap-2 p-2.5 rounded-md bg-amber-500/10 border border-amber-500/20">
-              <WifiOff className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+            <div className="flex items-start gap-2 p-2.5 rounded-md bg-warning/10 border border-warning/20">
+              <WifiOff className="w-3.5 h-3.5 text-warning shrink-0 mt-0.5" />
               <div className="space-y-0.5">
-                <p className="text-[11px] font-medium text-amber-700 dark:text-amber-400">
+                <p className="text-xs font-medium text-warning">
                   Neo4j(반영본)에 연결되어 있지 않습니다
                 </p>
-                <p className="text-[10px] text-muted-foreground leading-relaxed">
+                <p className="text-xs text-muted-foreground leading-relaxed">
                   {status.suggestion ?? status.error ?? '연결 설정을 확인한 뒤 다시 시도하세요.'}
                 </p>
               </div>
@@ -624,7 +624,7 @@ export default function Text2CypherTab() {
           {/* Mode toggle + history */}
           <div className="flex items-center justify-between gap-2">
             <button
-              className="flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
               onClick={() => {
                 setMode((m) => (m === 'nl' ? 'direct' : 'nl'));
                 setResults(null);
@@ -643,7 +643,7 @@ export default function Text2CypherTab() {
 
             <div className="relative" ref={historyRef}>
               <button
-                className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
                 onClick={() => setShowHistory(!showHistory)}
                 disabled={history.length === 0}
               >
@@ -655,11 +655,11 @@ export default function Text2CypherTab() {
               {showHistory && history.length > 0 && (
                 <div className="absolute right-0 top-full mt-1 w-64 bg-popover border border-border rounded-lg shadow-lg z-50 overflow-hidden">
                   <div className="flex items-center justify-between px-2.5 py-1.5 border-b border-border bg-muted/30">
-                    <span className="text-[10px] font-semibold text-muted-foreground uppercase">
+                    <span className="text-xs font-semibold text-muted-foreground uppercase">
                       최근 쿼리
                     </span>
                     <button
-                      className="text-[10px] text-muted-foreground hover:text-destructive transition-colors flex items-center gap-0.5"
+                      className="text-xs text-muted-foreground hover:text-destructive transition-colors flex items-center gap-0.5"
                       onClick={handleClearHistory}
                     >
                       <Trash2 className="w-2.5 h-2.5" />
@@ -676,18 +676,18 @@ export default function Text2CypherTab() {
                         <div className="flex items-center gap-1.5 mb-0.5">
                           <Badge
                             variant="outline"
-                            className="h-3.5 text-[8px] px-1 shrink-0"
+                            className="h-5 text-xs px-1 shrink-0"
                           >
                             {entry.mode === 'nl' ? 'NL' : 'CQL'}
                           </Badge>
-                          <span className="text-[10px] text-muted-foreground">
+                          <span className="text-xs text-muted-foreground">
                             {new Date(entry.timestamp).toLocaleTimeString('ko-KR', {
                               hour: '2-digit',
                               minute: '2-digit',
                             })}
                           </span>
                         </div>
-                        <p className="text-[11px] text-foreground truncate">
+                        <p className="text-xs text-foreground truncate">
                           {entry.question}
                         </p>
                       </button>
@@ -744,7 +744,7 @@ export default function Text2CypherTab() {
           {(generatedCypher || (mode === 'direct' && cypherDraft.trim())) && (
             <div className="space-y-2">
               {mode === 'nl' && explanation && (
-                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                <p className="text-xs text-muted-foreground leading-relaxed">
                   {explanation.replace(/```[\s\S]*?```/g, '').trim().slice(0, 200)}
                   {explanation.length > 200 ? '...' : ''}
                 </p>
@@ -760,12 +760,12 @@ export default function Text2CypherTab() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-6 text-[10px] px-2 gap-1"
+                    className="h-6 text-xs px-2 gap-1"
                     onClick={handleCopy}
                     disabled={!activeCypher}
                   >
                     {copied ? (
-                      <Check className="w-3 h-3 text-emerald-500" />
+                      <Check className="w-3 h-3 text-success" />
                     ) : (
                       <Copy className="w-3 h-3" />
                     )}
@@ -773,7 +773,7 @@ export default function Text2CypherTab() {
                   </Button>
                   <Button
                     size="sm"
-                    className="h-6 text-[10px] px-2.5 gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                    className="h-6 text-xs px-2.5 gap-1 bg-success hover:bg-success/90 text-success-foreground"
                     onClick={() => setExecConfirmOpen(true)}
                     disabled={!activeCypher || executing}
                   >
@@ -793,7 +793,7 @@ export default function Text2CypherTab() {
           {error && (
             <div className="flex items-start gap-2 p-2.5 rounded-md bg-destructive/10 border border-destructive/20">
               <AlertCircle className="w-3.5 h-3.5 text-destructive shrink-0 mt-0.5" />
-              <p className="text-[11px] text-destructive leading-relaxed">
+              <p className="text-xs text-destructive leading-relaxed">
                 {error}
               </p>
             </div>
@@ -805,7 +805,7 @@ export default function Text2CypherTab() {
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-1">
                   <button
-                    className={`text-[10px] px-2 py-0.5 rounded-md transition-colors ${
+                    className={`text-xs px-2 py-0.5 rounded-md transition-colors ${
                       resultView === 'table'
                         ? 'bg-primary/10 text-primary font-medium'
                         : 'text-muted-foreground hover:text-foreground'
@@ -815,7 +815,7 @@ export default function Text2CypherTab() {
                     테이블
                   </button>
                   <button
-                    className={`text-[10px] px-2 py-0.5 rounded-md transition-colors ${
+                    className={`text-xs px-2 py-0.5 rounded-md transition-colors ${
                       resultView === 'graph'
                         ? 'bg-primary/10 text-primary font-medium'
                         : 'text-muted-foreground hover:text-foreground'
@@ -825,7 +825,7 @@ export default function Text2CypherTab() {
                     그래프
                   </button>
                   <button
-                    className={`text-[10px] px-2 py-0.5 rounded-md transition-colors ${
+                    className={`text-xs px-2 py-0.5 rounded-md transition-colors ${
                       resultView === 'json'
                         ? 'bg-primary/10 text-primary font-medium'
                         : 'text-muted-foreground hover:text-foreground'
@@ -840,7 +840,7 @@ export default function Text2CypherTab() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-6 text-[10px] px-2 gap-1"
+                    className="h-6 text-xs px-2 gap-1"
                     onClick={handleShowOnCanvas}
                   >
                     <Crosshair className="w-3 h-3" />
@@ -859,11 +859,11 @@ export default function Text2CypherTab() {
 
               {/* Production-basis note */}
               <div className="flex items-center gap-1.5 flex-wrap">
-                <p className="text-[10px] text-muted-foreground/70">
+                <p className="text-xs text-muted-foreground/70">
                   이 결과는 Neo4j(반영본) 기준입니다. 최근 편집은 push 후 반영됩니다.
                 </p>
                 {pendingCount > 0 && (
-                  <Badge variant="outline" className="h-4 text-[9px] px-1 text-amber-600 border-amber-500/40">
+                  <Badge variant="outline" className="h-5 text-xs px-1 text-warning border-warning/40">
                     미반영 변경 {pendingCount}건
                   </Badge>
                 )}
@@ -882,7 +882,7 @@ export default function Text2CypherTab() {
                   ? '자연어로 Neo4j를 질의하세요'
                   : 'Cypher 쿼리를 직접 실행하세요'}
               </p>
-              <p className="text-[10px] text-muted-foreground/70">
+              <p className="text-xs text-muted-foreground/70">
                 {mode === 'nl'
                   ? '"Engineer 노드와 연결된 모든 Equipment를 보여줘"'
                   : 'MATCH (n) RETURN n LIMIT 10'}
@@ -900,7 +900,7 @@ export default function Text2CypherTab() {
               이 쿼리는 스테이징이 아닌 <strong>운영(반영본)</strong> Neo4j 그래프에 직접 실행됩니다. 내용을 확인한 뒤 진행하세요.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <pre className="max-h-48 overflow-auto rounded-md bg-muted/50 p-2 text-[11px] font-mono whitespace-pre-wrap break-words">
+          <pre className="max-h-48 overflow-auto rounded-md bg-muted/50 p-2 text-xs font-mono whitespace-pre-wrap break-words">
             {mode === 'nl' ? generatedCypher : cypherDraft.trim()}
           </pre>
           <AlertDialogFooter>

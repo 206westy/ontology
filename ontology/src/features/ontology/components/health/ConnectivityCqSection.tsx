@@ -19,11 +19,11 @@ export default function ConnectivityCqSection({
     <div className="space-y-3">
       {/* 연결성(도달성) */}
       <div>
-        <h3 className="mb-1.5 text-[11px] font-semibold text-muted-foreground">
+        <h3 className="mb-1.5 text-xs font-semibold text-muted-foreground">
           연결성
         </h3>
         {connectivity.isConnected ? (
-          <div className="flex items-center gap-2 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-1.5 text-[11px] text-emerald-700 dark:text-emerald-400">
+          <div className="flex items-center gap-2 rounded-md border border-success/30 bg-success/10 px-2 py-1.5 text-xs text-success">
             <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
             <span>
               단일 연결 그래프입니다
@@ -32,7 +32,7 @@ export default function ConnectivityCqSection({
           </div>
         ) : (
           <div
-            className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-[11px] text-amber-700 dark:text-amber-400"
+            className="flex items-start gap-2 rounded-md border border-warning/30 bg-warning/10 px-2 py-1.5 text-xs text-warning"
             data-testid="connectivity-warning"
           >
             <Split className="mt-0.5 h-3.5 w-3.5 shrink-0" />
@@ -45,11 +45,11 @@ export default function ConnectivityCqSection({
       {cq && (
         <div>
           <div className="mb-1.5 flex items-center justify-between">
-            <h3 className="text-[11px] font-semibold text-muted-foreground">
+            <h3 className="text-xs font-semibold text-muted-foreground">
               CQ 통과율
             </h3>
             <span
-              className="flex items-center gap-1 text-[11px] font-medium text-foreground"
+              className="flex items-center gap-1 text-xs font-medium text-foreground"
               data-testid="cq-pass-rate"
             >
               <CircleCheck className="h-3.5 w-3.5 text-primary" />
@@ -60,14 +60,14 @@ export default function ConnectivityCqSection({
             {cq.results.map((r, i) => (
               <li
                 key={`${r.cq}-${i}`}
-                className="flex items-start gap-1.5 text-[10px] text-muted-foreground"
+                className="flex items-start gap-1.5 text-xs text-muted-foreground"
               >
                 {r.passed ? (
-                  <CheckCircle2 className="mt-0.5 h-3 w-3 shrink-0 text-emerald-600" />
+                  <CheckCircle2 className="mt-0.5 h-3 w-3 shrink-0 text-success" />
                 ) : (
-                  <XCircle className="mt-0.5 h-3 w-3 shrink-0 text-amber-600" />
+                  <XCircle className="mt-0.5 h-3 w-3 shrink-0 text-warning" />
                 )}
-                <span className={r.passed ? '' : 'text-amber-700 dark:text-amber-400'}>
+                <span className={r.passed ? '' : 'text-warning'}>
                   {r.cq}
                 </span>
               </li>
@@ -77,7 +77,7 @@ export default function ConnectivityCqSection({
       )}
 
       {!cq && (
-        <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground/70">
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground/70">
           <HelpCircle className="h-3 w-3" />
           패턴으로 생성하면 CQ 통과율이 표시됩니다.
         </div>

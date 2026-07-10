@@ -180,7 +180,7 @@ export default function RelationPopover() {
         {/* Target selection — only when targetId was not provided */}
         {needsTargetSelection && !resolvedTargetId && (
           <div className="mb-3">
-            <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-2">대상 노드 선택:</p>
+            <p className="text-xs font-semibold text-muted-foreground uppercase mb-2">대상 노드 선택:</p>
             <div className="relative mb-2">
               <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
               <Input
@@ -200,13 +200,13 @@ export default function RelationPopover() {
                     onClick={() => setSelectedTargetId(candidate.id)}
                   >
                     <span className="text-xs truncate flex-1">{candidate.name}</span>
-                    <Badge variant="outline" className="h-4 text-[8px] px-1 shrink-0 uppercase">
+                    <Badge variant="outline" className="text-xs px-1 py-0.5 shrink-0 uppercase">
                       {candidate.kind}
                     </Badge>
                   </button>
                 ))}
                 {targetCandidates.length === 0 && (
-                  <p className="text-[10px] text-muted-foreground text-center py-2">대상 노드가 없습니다</p>
+                  <p className="text-xs text-muted-foreground text-center py-2">대상 노드가 없습니다</p>
                 )}
               </div>
             </ScrollArea>
@@ -217,10 +217,10 @@ export default function RelationPopover() {
         {needsTargetSelection && resolvedTargetId && (
           <div className="mb-3">
             <div className="flex items-center gap-2">
-              <p className="text-[10px] font-semibold text-muted-foreground uppercase">대상:</p>
+              <p className="text-xs font-semibold text-muted-foreground uppercase">대상:</p>
               <span className="text-xs font-semibold">{targetName}</span>
               <button
-                className="text-[10px] text-primary hover:underline ml-auto"
+                className="text-xs text-primary hover:underline ml-auto"
                 onClick={() => setSelectedTargetId(null)}
               >
                 변경
@@ -232,7 +232,7 @@ export default function RelationPopover() {
         {/* Existing relation types — only show after target is selected */}
         {resolvedTargetId && relationTypes.length > 0 && (
           <div className="mb-3">
-            <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-2">기존 관계:</p>
+            <p className="text-xs font-semibold text-muted-foreground uppercase mb-2">기존 관계:</p>
             <div className="space-y-1">
               {relationTypes.map((rt) => (
                 <label
@@ -262,7 +262,7 @@ export default function RelationPopover() {
         {resolvedTargetId && (
           <div className="mb-4">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-[10px] font-semibold text-muted-foreground uppercase">
+              <p className="text-xs font-semibold text-muted-foreground uppercase">
                 {relationTypes.length > 0 ? '\uB610\uB294 \uC0C8\uB85C \uC785\uB825:' : '\uAD00\uACC4 \uC774\uB984:'}
               </p>
               <AutocompleteSuggestions
@@ -303,7 +303,7 @@ export default function RelationPopover() {
             />
             {/* Local fuzzy matches */}
             {newRelName.trim() && localRelMatches.length > 0 && (
-              <div className="mt-1 text-[10px] text-muted-foreground">
+              <div className="mt-1 text-xs text-muted-foreground">
                 {'\uC720\uC0AC: '}{localRelMatches.map((r) => r.name).join(', ')}
               </div>
             )}

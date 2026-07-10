@@ -10,7 +10,8 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { useOntologyStore } from '../hooks/useOntologyStore';
-import { NODE_COLORS } from '../constants/colors';
+import { getNodeCssColors } from '../constants/colors';
+import { getColorKey } from '../lib/to-cytoscape-elements';
 import type { OntologyClass, OntologyInstance, NodeColorKey } from '../lib/types';
 import ExplorerContextMenu, { type ExplorerContextTarget } from './ExplorerContextMenu';
 
@@ -56,7 +57,7 @@ function buildTree(
       ...classInstances.map((inst) => ({
         id: inst.id,
         name: inst.name,
-        color: '#86efac',
+        color: '#c4b5fd',
         type: 'instance' as const,
         instanceCount: 0,
         children: [],
@@ -148,14 +149,14 @@ const TreeItem = memo(function TreeItem({ item, searchQuery, onContextMenu }: { 
           <div
             className="w-2 h-2 rounded-full shrink-0"
             style={{
-              backgroundColor: item.color,
+              backgroundColor: getNodeCssColors(getColorKey(item.color)).borderColor,
               opacity: isEmpty ? 0.5 : 1,
             }}
           />
         ) : (
           <Circle
             className="w-2 h-2 shrink-0"
-            style={{ color: '#86efac' }}
+            style={{ color: 'hsl(var(--node-instance))' }}
             strokeWidth={2}
           />
         )}
@@ -171,12 +172,12 @@ const TreeItem = memo(function TreeItem({ item, searchQuery, onContextMenu }: { 
 
         {/* Instance count */}
         {isClass && item.instanceCount > 0 && (
-          <span className="text-[10px] font-mono text-muted-foreground ml-auto shrink-0">
+          <span className="text-xs font-mono text-muted-foreground ml-auto shrink-0">
             ({item.instanceCount})
           </span>
         )}
         {isClass && item.instanceCount === 0 && (
-          <span className="text-[10px] font-mono text-muted-foreground/50 ml-auto shrink-0">
+          <span className="text-xs font-mono text-muted-foreground/50 ml-auto shrink-0">
             (0)
           </span>
         )}
@@ -279,7 +280,7 @@ export default function ExplorerPanel() {
         </div>
         <div className="flex flex-col">
           <span className="font-semibold text-sm tracking-tight leading-tight gradient-brand-text">Ontology Studio</span>
-          <span className="text-[10px] text-muted-foreground leading-tight">PSK PEE Domain</span>
+          <span className="text-xs text-muted-foreground leading-tight">PSK PEE Domain</span>
         </div>
       </div>
 
@@ -303,7 +304,7 @@ export default function ExplorerPanel() {
       {/* Tree */}
       <ScrollArea className="flex-1 px-2">
         <div className="py-1">
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-2 py-2">
+          <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-2 py-2">
             클래스 트리
           </div>
           {filteredTree.length === 0 && (

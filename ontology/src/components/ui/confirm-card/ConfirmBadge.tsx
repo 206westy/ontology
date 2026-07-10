@@ -22,7 +22,7 @@ export function ConfirmBadge({ verdict, confidence, className }: ConfirmBadgePro
   return (
     <Badge
       variant="outline"
-      className={cn('h-5 gap-1 px-1.5 text-[11px]', VERDICT_TONE_CLASS[meta.tone], className)}
+      className={cn('h-5 gap-1 px-1.5 text-xs', VERDICT_TONE_CLASS[meta.tone], className)}
     >
       {meta.label}
       {confidence != null && (

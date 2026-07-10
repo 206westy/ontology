@@ -26,22 +26,16 @@ describe('buildFcoseOptions (C-4)', () => {
   });
 });
 
-describe('buildColaOptions (C-4 live physics)', () => {
-  it('produces an infinite, grabbable cola simulation', () => {
+describe('buildColaOptions (라이브 물리, 워프-안전)', () => {
+  it('produces an infinite cola sim with disconnected-repack disabled (no warp)', () => {
     const o = buildColaOptions() as Record<string, unknown>;
     expect(o.name).toBe('cola');
     expect(o.infinite).toBe(true);
     expect(o.fit).toBe(false);
-    expect(o.animate).toBe(true);
+    expect(o.randomize).toBe(false); // 현재 좌표에서 시작 → 순간이동 없음
+    expect(o.handleDisconnected).toBe(false); // 격자 재배치 금지 → 워프 원천 차단
     expect(o.ungrabifyWhileSimulating).toBe(false);
-    // edgeLength는 관계 타입별 차등 거리 함수 — 계층(isa)은 짧게, 일반 관계는 길게.
     expect(typeof o.edgeLength).toBe('function');
-    const edgeLength = o.edgeLength as (e: { hasClass: (c: string) => boolean }) => number;
-    const isaLen = edgeLength({ hasClass: (c) => c === 'isa' });
-    const relLen = edgeLength({ hasClass: () => false });
-    expect(isaLen).toBeLessThan(relLen);
-    expect(typeof o.nodeSpacing).toBe('number');
-    expect(o.avoidOverlap).toBe(true);
   });
 });
 

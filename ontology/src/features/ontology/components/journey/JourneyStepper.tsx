@@ -52,8 +52,8 @@ export default function JourneyStepper({ steps, currentStepId, completedIds }: J
   return (
     <div data-testid="journey-stepper" className="flex flex-col gap-1">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[11px] font-semibold text-foreground">가이드</span>
-        <Badge variant="secondary" className="h-4 px-1.5 text-[10px] font-mono">
+        <span className="text-xs font-semibold text-foreground">가이드</span>
+        <Badge variant="secondary" className="px-1.5 py-0.5 text-xs font-mono">
           {progress}/{steps.length}
         </Badge>
       </div>
@@ -70,7 +70,7 @@ export default function JourneyStepper({ steps, currentStepId, completedIds }: J
               className="flex items-center gap-1.5"
             >
               <Icon className={`h-3.5 w-3.5 shrink-0 ${ICON_CLASS[state]}`} />
-              <span className={`text-[11px] leading-tight ${LABEL_CLASS[state]}`}>{step.label}</span>
+              <span className={`text-xs leading-tight ${LABEL_CLASS[state]}`}>{step.label}</span>
             </li>
           );
         })}

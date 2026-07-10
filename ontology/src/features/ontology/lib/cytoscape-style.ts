@@ -53,10 +53,29 @@ export function buildStylesheet(c: ResolvedThemeColors): StylesheetJson {
       },
     },
     ...colorSelectors,
+    // 군집 색(Louvain 커뮤니티) — 의미 없던 타입색을 대체. colorSelectors 뒤에 두어 우선 적용.
+    // 관련(같은 군집) 노드는 같은 색, 인접 군집은 골든앵글로 뚜렷이 다른 색.
+    { selector: 'node[clusterColor]', style: { 'background-color': 'data(clusterColor)', 'border-color': 'data(clusterColor)' } },
+    // 색각 대비용 비색상 2차 채널 — 군집별 테두리 패턴(클래스 노드). 빈 클래스(dashed)는 아래에서 우선.
+    { selector: 'node[clusterBorder = "dashed"]', style: { 'border-style': 'dashed' } },
+    { selector: 'node[clusterBorder = "dotted"]', style: { 'border-style': 'dotted', 'border-width': 2 } },
     // 인스턴스 라벨: 호버하면 이름이 뜬다("이게 뭔지" 즉시 확인). 살짝 커지며 위로.
-    { selector: 'node[kind = "instance"].hover-focus', style: { label: 'data(label)', 'font-size': 10, width: 20, height: 20, 'background-opacity': 0.95, 'z-index': 99 } },
+    // 채도 높은 군집색 위에서도 읽히도록 카드색 텍스트 배경 부여(대비 확보 — WCAG).
+    {
+      selector: 'node[kind = "instance"].hover-focus',
+      style: {
+        label: 'data(label)', 'font-size': 10, width: 20, height: 20, 'background-opacity': 0.95, 'z-index': 99,
+        'text-background-color': c.card, 'text-background-opacity': 0.92, 'text-background-padding': '2px', 'text-background-shape': 'roundrectangle',
+      },
+    },
     // 인스턴스 선택(클릭→속성 패널) 시에도 이름 유지.
-    { selector: 'node[kind = "instance"]:selected', style: { label: 'data(label)', 'font-size': 10, 'z-index': 99 } },
+    {
+      selector: 'node[kind = "instance"]:selected',
+      style: {
+        label: 'data(label)', 'font-size': 10, 'z-index': 99,
+        'text-background-color': c.card, 'text-background-opacity': 0.92, 'text-background-padding': '2px', 'text-background-shape': 'roundrectangle',
+      },
+    },
     // 접힌 인스턴스(대량 클래스 기본 접힘) — display:none 이라 렌더·물리(cola)에서 함께 제외된다.
     { selector: 'node.collapsed', style: { display: 'none' } },
     // 빈 클래스 (인스턴스·자식 없음) — 점선 + 흐리게

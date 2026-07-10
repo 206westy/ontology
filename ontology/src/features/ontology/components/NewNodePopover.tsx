@@ -229,7 +229,7 @@ function PhaseMiniStepper({ current }: { current: number }) {
               }`}
             />
             <span
-              className={`text-[11px] leading-none ${
+              className={`text-xs leading-none ${
                 state === 'current'
                   ? 'font-medium text-primary'
                   : state === 'completed'
@@ -262,9 +262,9 @@ const DEDUP_LABEL: Record<string, string> = {
   new: '신규',
 };
 const DEDUP_BADGE: Record<string, string> = {
-  reuse: 'border-emerald-400 text-emerald-600',
-  relate: 'border-blue-400 text-blue-600',
-  possible_duplicate: 'border-amber-400 text-amber-600',
+  reuse: 'border-success/40 text-success',
+  relate: 'border-info/40 text-info',
+  possible_duplicate: 'border-warning/40 text-warning',
   new: 'border-muted-foreground/40 text-muted-foreground',
 };
 
@@ -274,8 +274,8 @@ const LAYER_LABEL: Record<string, string> = {
   kinetic: '행동',
 };
 const LAYER_BADGE: Record<string, string> = {
-  semantic: 'border-violet-400 text-violet-600',
-  kinetic: 'border-sky-400 text-sky-600',
+  semantic: 'border-primary/40 text-primary',
+  kinetic: 'border-muted-foreground/40 text-muted-foreground',
 };
 // PRD-L M2: 레이어 툴팁 보조문구.
 const LAYER_HINT: Record<string, string> = {
@@ -286,8 +286,8 @@ const LAYER_HINT: Record<string, string> = {
 // S4: Critic 검수 — 심각도 배지/라벨, 이슈 식별 키.
 const CRITIC_SEVERITY_LABEL: Record<CriticSeverity, string> = { high: '높음', med: '중간', low: '낮음' };
 const CRITIC_SEVERITY_BADGE: Record<CriticSeverity, string> = {
-  high: 'border-red-400 text-red-600',
-  med: 'border-amber-400 text-amber-600',
+  high: 'border-destructive/40 text-destructive',
+  med: 'border-warning/40 text-warning',
   low: 'border-muted-foreground/40 text-muted-foreground',
 };
 const criticKey = (i: CriticIssue) => `${i.ruleId}::${i.targetName}::${i.relatedName ?? ''}`;
@@ -1409,7 +1409,7 @@ export default function NewNodePopover() {
         </div>
         {rel.evidence && (
           <p
-            className="text-[11px] text-muted-foreground/70 italic line-clamp-1 pl-[18px]"
+            className="text-xs text-muted-foreground/70 italic line-clamp-1 pl-[18px]"
             title={rel.evidence}
           >
             &ldquo;{rel.evidence}&rdquo;
@@ -1457,12 +1457,12 @@ export default function NewNodePopover() {
               />
               <Badge
                 variant={item.isExisting ? 'outline' : 'secondary'}
-                className={`text-[11px] h-5 ${item.isExisting ? 'border-dashed text-muted-foreground' : ''}`}
+                className={`text-xs h-5 ${item.isExisting ? 'border-dashed text-muted-foreground' : ''}`}
               >
                 {item.isExisting ? '기존' : '+'} {item.name}
               </Badge>
               {item.isExisting && (
-                <span className="text-[11px] text-muted-foreground italic">연결됨</span>
+                <span className="text-xs text-muted-foreground italic">연결됨</span>
               )}
               {!item.isExisting && possibleDuplicates.has(item.name) && (
                 <button
@@ -1478,7 +1478,7 @@ export default function NewNodePopover() {
                 >
                   <Badge
                     variant="outline"
-                    className="text-[11px] h-5 px-1.5 border-dashed border-amber-400 text-amber-600 gap-0.5"
+                    className="text-xs h-5 px-1.5 border-dashed border-warning/40 text-warning gap-0.5"
                   >
                     <AlertTriangle className="w-2.5 h-2.5" />
                     중복 가능
@@ -1505,8 +1505,8 @@ export default function NewNodePopover() {
             </>
           ) : (
             <>
-              <span className="w-2 h-2 rounded-sm bg-emerald-400 shrink-0" />
-              <Badge variant="secondary" className="text-[11px] h-5">
+              <span className="w-2 h-2 rounded-sm bg-success shrink-0" />
+              <Badge variant="secondary" className="text-xs h-5">
                 + {item.name}
               </Badge>
               <Select
@@ -1514,8 +1514,8 @@ export default function NewNodePopover() {
                 onValueChange={(v) => setInstanceParent(item.originalIndex, v)}
               >
                 <SelectTrigger
-                  className={`h-6 text-[11px] px-2 w-auto gap-1 ${
-                    item.className ? '' : 'border-amber-400 text-amber-600'
+                  className={`h-6 text-xs px-2 w-auto gap-1 ${
+                    item.className ? '' : 'border-warning/40 text-warning'
                   }`}
                 >
                   <SelectValue placeholder="부모 선택" />
@@ -1552,7 +1552,7 @@ export default function NewNodePopover() {
             {instValues.map((v, vi) => (
               <span
                 key={vi}
-                className="text-[11px] font-mono text-muted-foreground bg-muted/50 rounded px-1"
+                className="text-xs font-mono text-muted-foreground bg-muted/50 rounded px-1"
               >
                 {v.propertyName}: {v.value}
               </span>
@@ -1583,7 +1583,7 @@ export default function NewNodePopover() {
           <Badge
             key={r}
             variant="outline"
-            className="text-[11px] h-5 px-1.5 border-amber-400 text-amber-600"
+            className="text-xs h-5 px-1.5 border-warning/40 text-warning"
           >
             {TRIAGE_REASON_LABEL[r]}
           </Badge>
@@ -1952,7 +1952,7 @@ export default function NewNodePopover() {
                     표를 붙여넣으면 AI가 컬럼·값·구조를 분석해 온톨로지로 만듭니다 — 첫 줄은 헤더(컬럼명).
                   </p>
                   <p
-                    className={`text-[11px] mb-3 tabular-nums ${
+                    className={`text-xs mb-3 tabular-nums ${
                       csvText.length > CSV_CHAR_LIMIT ? 'text-destructive' : 'text-muted-foreground/70'
                     }`}
                   >
@@ -2011,7 +2011,7 @@ export default function NewNodePopover() {
                   />
                 </div>
                 <span
-                  className="text-[11px] font-mono text-muted-foreground mt-1 block text-right"
+                  className="text-xs font-mono text-muted-foreground mt-1 block text-right"
                   data-testid="loading-elapsed"
                 >
                   경과 {elapsedSec}초
@@ -2025,7 +2025,7 @@ export default function NewNodePopover() {
                     {activeTab === 'csv' ? '컬럼·행 구조 분석 → 관계 추론' : '엔티티 추출 → 관계 추론'}
                   </span>
                 </div>
-                <p className="text-[11px] text-muted-foreground/70 pl-[22px]">
+                <p className="text-xs text-muted-foreground/70 pl-[22px]">
                   입력 분량에 따라 수십 초가 걸릴 수 있어요. 취소해도 입력은 그대로 남습니다.
                 </p>
               </div>
@@ -2066,15 +2066,15 @@ export default function NewNodePopover() {
 
               {/* H1: 조용히 누락되던 항목(임시 노드/관계 추출 실패 등)을 검토 단계에서 노출. */}
               {parsed && parsed.warnings.length > 0 && (
-                <div className="mb-3 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-2 dark:border-amber-700 dark:bg-amber-900/30">
-                  <p className="text-xs font-medium text-amber-700 dark:text-amber-400">
+                <div className="mb-3 rounded-md border border-warning/30 bg-warning-light px-2.5 py-2">
+                  <p className="text-xs font-medium text-warning">
                     확인 필요 {parsed.warnings.length}건
                   </p>
                   <ul className="mt-1 space-y-0.5">
                     {parsed.warnings.map((w, i) => (
                       <li
                         key={`${w.kind}-${i}`}
-                        className="text-[11px] text-amber-700/90 dark:text-amber-300/90"
+                        className="text-xs text-warning/90"
                       >
                         · {w.message}
                       </li>
@@ -2105,7 +2105,7 @@ export default function NewNodePopover() {
                   >
                     자동 반영 {autoCount}개
                     {reviewCount > 0 && (
-                      <span className="ml-1 font-medium text-amber-600">
+                      <span className="ml-1 font-medium text-warning">
                         · 검토 필요 {reviewCount}개
                       </span>
                     )}
@@ -2120,14 +2120,14 @@ export default function NewNodePopover() {
                     체크박스·전환 토글·삭제는 PRD-K/M4 행 렌더러를 그대로 재사용한다. */}
                 {parsed && reviewCount > 0 && (
                   <div data-testid="triage-review" className="mb-3">
-                    <span className="mb-1.5 block text-xs font-semibold uppercase text-amber-600">
+                    <span className="mb-1.5 block text-xs font-semibold uppercase text-warning">
                       검토 필요 {reviewCount}개
                     </span>
                     <div className="space-y-1.5">
                       {reviewTreeItems.map(({ item, i }) => (
                         <div
                           key={`rv-${item.type}-${item.name}-${i}`}
-                          className="rounded-md border border-amber-200 bg-amber-50/40 px-1 py-1 dark:border-amber-900/50 dark:bg-amber-900/10"
+                          className="rounded-md border border-warning/30 bg-warning-light/40 px-1 py-1"
                         >
                           {renderReasonBadges(treeRowReasons(item))}
                           {renderTreeRow(item, i)}
@@ -2136,7 +2136,7 @@ export default function NewNodePopover() {
                       {reviewRelations.map(({ rel, index }) => (
                         <div
                           key={`rvr-${index}`}
-                          className="rounded-md border border-amber-200 bg-amber-50/40 px-1 py-1 dark:border-amber-900/50 dark:bg-amber-900/10"
+                          className="rounded-md border border-warning/30 bg-warning-light/40 px-1 py-1"
                         >
                           {renderReasonBadges(triage?.byKey.get(relSelKey(rel))?.reasons ?? [])}
                           {renderRelationRow(rel, index)}
@@ -2200,7 +2200,7 @@ export default function NewNodePopover() {
                         />
                         <span className="text-xs font-mono">+ {prop.name}: {prop.dataType}</span>
                         {prop.className && (
-                          <span className="text-[11px] text-muted-foreground">({prop.className})</span>
+                          <span className="text-xs text-muted-foreground">({prop.className})</span>
                         )}
                         <button
                           className="ml-auto -my-1 flex h-6 w-6 shrink-0 items-center justify-center rounded opacity-60 transition-opacity text-muted-foreground hover:text-destructive group-hover:opacity-100"
@@ -2273,7 +2273,7 @@ export default function NewNodePopover() {
                         <ChevronRight className="w-3.5 h-3.5" />
                       </button>
                     </div>
-                    <p className="mt-1 text-[11px] text-muted-foreground/70">
+                    <p className="mt-1 text-xs text-muted-foreground/70">
                       검수는 선택 사항 — 언제든 아래 &quot;확정&quot;을 눌러도 됩니다.
                     </p>
                   </div>
@@ -2283,13 +2283,13 @@ export default function NewNodePopover() {
                       <span className="text-xs font-semibold text-muted-foreground uppercase mb-1.5 flex items-center gap-1.5">
                         검수
                         {visibleCriticIssues.length > 0 && (
-                          <Badge variant="outline" className="text-[11px] h-5 px-1.5 border-amber-400 text-amber-600">
+                          <Badge variant="outline" className="text-xs h-5 px-1.5 border-warning/40 text-warning">
                             {visibleCriticIssues.length}건
                           </Badge>
                         )}
                       </span>
                       {visibleCriticIssues.length === 0 ? (
-                        <p className="text-[11px] text-muted-foreground/70 pl-1">검수 통과 — 문제 없음</p>
+                        <p className="text-xs text-muted-foreground/70 pl-1">검수 통과 — 문제 없음</p>
                       ) : (
                         <div className="space-y-1">
                           {visibleCriticIssues.map((issue) => {
@@ -2299,7 +2299,7 @@ export default function NewNodePopover() {
                                 <div className="flex items-center gap-1.5">
                                   <Badge
                                     variant="outline"
-                                    className={`text-[11px] h-5 px-1.5 shrink-0 ${CRITIC_SEVERITY_BADGE[issue.severity]}`}
+                                    className={`text-xs h-5 px-1.5 shrink-0 ${CRITIC_SEVERITY_BADGE[issue.severity]}`}
                                   >
                                     {CRITIC_SEVERITY_LABEL[issue.severity]}
                                   </Badge>
@@ -2309,14 +2309,14 @@ export default function NewNodePopover() {
                                   <button
                                     type="button"
                                     onClick={() => setIgnoredCritic((prev) => new Set(prev).add(key))}
-                                    className="opacity-60 group-hover:opacity-100 transition-opacity text-[11px] text-muted-foreground hover:text-foreground ml-auto px-1.5 py-1 -my-1 border border-border rounded shrink-0"
+                                    className="opacity-60 group-hover:opacity-100 transition-opacity text-xs text-muted-foreground hover:text-foreground ml-auto px-1.5 py-1 -my-1 border border-border rounded shrink-0"
                                   >
                                     무시
                                   </button>
                                 </div>
-                                <p className="text-[11px] text-muted-foreground/70 mt-0.5">{issue.reason}</p>
+                                <p className="text-xs text-muted-foreground/70 mt-0.5">{issue.reason}</p>
                                 {issue.suggestion && (
-                                  <p className="text-[11px] text-muted-foreground/50 mt-0.5 italic">{issue.suggestion}</p>
+                                  <p className="text-xs text-muted-foreground/50 mt-0.5 italic">{issue.suggestion}</p>
                                 )}
                               </div>
                             );
@@ -2345,11 +2345,11 @@ export default function NewNodePopover() {
                       </span>
                     </label>
                     {enrichLoading && enrichments.length === 0 ? (
-                      <p className="text-[11px] text-muted-foreground/70 pl-1">
+                      <p className="text-xs text-muted-foreground/70 pl-1">
                         보강 대상 탐지 중...
                       </p>
                     ) : enrichments.length === 0 ? (
-                      <p className="text-[11px] text-muted-foreground/70 pl-1">
+                      <p className="text-xs text-muted-foreground/70 pl-1">
                         보강 제안 없음
                       </p>
                     ) : (
@@ -2391,12 +2391,12 @@ export default function NewNodePopover() {
                         {[...dedup.entries()].map(([name, d]) => (
                           <div key={name} className="rounded-md border border-border px-1.5 py-1">
                             <div className="flex items-center gap-1.5">
-                              <Badge variant="outline" className={`text-[11px] h-5 px-1.5 ${DEDUP_BADGE[d.decision]}`}>
+                              <Badge variant="outline" className={`text-xs h-5 px-1.5 ${DEDUP_BADGE[d.decision]}`}>
                                 {DEDUP_LABEL[d.decision]}
                               </Badge>
                               <span className="text-xs truncate">{name}</span>
                             </div>
-                            <p className="text-[11px] text-muted-foreground/70 mt-0.5">{d.reason}</p>
+                            <p className="text-xs text-muted-foreground/70 mt-0.5">{d.reason}</p>
                           </div>
                         ))}
                       </div>

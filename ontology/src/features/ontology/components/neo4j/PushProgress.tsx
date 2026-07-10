@@ -43,7 +43,7 @@ export default function PushProgress({ steps, currentIndex, totalSteps }: PushPr
         {steps.map((step, i) => (
           <div key={i} className="flex items-center gap-2 text-xs">
             {step.status === 'done' && (
-              <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+              <Check className="w-3.5 h-3.5 text-success shrink-0" />
             )}
             {step.status === 'running' && (
               <Loader2 className="w-3.5 h-3.5 text-primary animate-spin shrink-0" />
@@ -52,7 +52,7 @@ export default function PushProgress({ steps, currentIndex, totalSteps }: PushPr
               <Circle className="w-3.5 h-3.5 text-muted-foreground/50 shrink-0" />
             )}
             {step.status === 'error' && (
-              <span className="w-3.5 h-3.5 flex items-center justify-center text-destructive shrink-0 font-bold text-[10px]">
+              <span className="w-3.5 h-3.5 flex items-center justify-center text-destructive shrink-0 font-bold text-xs">
                 ✗
               </span>
             )}

@@ -92,16 +92,16 @@ export default function EntityResolutionSheet({
             <GitMerge className="w-4 h-4 text-primary" />
             중복 검사 / 병합
           </SheetTitle>
-          <SheetDescription className="text-[11px]">
+          <SheetDescription className="text-xs">
             이름이 같거나 유사한 항목을 검토하고 병합합니다. 병합은 변경사항으로 기록되어 커밋·반영 시 Neo4j에 정합됩니다.
           </SheetDescription>
         </SheetHeader>
 
         <div className="flex items-center justify-between py-2">
-          <span className="text-[11px] text-muted-foreground">
+          <span className="text-xs text-muted-foreground">
             후보 {candidates.length}건
           </span>
-          <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2" onClick={load} disabled={loading}>
+          <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={load} disabled={loading}>
             {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : '새로고침'}
           </Button>
         </div>
@@ -113,9 +113,9 @@ export default function EntityResolutionSheet({
             </div>
           ) : candidates.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
-              <CheckCircle2 className="w-8 h-8 text-emerald-500/70 mb-2" />
+              <CheckCircle2 className="w-8 h-8 text-success/70 mb-2" />
               <p className="text-xs text-muted-foreground">중복 후보가 없습니다</p>
-              <p className="text-[10px] text-muted-foreground/60 mt-1">
+              <p className="text-xs text-muted-foreground/60 mt-1">
                 이름이 유사한 클래스/인스턴스가 발견되지 않았습니다.
               </p>
             </div>

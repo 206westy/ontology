@@ -71,7 +71,7 @@ export default function BranchSwitcher() {
         <Button
           variant="ghost"
           size="sm"
-          className={`h-7 text-xs gap-1.5 max-w-[160px] ${currentBranch ? 'text-sky-600 dark:text-sky-400' : ''}`}
+          className={`h-7 text-xs gap-1.5 max-w-[160px] ${currentBranch ? 'text-primary' : ''}`}
           title="브랜치 선택 — 격리된 작업 공간에서 편집하고, 병합으로 main에 반영합니다"
           data-testid="branch-switcher"
         >
@@ -100,7 +100,7 @@ export default function BranchSwitcher() {
             </div>
           )}
           {!isLoading && (branchList?.length ?? 0) === 0 && (
-            <p className="px-2 py-2 text-[11px] text-muted-foreground">
+            <p className="px-2 py-2 text-xs text-muted-foreground">
               활성 브랜치가 없습니다. 아래에서 새 브랜치를 만들어 격리된 작업을 시작하세요.
             </p>
           )}
@@ -114,10 +114,10 @@ export default function BranchSwitcher() {
                 onClick={() => handleCheckout(b.id)}
                 className={`w-full flex items-center gap-2 px-2 py-1.5 text-xs rounded-md hover:bg-muted disabled:opacity-50 ${active ? 'text-primary font-medium' : 'text-foreground'}`}
               >
-                <GitBranch className="w-3 h-3 shrink-0 text-sky-500" />
+                <GitBranch className="w-3 h-3 shrink-0 text-primary" />
                 <span className="flex-1 text-left truncate">{b.name}</span>
                 {b.authorEmail && (
-                  <span className="text-[9px] text-muted-foreground truncate max-w-[70px]">
+                  <span className="text-xs text-muted-foreground truncate max-w-[70px]">
                     {b.authorEmail.split('@')[0]}
                   </span>
                 )}

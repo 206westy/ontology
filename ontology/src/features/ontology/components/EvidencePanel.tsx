@@ -43,7 +43,7 @@ function hasProvenance(p?: EvidenceProvenance | null): boolean {
 function ConfidenceBandChip({ confidence }: { confidence?: number | null }) {
   if (confidence == null) return null;
   return (
-    <Badge variant="outline" className="h-4 px-1 text-[9px] text-muted-foreground shrink-0">
+    <Badge variant="outline" className="h-5 px-1 text-xs text-muted-foreground shrink-0">
       신뢰도 {CONFIDENCE_BAND_LABEL[confidenceBand(confidence)]}
     </Badge>
   );
@@ -52,7 +52,7 @@ function ConfidenceBandChip({ confidence }: { confidence?: number | null }) {
 function SourceTypeBadge({ sourceType }: { sourceType?: string | null }) {
   if (!sourceType) return null;
   return (
-    <Badge variant="outline" className="h-4 px-1 text-[9px] text-muted-foreground shrink-0">
+    <Badge variant="outline" className="h-5 px-1 text-xs text-muted-foreground shrink-0">
       {sourceTypeLabel(sourceType)}
     </Badge>
   );
@@ -62,7 +62,7 @@ function EvidenceQuote({ evidence }: { evidence?: string | null }) {
   if (!hasEvidenceText(evidence)) return null;
   return (
     <p
-      className="text-[10px] leading-snug text-muted-foreground/70 italic line-clamp-3"
+      className="text-xs leading-snug text-muted-foreground/70 italic line-clamp-3"
       title={evidence ?? undefined}
     >
       &ldquo;{evidence}&rdquo;
@@ -83,7 +83,7 @@ export default function EvidencePanel({ nodeName, nodeProvenance, edgeEvidence }
             <FileSearch className="w-5 h-5 text-muted-foreground" />
           </div>
           <p className="text-xs text-muted-foreground">근거 정보 없음</p>
-          <p className="mt-1 text-[10px] text-muted-foreground/70 leading-snug">
+          <p className="mt-1 text-xs text-muted-foreground/70 leading-snug">
             이 노드는 출처·근거가 기록되지 않았습니다
           </p>
         </div>
@@ -94,7 +94,7 @@ export default function EvidencePanel({ nodeName, nodeProvenance, edgeEvidence }
   return (
     <ScrollArea className="h-full">
       <div className="px-4 py-3">
-        <p className="text-[10px] leading-snug text-muted-foreground/70">
+        <p className="text-xs leading-snug text-muted-foreground/70">
           이 정보가 어디서 왔는지 보여줍니다. AI 확신도는 재현이 어려운 신호라 정성 등급(높음·보통·낮음)으로만 표기합니다.
         </p>
       </div>
@@ -106,10 +106,10 @@ export default function EvidencePanel({ nodeName, nodeProvenance, edgeEvidence }
         <>
           <div className="px-4 py-2 space-y-1.5">
             <div className="flex items-center gap-1.5 mb-1">
-              <span className="text-[11px] font-semibold tracking-tight text-foreground/80">노드 출처</span>
+              <span className="text-xs font-semibold tracking-tight text-foreground/80">노드 출처</span>
             </div>
             <div className="flex items-center flex-wrap gap-1">
-              <span className="text-[11px] text-foreground truncate">{nodeName}</span>
+              <span className="text-xs text-foreground truncate">{nodeName}</span>
               <SourceTypeBadge sourceType={nodeProvenance?.sourceType} />
               <ConfidenceBandChip confidence={nodeProvenance?.confidence} />
             </div>
@@ -123,8 +123,8 @@ export default function EvidencePanel({ nodeName, nodeProvenance, edgeEvidence }
       {edgesWithProvenance.length > 0 && (
         <div className="px-4 py-2">
           <div className="flex items-center gap-1.5 mb-2">
-            <span className="text-[11px] font-semibold tracking-tight text-foreground/80">관계 출처</span>
-            <span className="text-[10px] font-mono text-muted-foreground ml-auto">
+            <span className="text-xs font-semibold tracking-tight text-foreground/80">관계 출처</span>
+            <span className="text-xs font-mono text-muted-foreground ml-auto">
               ({edgesWithProvenance.length})
             </span>
           </div>
@@ -139,11 +139,11 @@ export default function EvidencePanel({ nodeName, nodeProvenance, edgeEvidence }
                   )}
                   <Badge
                     variant="secondary"
-                    className="h-4 text-[9px] px-1.5 font-normal bg-cyan-50 text-cyan-700 border-cyan-200 shrink-0"
+                    className="h-5 text-xs px-1.5 font-normal bg-info-light text-info border-info/30 shrink-0"
                   >
                     {edge.relationName}
                   </Badge>
-                  <span className="text-[11px] text-foreground truncate">{edge.otherName}</span>
+                  <span className="text-xs text-foreground truncate">{edge.otherName}</span>
                   <SourceTypeBadge sourceType={edge.sourceType} />
                   <ConfidenceBandChip confidence={edge.confidence} />
                 </div>

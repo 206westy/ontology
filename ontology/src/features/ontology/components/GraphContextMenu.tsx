@@ -169,7 +169,7 @@ export default function GraphContextMenu({
           <MenuItem onClick={() => handleAction(() => onNewClass?.(target.position))}>
             <Plus className="w-3.5 h-3.5" />
             새 클래스
-            <span className="ml-auto text-[10px] text-muted-foreground">N</span>
+            <span className="ml-auto text-xs text-muted-foreground">N</span>
           </MenuItem>
           <MenuItem onClick={() => handleAction(() => onNewInstance?.(target.position))}>
             <UserPlus className="w-3.5 h-3.5" />
@@ -183,7 +183,7 @@ export default function GraphContextMenu({
           <MenuItem onClick={() => handleAction(() => onFitView?.())}>
             <Maximize2 className="w-3.5 h-3.5" />
             전체 보기
-            <span className="ml-auto text-[10px] text-muted-foreground">Fit</span>
+            <span className="ml-auto text-xs text-muted-foreground">Fit</span>
           </MenuItem>
           <MenuSeparator />
           <MenuItem destructive onClick={() => handleAction(() => onClearAll?.())}>
@@ -195,14 +195,14 @@ export default function GraphContextMenu({
 
       {target.type === 'class' && (
         <>
-          <div className="px-2.5 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+          <div className="px-2.5 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
             {target.nodeName}
           </div>
           <MenuSeparator />
           <MenuItem onClick={() => handleAction(() => onRenameNode?.(target.nodeId))}>
             <Pencil className="w-3.5 h-3.5" />
             이름 변경
-            <span className="ml-auto text-[10px] text-muted-foreground">F2</span>
+            <span className="ml-auto text-xs text-muted-foreground">F2</span>
           </MenuItem>
           <div className="px-1">
             <div className="flex items-center gap-2 px-1.5 py-1 text-xs text-foreground">
@@ -243,21 +243,21 @@ export default function GraphContextMenu({
           <MenuItem destructive onClick={() => handleAction(() => onDeleteNode?.(target.nodeId))}>
             <Trash2 className="w-3.5 h-3.5" />
             삭제
-            <span className="ml-auto text-[10px]">Delete</span>
+            <span className="ml-auto text-xs">Delete</span>
           </MenuItem>
         </>
       )}
 
       {target.type === 'instance' && (
         <>
-          <div className="px-2.5 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+          <div className="px-2.5 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
             {target.nodeName}
           </div>
           <MenuSeparator />
           <MenuItem onClick={() => handleAction(() => onRenameNode?.(target.nodeId))}>
             <Pencil className="w-3.5 h-3.5" />
             이름 변경
-            <span className="ml-auto text-[10px] text-muted-foreground">F2</span>
+            <span className="ml-auto text-xs text-muted-foreground">F2</span>
           </MenuItem>
           <MenuItem onClick={() => handleAction(() => onAddRelation?.(target.nodeId))}>
             <Link2 className="w-3.5 h-3.5" />
@@ -282,14 +282,14 @@ export default function GraphContextMenu({
           <MenuItem destructive onClick={() => handleAction(() => onDeleteNode?.(target.nodeId))}>
             <Trash2 className="w-3.5 h-3.5" />
             삭제
-            <span className="ml-auto text-[10px]">Delete</span>
+            <span className="ml-auto text-xs">Delete</span>
           </MenuItem>
         </>
       )}
 
       {target.type === 'edge' && (
         <>
-          <div className="px-2.5 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+          <div className="px-2.5 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
             {target.edgeLabel || '관계'}
           </div>
           <MenuSeparator />

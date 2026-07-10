@@ -304,7 +304,7 @@ export default function NeoConfirmSheet({ open, onOpenChange }: NeoConfirmSheetP
 
                 {licenseWarning && (
                   <div
-                    className="flex items-start gap-2 rounded-md border border-amber-400/60 bg-amber-50 p-2 text-[11px] text-amber-700 dark:bg-amber-950/30 dark:text-amber-400"
+                    className="flex items-start gap-2 rounded-md border border-warning/30 bg-warning/10 p-2 text-xs text-warning"
                     data-testid="publish-license-warning"
                   >
                     <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
@@ -325,7 +325,7 @@ export default function NeoConfirmSheet({ open, onOpenChange }: NeoConfirmSheetP
                   </Button>
                   <Button
                     size="sm"
-                    className="h-8 text-xs gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                    className="h-8 text-xs gap-1 bg-success hover:bg-success/90 text-white"
                     onClick={handlePush}
                   >
                     발행 실행

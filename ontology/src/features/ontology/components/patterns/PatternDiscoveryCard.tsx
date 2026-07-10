@@ -48,7 +48,7 @@ export default function PatternDiscoveryCard({
           {originText}
           {licenseWarning && ' · 라이선스 미확인'}
           {source?.uri && (
-            <span className="mt-0.5 block truncate font-mono text-[9px] not-italic text-muted-foreground/70">
+            <span className="mt-0.5 block truncate font-mono text-xs not-italic text-muted-foreground/70">
               {source.uri}
             </span>
           )}
@@ -60,7 +60,7 @@ export default function PatternDiscoveryCard({
             <Button
               variant="ghost"
               size="sm"
-              className="h-6 gap-0.5 px-2 text-[10px]"
+              className="h-6 gap-0.5 px-2 text-xs"
               onClick={onManual}
             >
               <PencilLine className="h-3 w-3" />
@@ -71,7 +71,7 @@ export default function PatternDiscoveryCard({
             <Button
               variant="outline"
               size="sm"
-              className="h-6 gap-0.5 px-2 text-[10px]"
+              className="h-6 gap-0.5 px-2 text-xs"
               onClick={onAdjust}
             >
               <Wrench className="h-3 w-3" />
@@ -81,7 +81,7 @@ export default function PatternDiscoveryCard({
           <Button
             variant="default"
             size="sm"
-            className="h-6 gap-0.5 px-2 text-[10px]"
+            className="h-6 gap-0.5 px-2 text-xs"
             onClick={onUse}
           >
             <Check className="h-3 w-3" />

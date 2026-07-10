@@ -14,7 +14,11 @@ import {
 // 재검증을 통과한 이력이 있으면 원격 재검증을 생략한다.
 // 보안 트레이드오프(문서화): 서버측 세션 무효화(강제 로그아웃)가 최대 TTL(60s)
 // 지연 반영된다. 쿠키 자체가 bearer 자격증명이므로 새로운 공격면은 없다.
-// 페이지 라우트는 캐시하지 않는다(리프레시·리다이렉트 의미 보존).
+//
+// 캐시 HIT(재검증 생략)는 /api 요청에만 적용한다 — 페이지 라우트는 리프레시·리다이렉트
+// 의미를 보존하려 항상 getUser 를 돈다. 다만 캐시 SEED 는 페이지 라우트 검증 성공 시에도
+// 수행한다(로그인 개선): 로그인 직후 `/` 의 getUser 한 번이 직후 `/api` 버스트의
+// 재검증을 없애 왕복 1회를 제거한다.
 const API_AUTH_TTL_MS = 60_000;
 const API_AUTH_MAX_ENTRIES = 1000;
 const verifiedApiAuth = new Map<string, number>();
@@ -92,6 +96,12 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
+  // 로그인 지연 개선: 검증에 성공하면 페이지 라우트에서도 캐시를 시드한다.
+  // 기존엔 `/api/` 분기에서만 시드해서, 로그인 직후 `/`(페이지 라우트) 진입 시의
+  // getUser 가 캐시를 남기지 못했고 → 직후 `/api` 버스트가 또 원격 재검증했다.
+  // 이제 `/` getUser 한 번으로 60s 동안 `/api` 재검증을 생략한다(TTL·트레이드오프 동일).
+  if (user) rememberApiAuth(request);
+
   const path = request.nextUrl.pathname;
   const isAuthPage = AUTH_PAGE_PREFIXES.some((p) => path.startsWith(p));
   const isAuthPublic =
@@ -104,7 +114,7 @@ export async function updateSession(request: NextRequest) {
     if (!user) {
       return jsonUnauthorized(supabaseResponse);
     }
-    rememberApiAuth(request); // 검증 통과 세션만 캐시 (미인증은 매번 재검증)
+    // 캐시 시드는 위에서 user 검증 성공 시 이미 수행됨(미인증은 매번 재검증).
     return supabaseResponse;
   }
 

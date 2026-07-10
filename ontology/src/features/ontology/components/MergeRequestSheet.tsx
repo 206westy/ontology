@@ -44,16 +44,16 @@ const STATUS_META: Record<
   MergeRequestRow['status'],
   { label: string; className: string }
 > = {
-  open: { label: '열림', className: 'bg-sky-100 text-sky-700 border-sky-300 dark:bg-sky-900/40 dark:text-sky-400' },
-  approved: { label: '승인됨', className: 'bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-900/40 dark:text-emerald-400' },
-  merged: { label: '병합됨', className: 'bg-violet-100 text-violet-700 border-violet-300 dark:bg-violet-900/40 dark:text-violet-400' },
+  open: { label: '열림', className: 'bg-muted text-muted-foreground border-border' },
+  approved: { label: '승인됨', className: 'bg-success-light text-success border-success/30' },
+  merged: { label: '병합됨', className: 'bg-primary/10 text-primary border-primary/30' },
   closed: { label: '닫힘', className: 'bg-muted text-muted-foreground' },
 };
 
 const OP_META = {
-  ADD: { icon: Plus, className: 'text-emerald-600 dark:text-emerald-400' },
-  MOD: { icon: Pencil, className: 'text-amber-600 dark:text-amber-400' },
-  DEL: { icon: Trash2, className: 'text-red-600 dark:text-red-400' },
+  ADD: { icon: Plus, className: 'text-success' },
+  MOD: { icon: Pencil, className: 'text-warning' },
+  DEL: { icon: Trash2, className: 'text-destructive' },
 } as const;
 
 const TABLE_LABELS: Record<string, string> = {
@@ -86,7 +86,7 @@ function ChangeRow({ change }: { change: MergeNetChange }) {
   return (
     <div className="flex items-center gap-2 py-0.5 px-2 rounded hover:bg-muted/50">
       <Icon className={`w-3 h-3 shrink-0 ${meta.className}`} />
-      <span className="text-[10px] text-muted-foreground font-mono shrink-0">
+      <span className="text-xs text-muted-foreground font-mono shrink-0">
         {TABLE_LABELS[change.targetTable] ?? change.targetTable}
       </span>
       <span className="text-xs truncate">{changeName(change)}</span>
@@ -264,12 +264,12 @@ export default function MergeRequestSheet({ open, onOpenChange }: MergeRequestSh
                       <GitPullRequest className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
                       <div className="flex-1 min-w-0">
                         <p className="text-xs truncate">{mr.title}</p>
-                        <p className="text-[10px] text-muted-foreground truncate">
+                        <p className="text-xs text-muted-foreground truncate">
                           {mr.branch?.name ?? mr.branchId.slice(0, 8)}
                           {mr.authorEmail ? ` · ${mr.authorEmail.split('@')[0]}` : ''}
                         </p>
                       </div>
-                      <Badge variant="outline" className={`h-4 text-[9px] px-1 shrink-0 ${meta.className}`}>
+                      <Badge variant="outline" className={`h-5 text-xs px-1 shrink-0 ${meta.className}`}>
                         {meta.label}
                       </Badge>
                     </button>
@@ -299,7 +299,7 @@ export default function MergeRequestSheet({ open, onOpenChange }: MergeRequestSh
                   </span>
                   <Badge
                     variant="outline"
-                    className={`h-4 text-[9px] px-1 shrink-0 ${STATUS_META[detail.mergeRequest.status].className}`}
+                    className={`h-5 text-xs px-1 shrink-0 ${STATUS_META[detail.mergeRequest.status].className}`}
                   >
                     {STATUS_META[detail.mergeRequest.status].label}
                   </Badge>
@@ -317,12 +317,12 @@ export default function MergeRequestSheet({ open, onOpenChange }: MergeRequestSh
               <>
                 <ScrollArea className="flex-1 -mx-6 px-6">
                   <div className="space-y-3 py-2">
-                    <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <span>브랜치 변경 {detail.stats.mine}건</span>
                       <span>·</span>
                       <span>자동 적용 {detail.stats.autoApply}건</span>
                       <span>·</span>
-                      <span className={detail.stats.conflicts > 0 ? 'text-red-500 font-medium' : ''}>
+                      <span className={detail.stats.conflicts > 0 ? 'text-destructive font-medium' : ''}>
                         충돌 {detail.stats.conflicts}건
                       </span>
                       {detail.stats.identical > 0 && (
@@ -336,7 +336,7 @@ export default function MergeRequestSheet({ open, onOpenChange }: MergeRequestSh
                     {/* 자동 적용 목록 */}
                     {detail.plan.autoApply.length > 0 && (
                       <div>
-                        <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">
+                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">
                           자동 적용
                         </p>
                         <div className="space-y-0.5">
@@ -350,19 +350,19 @@ export default function MergeRequestSheet({ open, onOpenChange }: MergeRequestSh
                     {/* 충돌 목록 + 해소 */}
                     {detail.plan.conflicts.length > 0 && (
                       <div>
-                        <p className="text-[10px] font-medium text-red-500 uppercase tracking-wider mb-1 flex items-center gap-1">
+                        <p className="text-xs font-medium text-destructive uppercase tracking-wider mb-1 flex items-center gap-1">
                           <ShieldAlert className="w-3 h-3" />
                           충돌 — 항목별로 선택하세요
                         </p>
                         <div className="space-y-2">
                           {detail.plan.conflicts.map((c) => (
-                            <div key={c.key} className="border border-red-300/50 dark:border-red-800/50 rounded-md p-2 space-y-1.5">
+                            <div key={c.key} className="border border-destructive/30 rounded-md p-2 space-y-1.5">
                               <div className="flex items-center gap-2">
                                 <span className="text-xs font-medium truncate">{c.targetName}</span>
-                                <span className="text-[9px] text-muted-foreground font-mono">
+                                <span className="text-xs text-muted-foreground font-mono">
                                   {TABLE_LABELS[c.targetTable] ?? c.targetTable}
                                 </span>
-                                <Badge variant="outline" className="h-4 text-[9px] px-1 ml-auto text-red-600 border-red-400/50">
+                                <Badge variant="outline" className="h-5 text-xs px-1 ml-auto text-destructive border-destructive/40">
                                   {REASON_LABELS[c.reason] ?? c.reason}
                                 </Badge>
                               </div>
@@ -370,9 +370,9 @@ export default function MergeRequestSheet({ open, onOpenChange }: MergeRequestSh
                                 <button
                                   type="button"
                                   onClick={() => setChoices((p) => ({ ...p, [c.key]: 'mine' }))}
-                                  className={`text-left rounded border p-1.5 text-[10px] transition-colors ${
+                                  className={`text-left rounded border p-1.5 text-xs transition-colors ${
                                     choices[c.key] === 'mine'
-                                      ? 'border-sky-500 bg-sky-50 dark:bg-sky-900/30'
+                                      ? 'border-primary bg-primary/10'
                                       : 'border-border hover:bg-muted/50'
                                   }`}
                                 >
@@ -388,9 +388,9 @@ export default function MergeRequestSheet({ open, onOpenChange }: MergeRequestSh
                                 <button
                                   type="button"
                                   onClick={() => setChoices((p) => ({ ...p, [c.key]: 'theirs' }))}
-                                  className={`text-left rounded border p-1.5 text-[10px] transition-colors ${
+                                  className={`text-left rounded border p-1.5 text-xs transition-colors ${
                                     choices[c.key] === 'theirs'
-                                      ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/30'
+                                      ? 'border-success bg-success-light'
                                       : 'border-border hover:bg-muted/50'
                                   }`}
                                 >
@@ -420,7 +420,7 @@ export default function MergeRequestSheet({ open, onOpenChange }: MergeRequestSh
                       <Button
                         variant="outline"
                         size="sm"
-                        className="h-7 text-[11px] gap-1"
+                        className="h-7 text-xs gap-1"
                         disabled={isBusy}
                         onClick={() => handleReview('approved')}
                         data-testid="mr-approve-btn"
@@ -432,7 +432,7 @@ export default function MergeRequestSheet({ open, onOpenChange }: MergeRequestSh
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-7 text-[11px] gap-1 text-muted-foreground"
+                      className="h-7 text-xs gap-1 text-muted-foreground"
                       disabled={isBusy}
                       onClick={() => handleReview('closed')}
                     >
@@ -442,7 +442,7 @@ export default function MergeRequestSheet({ open, onOpenChange }: MergeRequestSh
                     <div className="flex-1" />
                     <Button
                       size="sm"
-                      className="h-7 text-[11px] gap-1 bg-violet-600 hover:bg-violet-700 text-white"
+                      className="h-7 text-xs gap-1 bg-primary hover:bg-primary/90 text-primary-foreground"
                       disabled={isBusy || unresolvedCount > 0}
                       onClick={handleMerge}
                       title={

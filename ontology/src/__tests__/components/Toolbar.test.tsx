@@ -69,10 +69,9 @@ describe('Toolbar (A-4)', () => {
     resetStore();
   });
 
-  it('should render toolbar with title and version', () => {
+  it('should render the toolbar', () => {
     renderToolbar();
-    expect(screen.getByText('PSK PEE Ontology')).toBeInTheDocument();
-    expect(screen.getByText('v0.1 draft')).toBeInTheDocument();
+    expect(screen.getByTestId('toolbar')).toBeInTheDocument();
   });
 
   it('should have select and pan mode buttons', () => {

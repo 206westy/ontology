@@ -66,7 +66,7 @@ export default function BridgeSuggestCard({
           <Button
             variant="ghost"
             size="sm"
-            className="h-6 gap-0.5 px-2 text-[10px]"
+            className="h-6 gap-0.5 px-2 text-xs"
             onClick={onDistinct}
           >
             <SplitSquareHorizontal className="h-3 w-3" />
@@ -75,7 +75,7 @@ export default function BridgeSuggestCard({
           <Button
             variant="default"
             size="sm"
-            className="h-6 gap-0.5 px-2 text-[10px]"
+            className="h-6 gap-0.5 px-2 text-xs"
             onClick={() => onConnect(suggestion)}
             disabled={connecting}
           >

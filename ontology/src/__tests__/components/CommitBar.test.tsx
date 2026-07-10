@@ -120,11 +120,9 @@ describe('CommitBar', () => {
     renderBar();
 
     const undoBtn = screen.getByText('전체 취소').closest('button');
-    const changeListBtn = screen.getByText('변경 내역').closest('button');
     const pushBtn = screen.getByTestId('neo4j-push-btn');
 
     expect(undoBtn).toBeDisabled();
-    expect(changeListBtn).toBeDisabled();
     expect(pushBtn).toBeDisabled();
   });
 
@@ -134,11 +132,9 @@ describe('CommitBar', () => {
     renderBar();
 
     const undoBtn = screen.getByText('전체 취소').closest('button');
-    const changeListBtn = screen.getByText('변경 내역').closest('button');
     const pushBtn = screen.getByTestId('neo4j-push-btn');
 
     expect(undoBtn).not.toBeDisabled();
-    expect(changeListBtn).not.toBeDisabled();
     expect(pushBtn).not.toBeDisabled();
   });
 
@@ -153,31 +149,31 @@ describe('CommitBar', () => {
   });
 
   // A-5: ADD/MOD/DEL separate display with colors
-  it('should show ADD count in emerald', () => {
+  it('should show ADD count in success color', () => {
     useOntologyStore.getState().addClass({ name: 'A' });
     useOntologyStore.getState().addClass({ name: 'B' });
 
     renderBar();
     const addSpan = screen.getByText('+2');
-    expect(addSpan.className).toContain('emerald');
+    expect(addSpan.className).toContain('success');
   });
 
-  it('should show MOD count in amber', () => {
+  it('should show MOD count in warning color', () => {
     const id = useOntologyStore.getState().addClass({ name: 'Old' });
     useOntologyStore.getState().updateClass(id, { name: 'New' });
 
     renderBar();
     const modSpan = screen.getByText('~1');
-    expect(modSpan.className).toContain('amber');
+    expect(modSpan.className).toContain('warning');
   });
 
-  it('should show DEL count in red', () => {
+  it('should show DEL count in destructive color', () => {
     const id = useOntologyStore.getState().addClass({ name: 'Gone' });
     useOntologyStore.getState().removeClass(id);
 
     renderBar();
     const delSpan = screen.getByText('-1');
-    expect(delSpan.className).toContain('red');
+    expect(delSpan.className).toContain('destructive');
   });
 
   it('should show mixed ADD/MOD/DEL counts (A-5)', () => {

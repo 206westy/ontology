@@ -38,6 +38,7 @@ export default function GraphLegend() {
 
       {open && (
         <div className="px-2 pb-2">
+          <p className="px-1.5 pb-1 text-xs font-medium text-muted-foreground">유형으로 걸러보기</p>
           <ul className="grid grid-cols-2 gap-x-1 gap-y-0.5">
             {KEYS.map((key) => {
               const { borderColor } = getNodeCssColors(key);
@@ -49,13 +50,14 @@ export default function GraphLegend() {
                     onClick={() => toggleColorFilter(key)}
                     aria-pressed={on}
                     aria-label={`${NODE_COLOR_LABELS[key]} 도메인 토글`}
-                    className="flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-[11px] text-foreground transition-[background-color,opacity] hover:bg-accent/40 motion-reduce:transition-none"
+                    className="flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-xs text-foreground transition-[background-color,opacity] hover:bg-accent/40 motion-reduce:transition-none"
                     style={{ opacity: on ? 1 : 0.4 }}
                   >
                     <span
                       aria-hidden="true"
-                      className="h-2.5 w-2.5 shrink-0 rounded-full border"
+                      className="h-2.5 w-2.5 shrink-0 rounded-[3px] border"
                       style={{
+                        // 유형 필터 토큰(캔버스 노드 색이 아님 — 캔버스 색은 군집색).
                         // 활성: 채움 / 비활성(필터 제외): 외곽선만(hollow)
                         backgroundColor: on ? borderColor : 'transparent',
                         borderColor,
@@ -68,7 +70,7 @@ export default function GraphLegend() {
             })}
           </ul>
 
-          <div className="mt-2 space-y-1 border-t border-border/60 px-1.5 pt-1.5 text-[10px] leading-relaxed text-muted-foreground">
+          <div className="mt-2 space-y-1 border-t border-border/60 px-1.5 pt-1.5 text-xs leading-relaxed text-muted-foreground">
             {/* 모양 = 종류 */}
             <div className="flex items-center gap-1.5">
               <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" className="shrink-0">
@@ -110,7 +112,7 @@ export default function GraphLegend() {
               <span>실선 = 관계(이름 표시)</span>
             </div>
             <p className="pt-1">
-              <span className="text-foreground/80">색</span> = 도메인 ·{' '}
+              <span className="text-foreground/80">색</span> = 관련 군집(같은 색 = 관련) ·{' '}
               <span className="text-foreground/80">크기</span> = 연결 차수
             </p>
             <p className="text-muted-foreground/70">클래스 더블클릭 = 인스턴스 펼침/접기</p>

@@ -14,8 +14,8 @@ const RULE_LABELS: Record<string, string> = {
 
 function severityIcon(sev: ValidationIssue['severity']) {
   if (sev === 'error') return <AlertCircle className="w-3 h-3 text-destructive" />;
-  if (sev === 'warning') return <AlertTriangle className="w-3 h-3 text-amber-500" />;
-  return <Info className="w-3 h-3 text-sky-500" />;
+  if (sev === 'warning') return <AlertTriangle className="w-3 h-3 text-warning" />;
+  return <Info className="w-3 h-3 text-muted-foreground" />;
 }
 
 export default function ViolationList({
@@ -42,7 +42,7 @@ export default function ViolationList({
   if (grouped.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-8 text-center">
-        <CheckCircle2 className="w-7 h-7 text-emerald-500/70 mb-2" />
+        <CheckCircle2 className="w-7 h-7 text-success/70 mb-2" />
         <p className="text-xs text-muted-foreground">검증 위반이 없습니다</p>
       </div>
     );
@@ -53,10 +53,10 @@ export default function ViolationList({
       {grouped.map(([rule, issues]) => (
         <div key={rule} className="rounded-md border border-border overflow-hidden">
           <div className="flex items-center justify-between px-2.5 py-1.5 bg-muted/40 border-b border-border">
-            <span className="text-[11px] font-medium text-foreground">
+            <span className="text-xs font-medium text-foreground">
               {RULE_LABELS[rule] ?? rule}
             </span>
-            <span className="text-[10px] text-muted-foreground">{issues.length}건</span>
+            <span className="text-xs text-muted-foreground">{issues.length}건</span>
           </div>
           <div>
             {issues.map((issue, i) => (
@@ -66,7 +66,7 @@ export default function ViolationList({
                 onClick={() => onJump(issue.targetId, issue.targetTable)}
               >
                 <span className="mt-0.5 shrink-0">{severityIcon(issue.severity)}</span>
-                <span className="text-[10px] text-foreground leading-relaxed flex-1">
+                <span className="text-xs text-foreground leading-relaxed flex-1">
                   {issue.message}
                 </span>
                 <ChevronRight className="w-3 h-3 text-muted-foreground/50 shrink-0 mt-0.5" />

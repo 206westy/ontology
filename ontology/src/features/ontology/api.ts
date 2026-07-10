@@ -103,6 +103,17 @@ export const discoverPatternApi = {
     }).then((r) => handleResponse<DiscoverPatternResult>(r)),
 };
 
+// ─── 의미 유사 엣지 (그래프 군집 색상) ─────────────────────────
+// 엣지가 없어도 임베딩상 가까운 노드쌍을 반환 → 관련 의미끼리 같은 군집·색.
+export const graphApi = {
+  semanticEdges: (ids: string[]): Promise<{ edges: { source: string; target: string }[] }> =>
+    fetch('/api/graph/semantic-edges', {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify({ ids }),
+    }).then((r) => handleResponse<{ edges: { source: string; target: string }[] }>(r)),
+};
+
 // ─── Drift (PRD-H H5/M4: 스키마 드리프트 3분기 판정) ──────────
 // 패턴 밖 신규 요소를 매핑/확장/분기로 판정. 자동 반영 없음(컨펌 게이트).
 export const driftApi = {

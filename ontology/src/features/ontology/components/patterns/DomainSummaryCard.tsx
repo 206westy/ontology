@@ -46,7 +46,7 @@ export default function DomainSummaryCard({
         hasPreview ? (
           <>
             {isMixed && (
-              <p className="font-mono text-[10px] text-muted-foreground">
+              <p className="font-mono text-xs text-muted-foreground">
                 {recognize.mixture
                   .map((m) => `${m.domain} ${Math.round(m.ratio * 100)}%`)
                   .join(' + ')}
@@ -55,7 +55,7 @@ export default function DomainSummaryCard({
             {recognize.competencyQuestionPreview.length > 0 && (
               <ul className="mt-1 space-y-0.5">
                 {recognize.competencyQuestionPreview.map((cq, i) => (
-                  <li key={i} className="text-[10px] text-muted-foreground/80">
+                  <li key={i} className="text-xs text-muted-foreground/80">
                     · {cq}
                   </li>
                 ))}
@@ -70,7 +70,7 @@ export default function DomainSummaryCard({
             <Button
               variant="outline"
               size="sm"
-              className="h-6 gap-0.5 px-2 text-[10px]"
+              className="h-6 gap-0.5 px-2 text-xs"
               onClick={onSplit}
             >
               <SplitSquareHorizontal className="h-3 w-3" />
@@ -81,7 +81,7 @@ export default function DomainSummaryCard({
             <Button
               variant="ghost"
               size="sm"
-              className="h-6 gap-0.5 px-2 text-[10px]"
+              className="h-6 gap-0.5 px-2 text-xs"
               onClick={onMerge}
             >
               <Merge className="h-3 w-3" />
@@ -92,7 +92,7 @@ export default function DomainSummaryCard({
             <Button
               variant="ghost"
               size="sm"
-              className="h-6 gap-0.5 px-2 text-[10px]"
+              className="h-6 gap-0.5 px-2 text-xs"
               onClick={onManualSelect}
             >
               <Hand className="h-3 w-3" />
@@ -102,7 +102,7 @@ export default function DomainSummaryCard({
           <Button
             variant="default"
             size="sm"
-            className="h-6 gap-0.5 px-2 text-[10px]"
+            className="h-6 gap-0.5 px-2 text-xs"
             onClick={onConfirm}
           >
             <Check className="h-3 w-3" />

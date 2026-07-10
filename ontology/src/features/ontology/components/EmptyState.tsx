@@ -96,14 +96,14 @@ function TemplateCard({
         <Icon className="w-4 h-4" />
       </div>
       <div className="text-center">
-        <p className="text-[11px] font-semibold text-foreground leading-tight">
+        <p className="text-xs font-semibold text-foreground leading-tight">
           {template.nameKo}
         </p>
-        <p className="text-[10px] text-muted-foreground mt-0.5 leading-snug line-clamp-2">
+        <p className="text-xs text-muted-foreground mt-0.5 leading-snug line-clamp-2">
           {template.descriptionKo}
         </p>
       </div>
-      <p className="text-[9px] text-muted-foreground/70 font-mono">
+      <p className="text-xs text-muted-foreground/70 font-mono">
         {template.classCount}C {template.relationCount}R {template.propertyCount}P
       </p>
     </button>
@@ -119,7 +119,7 @@ function TemplateSection({
 }) {
   return (
     <div className="w-full mb-4">
-      <p className="text-[11px] font-semibold text-muted-foreground uppercase mb-2 text-left">
+      <p className="text-xs font-semibold text-muted-foreground uppercase mb-2 text-left">
         또는 도메인 템플릿으로 시작
       </p>
       <div className="grid grid-cols-5 gap-2">
@@ -297,9 +297,9 @@ export default function EmptyState({ onDoubleClick }: EmptyStateProps) {
             loadingId={loadingId}
           />
 
-          <div className="mt-6 flex items-center justify-center gap-5 text-[11px] text-muted-foreground">
+          <div className="mt-6 flex items-center justify-center gap-5 text-xs text-muted-foreground">
             <span className="flex items-center gap-1.5">
-              <kbd className="font-mono bg-muted px-1.5 py-0.5 rounded border border-border text-[11px]">더블클릭</kbd>
+              <kbd className="font-mono bg-muted px-1.5 py-0.5 rounded border border-border text-xs">더블클릭</kbd>
               새 노드 생성
             </span>
             <span className="text-border">|</span>

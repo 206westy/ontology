@@ -42,7 +42,7 @@ export function UserMenu() {
           className="flex items-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
           <Avatar className="h-7 w-7">
-            <AvatarFallback className="bg-primary/10 text-[11px] font-medium text-primary">
+            <AvatarFallback className="bg-primary/10 text-xs font-medium text-primary">
               {initialsFrom(displayName)}
             </AvatarFallback>
           </Avatar>

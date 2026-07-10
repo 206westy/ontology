@@ -30,7 +30,7 @@ export default function CachePromotionCard({
       }
       title={patternName}
       preview={
-        <p className="text-[10px] text-muted-foreground">
+        <p className="text-xs text-muted-foreground">
           이 패턴을 캐시에 저장하면 같은 도메인에서 다시 재사용됩니다.
         </p>
       }
@@ -39,7 +39,7 @@ export default function CachePromotionCard({
           <Button
             variant="ghost"
             size="sm"
-            className="h-6 gap-0.5 px-2 text-[10px]"
+            className="h-6 gap-0.5 px-2 text-xs"
             onClick={onOnce}
             disabled={saving}
           >
@@ -49,7 +49,7 @@ export default function CachePromotionCard({
           <Button
             variant="default"
             size="sm"
-            className="h-6 gap-0.5 px-2 text-[10px]"
+            className="h-6 gap-0.5 px-2 text-xs"
             onClick={onSave}
             disabled={saving}
           >

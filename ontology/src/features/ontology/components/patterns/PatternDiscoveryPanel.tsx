@@ -228,7 +228,7 @@ export default function PatternDiscoveryPanel({
       </div>
 
       {discover.isError && (
-        <p className="mt-2 text-[11px] text-destructive">
+        <p className="mt-2 text-xs text-destructive">
           도메인 분석에 실패했습니다. 다시 시도해 주세요.
         </p>
       )}

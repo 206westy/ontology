@@ -1,31 +1,31 @@
-// 채도 낮춘 균일 명도 팔레트 — 도메인은 hue로만 구분, 어느 하나가 god node처럼 튀지 않게.
-// 퍼플(--primary)은 선택/강조 전용으로 예약하므로 도메인 색에서 제외.
-// JS color values retained for MiniMap nodeColor callback (cannot use CSS vars there).
+// Purple Rebrand: 무지개 폐지 — 보라 유사색 팔레트(인디고~마젠타, hue 246~292). 같은 색상류로 응집하되 hue로 구분.
+// globals.css `--node-*`(HSL)와 동일 값의 hex 미러 — 캔버스(CSS var)와 스와치·미니맵(JS hex)이 어긋나지 않게.
+// JS color values retained for MiniMap·필터 스와치·색선택(cannot use CSS vars there).
 export const NODE_COLORS = {
-  root: '#6487b4',     // muted slate-blue
-  mid: '#5794b7',      // muted blue
-  leaf: '#4e98a2',     // muted teal-cyan
-  instance: '#60a97b', // muted green
-  person: '#c09d59',   // muted amber
-  place: '#c37760',    // muted terracotta
-  event: '#c07296',    // muted rose
-  concept: '#8c86c1',  // muted indigo
-  process: '#499c8b',  // muted teal
-  artifact: '#ae7f5b', // muted brown
+  root: '#4026c5',     // 250 68% 46%
+  mid: '#6c2bd4',      // 263 66% 50%
+  leaf: '#9746ce',     // 276 58% 54%
+  instance: '#b964ce', // 288 52% 60%
+  person: '#8060d7',   // 256 60% 61%
+  place: '#a16ed4',    // 270 54% 63%
+  event: '#ab5ec9',    // 283 50% 58%
+  concept: '#8378d9',  // 247 56% 66%
+  process: '#c680d0',  // 292 46% 66%
+  artifact: '#b893d7', // 273 46% 71%
 } as const;
 
-// Dark palette -- MiniMap only (다크 배경용으로 명도 상향)
+// Dark palette -- MiniMap·스와치 (다크 배경용으로 명도 상향; globals.css .dark `--node-*` 미러)
 export const NODE_COLORS_DARK: Record<keyof typeof NODE_COLORS, string> = {
-  root: '#809fc6',
-  mid: '#74a9c9',
-  leaf: '#62b1bc',
-  instance: '#76bc90',
-  person: '#cfb277',
-  place: '#d4917d',
-  event: '#d08bab',
-  concept: '#a39ed1',
-  process: '#62bcaa',
-  artifact: '#c39979',
+  root: '#7662da',     // 250 62% 62%
+  mid: '#9970db',      // 263 60% 65%
+  leaf: '#b780db',     // 276 56% 68%
+  instance: '#cd94db', // 288 50% 72%
+  person: '#9f88dd',   // 256 56% 70%
+  place: '#b892dd',    // 270 52% 72%
+  event: '#c28ed7',    // 283 48% 70%
+  concept: '#a199e1',  // 247 54% 74%
+  process: '#d39edb',  // 292 46% 74%
+  artifact: '#c7a9df', // 273 46% 77%
 };
 
 export const NODE_COLOR_LABELS: Record<keyof typeof NODE_COLORS, string> = {
@@ -43,29 +43,29 @@ export const NODE_COLOR_LABELS: Record<keyof typeof NODE_COLORS, string> = {
 
 // JS bg fills -- kept for getNodeColors() compatibility (MiniMap / legacy callers)
 export const NODE_BG_COLORS: Record<keyof typeof NODE_COLORS, string> = {
-  root:     'rgba(100,135,180,0.12)',
-  mid:      'rgba(87,148,183,0.12)',
-  leaf:     'rgba(78,152,162,0.12)',
-  instance: 'rgba(96,169,123,0.12)',
-  person:   'rgba(192,157,89,0.12)',
-  place:    'rgba(195,119,96,0.12)',
-  event:    'rgba(192,114,150,0.12)',
-  concept:  'rgba(140,134,193,0.12)',
-  process:  'rgba(73,156,139,0.12)',
-  artifact: 'rgba(174,127,91,0.12)',
+  root:     'rgba(64,38,197,0.12)',
+  mid:      'rgba(108,43,212,0.12)',
+  leaf:     'rgba(151,70,206,0.12)',
+  instance: 'rgba(185,100,206,0.12)',
+  person:   'rgba(128,96,215,0.12)',
+  place:    'rgba(161,110,212,0.12)',
+  event:    'rgba(171,94,201,0.12)',
+  concept:  'rgba(131,120,217,0.12)',
+  process:  'rgba(198,128,208,0.12)',
+  artifact: 'rgba(184,147,215,0.12)',
 };
 
 export const NODE_BG_COLORS_DARK: Record<keyof typeof NODE_COLORS, string> = {
-  root:     'rgba(128,159,198,0.20)',
-  mid:      'rgba(116,169,201,0.20)',
-  leaf:     'rgba(98,177,188,0.20)',
-  instance: 'rgba(118,188,144,0.18)',
-  person:   'rgba(207,178,119,0.20)',
-  place:    'rgba(212,145,125,0.20)',
-  event:    'rgba(208,139,171,0.20)',
-  concept:  'rgba(163,158,209,0.20)',
-  process:  'rgba(98,188,170,0.20)',
-  artifact: 'rgba(195,153,121,0.20)',
+  root:     'rgba(118,98,218,0.20)',
+  mid:      'rgba(153,112,219,0.20)',
+  leaf:     'rgba(183,128,219,0.20)',
+  instance: 'rgba(205,148,219,0.18)',
+  person:   'rgba(159,136,221,0.20)',
+  place:    'rgba(184,146,221,0.20)',
+  event:    'rgba(194,142,215,0.20)',
+  concept:  'rgba(161,153,225,0.20)',
+  process:  'rgba(211,158,219,0.20)',
+  artifact: 'rgba(199,169,223,0.20)',
 };
 
 // Fallback JS-based helper (MiniMap / legacy). Prefer getNodeCssColors() in components.
@@ -154,7 +154,7 @@ const SHADCN_FALLBACK: Omit<ResolvedThemeColors, 'node'> = {
   card: '#ffffff',
   foreground: '#18181b',
   mutedForeground: '#71717a',
-  background: '#fafafa',
+  background: '#ffffff',
 };
 
 /** 현재 :root/.dark 계산값에서 노드·shadcn 색 토큰을 읽어 hex로 해석. SSR/비브라우저면 fallback. */

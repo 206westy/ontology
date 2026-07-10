@@ -96,7 +96,7 @@ export default function FilterPanel() {
         <div className="space-y-3">
           {/* Node type filters */}
           <div>
-            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
               노드 타입
             </p>
             <div className="space-y-1.5">
@@ -119,7 +119,7 @@ export default function FilterPanel() {
 
           {/* Color filters */}
           <div>
-            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
               색상
             </p>
             <div className="flex flex-wrap gap-1.5">
@@ -145,7 +145,7 @@ export default function FilterPanel() {
               })}
             </div>
             {colorFilter.length > 0 && (
-              <p className="text-[10px] text-muted-foreground mt-1.5">
+              <p className="text-xs text-muted-foreground mt-1.5">
                 {colorFilter.length}개 색상 선택됨
               </p>
             )}
@@ -154,10 +154,10 @@ export default function FilterPanel() {
           {/* Degree filter — 잡음(저차수) 노드 숨기기 */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                 최소 연결 차수
               </p>
-              <span className="text-[10px] font-mono text-muted-foreground tabular-nums">
+              <span className="text-xs font-mono text-muted-foreground tabular-nums">
                 {minDegree === 0 ? '전체' : `≥ ${minDegree}`}
               </span>
             </div>
@@ -171,7 +171,7 @@ export default function FilterPanel() {
               aria-label="최소 연결 차수 필터"
               className="w-full h-1.5 cursor-pointer touch-manipulation appearance-none rounded-full bg-muted accent-primary"
             />
-            <p className="text-[10px] text-muted-foreground mt-1">
+            <p className="text-xs text-muted-foreground mt-1">
               차수 낮은 잡음 노드를 숨겨 허브만 남깁니다.
             </p>
           </div>

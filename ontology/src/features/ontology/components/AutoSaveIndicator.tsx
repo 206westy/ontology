@@ -60,7 +60,7 @@ export default function AutoSaveIndicator({
       {config.icon}
 
       {/* Status label */}
-      <span className="text-[10px] text-muted-foreground">{config.label}</span>
+      <span className="text-xs text-muted-foreground">{config.label}</span>
 
       {/* Auto toggle badge */}
       {onToggleAuto && (
@@ -71,7 +71,7 @@ export default function AutoSaveIndicator({
         >
           <Badge
             variant={autoEnabled ? 'default' : 'outline'}
-            className={`h-4 text-[9px] px-1.5 cursor-pointer select-none transition-colors ${
+            className={`text-xs px-1.5 py-0.5 cursor-pointer select-none transition-colors ${
               autoEnabled
                 ? 'gradient-brand text-white border-transparent'
                 : 'text-muted-foreground hover:text-foreground'

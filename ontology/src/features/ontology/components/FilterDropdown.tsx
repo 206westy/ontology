@@ -46,12 +46,12 @@ export default function FilterDropdown() {
       <PopoverContent className="w-56 p-3" align="end">
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               노드 필터
             </span>
             {hasActiveFilter && (
               <button
-                className="text-[10px] text-primary hover:underline"
+                className="text-xs text-primary hover:underline"
                 onClick={() => {
                   setShowClasses(true);
                   setShowInstances(true);
@@ -65,11 +65,11 @@ export default function FilterDropdown() {
 
           {/* Type filter */}
           <div className="space-y-1.5">
-            <span className="text-[10px] text-muted-foreground">타입</span>
+            <span className="text-xs text-muted-foreground">타입</span>
             <div className="flex gap-1.5">
               <button
                 className={`
-                  flex items-center gap-1 px-2 py-1 rounded-md text-[11px] border transition-colors
+                  flex items-center gap-1 px-2 py-1 rounded-md text-xs border transition-colors
                   ${showClasses
                     ? 'bg-primary/10 border-primary/30 text-primary'
                     : 'bg-muted/30 border-border text-muted-foreground'
@@ -81,7 +81,7 @@ export default function FilterDropdown() {
               </button>
               <button
                 className={`
-                  flex items-center gap-1 px-2 py-1 rounded-md text-[11px] border transition-colors
+                  flex items-center gap-1 px-2 py-1 rounded-md text-xs border transition-colors
                   ${showInstances
                     ? 'bg-primary/10 border-primary/30 text-primary'
                     : 'bg-muted/30 border-border text-muted-foreground'
@@ -98,7 +98,7 @@ export default function FilterDropdown() {
 
           {/* Color filter */}
           <div className="space-y-1.5">
-            <span className="text-[10px] text-muted-foreground">색상</span>
+            <span className="text-xs text-muted-foreground">색상</span>
             <div className="grid grid-cols-5 gap-1.5">
               {colorEntries.map(([key, hex]) => {
                 const isActive = colorFilter.length === 0 || colorFilter.includes(hex);

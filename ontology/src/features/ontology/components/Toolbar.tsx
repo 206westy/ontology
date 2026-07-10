@@ -13,7 +13,6 @@ import {
   Redo2,
   Download,
   Upload,
-  Sparkles,
   ShieldCheck,
   Loader2,
   GitMerge,
@@ -32,7 +31,6 @@ import HealthDashboardSheet from './HealthDashboardSheet';
 import HealthScoreBadge from './HealthScoreBadge';
 import { UserMenu } from '@/features/auth/components/UserMenu';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import {
   DropdownMenu,
@@ -120,13 +118,6 @@ export default function Toolbar() {
 
   return (
     <div className="h-[46px] min-h-[46px] flex items-center px-4 gap-2 border-b border-border bg-card/80 backdrop-blur-sm" data-testid="toolbar">
-      <span className="text-sm font-semibold tracking-tight gradient-brand-text">PSK PEE Ontology</span>
-      <Badge variant="secondary" className="h-5 text-[11px] px-1.5 font-mono">
-        v0.1 draft
-      </Badge>
-
-      <Separator orientation="vertical" className="h-5 mx-1.5" />
-
       {/* PRD-K M5 (B9): 툴바 4그룹 — ① 보기(도구·줌·필터) */}
       <div className="flex items-center gap-0.5" data-testid="toolbar-group-view">
         <Button
@@ -226,15 +217,6 @@ export default function Toolbar() {
         >
           <Wand2 className="w-3.5 h-3.5" />
           가이드
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 text-xs gap-1 text-[hsl(var(--ai-primary))] hover:text-[hsl(var(--ai-primary))]"
-          title="AI 어시스턴트"
-          style={{ boxShadow: 'var(--elevation-ai)' }}
-        >
-          <Sparkles className="w-3.5 h-3.5" />
         </Button>
       </div>
 

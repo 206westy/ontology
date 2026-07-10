@@ -70,7 +70,7 @@ export default function ActionCard({
           <Icon className="w-2.5 h-2.5" />
           {meta.label}
           {layerLabel && (
-            <span className="ml-0.5 rounded border px-1 text-[9px] leading-tight text-muted-foreground">
+            <span className="ml-0.5 rounded border px-1 text-xs leading-tight text-muted-foreground">
               {layerLabel}
             </span>
           )}
@@ -82,11 +82,11 @@ export default function ActionCard({
       title={action.label}
       preview={
         <>
-          <p className="text-[10px] font-mono text-muted-foreground break-all">
+          <p className="text-xs font-mono text-muted-foreground break-all">
             {previewText(action)}
           </p>
           {state === 'skipped' && skipReason && (
-            <p className="text-[10px] text-destructive mt-1">{skipReason}</p>
+            <p className="text-xs text-destructive mt-1">{skipReason}</p>
           )}
         </>
       }
@@ -96,22 +96,22 @@ export default function ActionCard({
             <Button
               variant="ghost"
               size="sm"
-              className="h-5 text-[10px] px-1.5"
+              className="h-5 text-xs px-1.5"
               onClick={onIgnore}
             >
               <X className="w-3 h-3 mr-0.5" />
               무시
             </Button>
-            <Button size="sm" className="h-5 text-[10px] px-2 gap-0.5" onClick={onApply}>
+            <Button size="sm" className="h-5 text-xs px-2 gap-0.5" onClick={onApply}>
               <Plus className="w-3 h-3" />
               적용
             </Button>
           </>
         ) : (
-          <span className="text-[10px] text-muted-foreground inline-flex items-center gap-0.5">
+          <span className="text-xs text-muted-foreground inline-flex items-center gap-0.5">
             {state === 'applied' && (
               <>
-                <Check className="w-3 h-3 text-emerald-500" /> 적용됨
+                <Check className="w-3 h-3 text-success" /> 적용됨
               </>
             )}
             {state === 'ignored' && '무시함'}

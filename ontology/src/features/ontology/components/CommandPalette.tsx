@@ -221,10 +221,10 @@ export default function CommandPalette() {
                       style={{ backgroundColor: node.color }}
                     />
                   ) : (
-                    <Circle className="w-3 h-3 text-emerald-400 shrink-0" />
+                    <Circle className="w-3 h-3 text-success shrink-0" />
                   )}
                   <span>{node.name}</span>
-                  <span className="text-[10px] text-muted-foreground ml-1">
+                  <span className="text-xs text-muted-foreground ml-1">
                     {node.type === 'class' ? 'Class' : 'Instance'}
                     {node.type === 'instance' && 'className' in node && (node as { className?: string }).className && (
                       <> ({(node as { className?: string }).className})</>

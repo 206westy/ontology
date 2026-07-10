@@ -19,9 +19,9 @@ const SOURCE_LABELS: Record<TermCandidateSource, string> = {
 };
 
 const SOURCE_BADGE_CLASS: Record<TermCandidateSource, string> = {
-  internal: 'border-emerald-400 text-emerald-600',
-  context: 'border-blue-400 text-blue-600',
-  web: 'border-amber-400 text-amber-600',
+  internal: 'border-success/40 text-success',
+  context: 'border-border text-muted-foreground',
+  web: 'border-warning/40 text-warning',
 };
 
 const RANK_MARKS = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧'];
@@ -89,20 +89,20 @@ export default function TermConfirmCard({
                   }`}
                 >
                   <div className="flex items-center gap-1 flex-wrap">
-                    <span className="text-[11px] font-medium">
+                    <span className="text-xs font-medium">
                       {RANK_MARKS[i] ?? `${i + 1}.`} {c.meaning}
                     </span>
-                    <span className="text-[10px] text-muted-foreground">{pct}%</span>
+                    <span className="text-xs text-muted-foreground">{pct}%</span>
                     <Badge
                       variant="outline"
-                      className={`ml-auto h-4 px-1 text-[9px] ${SOURCE_BADGE_CLASS[c.source]}`}
+                      className={`ml-auto h-5 px-1 text-xs ${SOURCE_BADGE_CLASS[c.source]}`}
                     >
                       {SOURCE_LABELS[c.source]}
                     </Badge>
                     {c.source === 'web' && (
                       <Badge
                         variant="outline"
-                        className="h-4 gap-0.5 px-1 text-[9px] border-amber-400 text-amber-600"
+                        className="h-5 gap-0.5 px-1 text-xs border-warning/40 text-warning"
                       >
                         <ShieldAlert className="h-2.5 w-2.5" />
                         검증 필요
@@ -110,7 +110,7 @@ export default function TermConfirmCard({
                     )}
                   </div>
                   {c.rationale && (
-                    <p className="mt-0.5 text-[9px] italic text-muted-foreground/70">
+                    <p className="mt-0.5 text-xs italic text-muted-foreground/70">
                       {c.rationale}
                     </p>
                   )}
@@ -120,7 +120,7 @@ export default function TermConfirmCard({
           })}
         </ul>
       ) : (
-        <p className="text-[10px] text-muted-foreground">
+        <p className="text-xs text-muted-foreground">
           맥락에서 뜻 후보를 찾지 못했습니다. 직접 입력하거나 건너뛰세요.
         </p>
       )}
@@ -131,13 +131,13 @@ export default function TermConfirmCard({
             value={manual}
             onChange={(e) => setManual(e.target.value)}
             placeholder="직접 뜻 입력"
-            className="h-7 text-[11px]"
+            className="h-7 text-xs"
             aria-label="직접 뜻 입력"
           />
           <Button
             variant="default"
             size="sm"
-            className="h-7 px-2 text-[10px]"
+            className="h-7 px-2 text-xs"
             onClick={handleManualSubmit}
           >
             확정
@@ -146,7 +146,7 @@ export default function TermConfirmCard({
       )}
 
       {guidance && (
-        <p className="mt-1.5 rounded-md bg-emerald-500/10 px-1.5 py-1 text-[10px] text-emerald-700">
+        <p className="mt-1.5 rounded-md bg-success/10 px-1.5 py-1 text-xs text-success">
           이후 이 온톨로지에서 {term}={guidance}로 사용
         </p>
       )}
@@ -158,7 +158,7 @@ export default function TermConfirmCard({
       <Button
         variant="ghost"
         size="sm"
-        className="h-6 gap-0.5 px-2 text-[10px]"
+        className="h-6 gap-0.5 px-2 text-xs"
         onClick={onSkip}
       >
         <SkipForward className="h-3 w-3" />
@@ -168,7 +168,7 @@ export default function TermConfirmCard({
         <Button
           variant="ghost"
           size="sm"
-          className="h-6 gap-0.5 px-2 text-[10px]"
+          className="h-6 gap-0.5 px-2 text-xs"
           onClick={onOther}
         >
           <Shuffle className="h-3 w-3" />
@@ -178,7 +178,7 @@ export default function TermConfirmCard({
       <Button
         variant="outline"
         size="sm"
-        className="h-6 gap-0.5 px-2 text-[10px]"
+        className="h-6 gap-0.5 px-2 text-xs"
         onClick={() => setShowManual((v) => !v)}
       >
         <Pencil className="h-3 w-3" />
@@ -187,7 +187,7 @@ export default function TermConfirmCard({
       <Button
         variant="default"
         size="sm"
-        className="h-6 gap-0.5 px-2 text-[10px]"
+        className="h-6 gap-0.5 px-2 text-xs"
         onClick={handleConfirm}
         disabled={!hasCandidates}
       >

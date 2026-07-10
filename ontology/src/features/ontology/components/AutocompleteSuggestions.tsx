@@ -36,7 +36,7 @@ export default function AutocompleteSuggestions({
       {/* AI trigger button */}
       <m.button
         type="button"
-        className="flex items-center gap-1 text-[10px] h-5 px-2 rounded-full gradient-brand text-white font-medium shadow-sm hover:shadow-md transition-shadow"
+        className="flex items-center gap-1 text-xs h-5 px-2 rounded-full gradient-brand text-white font-medium shadow-sm hover:shadow-md transition-shadow"
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
@@ -103,13 +103,13 @@ export default function AutocompleteSuggestions({
                     <span className="text-xs font-medium text-foreground">
                       {s.name}
                       {s.dataType && (
-                        <span className="ml-1.5 text-[9px] font-normal text-muted-foreground bg-muted px-1 py-0.5 rounded">
+                        <span className="ml-1.5 text-xs font-normal text-muted-foreground bg-muted px-1 py-0.5 rounded">
                           {s.dataType}
                         </span>
                       )}
                     </span>
                     {(s.description || s.reason) && (
-                      <span className="text-[10px] text-muted-foreground mt-0.5 line-clamp-2">
+                      <span className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
                         {s.description || s.reason}
                       </span>
                     )}

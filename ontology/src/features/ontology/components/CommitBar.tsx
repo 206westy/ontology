@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { m } from 'motion/react';
 import { useQuery } from '@tanstack/react-query';
-import { Undo2, List, ArrowUpCircle, GitCommitHorizontal, Loader2, History, Check } from 'lucide-react';
+import { Undo2, ArrowUpCircle, GitCommitHorizontal, Loader2, History, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -33,9 +33,9 @@ import LifecycleIndicator from './LifecycleIndicator';
 import { useAutoSave } from '../hooks/useAutoSave';
 
 const OP_STYLES: Record<string, { label: string; className: string }> = {
-  ADD: { label: 'ADD', className: 'bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-900/40 dark:text-emerald-400 dark:border-emerald-700' },
-  MOD: { label: 'MOD', className: 'bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-900/40 dark:text-amber-400 dark:border-amber-700' },
-  DEL: { label: 'DEL', className: 'bg-red-100 text-red-700 border-red-300 dark:bg-red-900/40 dark:text-red-400 dark:border-red-700' },
+  ADD: { label: 'ADD', className: 'bg-success-light text-success border-success/30' },
+  MOD: { label: 'MOD', className: 'bg-warning-light text-warning border-warning/30' },
+  DEL: { label: 'DEL', className: 'bg-destructive/10 text-destructive border-destructive/30' },
 };
 
 export default function CommitBar() {
@@ -149,8 +149,8 @@ export default function CommitBar() {
           variant="outline"
           className={
             currentBranch
-              ? 'h-5 text-[11px] px-1.5 shrink-0 text-sky-700 border-sky-400/50 bg-sky-50 dark:text-sky-400 dark:bg-sky-900/30'
-              : 'h-5 text-[11px] px-1.5 shrink-0 text-muted-foreground'
+              ? 'h-5 text-xs px-1.5 shrink-0 text-muted-foreground border-border bg-muted'
+              : 'h-5 text-xs px-1.5 shrink-0 text-muted-foreground'
           }
           title={
             currentBranch
@@ -188,7 +188,7 @@ export default function CommitBar() {
             {pendingChanges.length}
           </m.span>
           {'건 · '}
-          <span className={unpushedCount > 0 || hasChanges ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'}>
+          <span className={unpushedCount > 0 || hasChanges ? 'text-warning' : 'text-muted-foreground'}>
             {unpushedCount > 0
               ? `발행 안 됨 ${unpushedCount}건`
               : hasChanges
@@ -197,15 +197,15 @@ export default function CommitBar() {
           </span>
         </span>
         {hasChanges && (
-          <span className="text-[11px] font-mono flex items-center gap-1.5">
+          <span className="text-xs font-mono flex items-center gap-1.5">
             {opCounts.ADD > 0 && (
-              <span className="text-emerald-600 dark:text-emerald-400">+{opCounts.ADD}</span>
+              <span className="text-success">+{opCounts.ADD}</span>
             )}
             {opCounts.MOD > 0 && (
-              <span className="text-amber-600 dark:text-amber-400">~{opCounts.MOD}</span>
+              <span className="text-warning">~{opCounts.MOD}</span>
             )}
             {opCounts.DEL > 0 && (
-              <span className="text-red-600 dark:text-red-400">-{opCounts.DEL}</span>
+              <span className="text-destructive">-{opCounts.DEL}</span>
             )}
           </span>
         )}
@@ -224,16 +224,6 @@ export default function CommitBar() {
         >
           <Undo2 className="w-3 h-3" />
           전체 취소
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-8 text-xs px-2 gap-1"
-          disabled={!hasChanges}
-          onClick={() => setShowChanges(true)}
-        >
-          <List className="w-3 h-3" />
-          변경 내역
         </Button>
         <Button
           variant="ghost"
@@ -293,7 +283,7 @@ export default function CommitBar() {
         )}
         <Button
           size="sm"
-          className="h-8 text-xs px-2.5 gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+          className="h-8 text-xs px-2.5 gap-1 bg-success hover:bg-success/90 text-white"
           disabled={!canPublish || !!currentBranch}
           onClick={() => setShowNeoPush(true)}
           data-testid="neo4j-push-btn"
@@ -320,12 +310,12 @@ export default function CommitBar() {
                 const opStyle = OP_STYLES[change.operation] ?? OP_STYLES.ADD;
                 return (
                   <div key={change.id} className="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-muted/50 transition-colors">
-                    <Badge variant="outline" className={`h-5 text-[11px] px-1.5 font-mono shrink-0 ${opStyle.className}`}>
+                    <Badge variant="outline" className={`h-5 text-xs px-1.5 font-mono shrink-0 ${opStyle.className}`}>
                       {opStyle.label}
                     </Badge>
                     <span className="text-xs text-muted-foreground font-mono shrink-0">{change.targetTable}</span>
                     <span className="text-xs text-foreground truncate">{change.targetName}</span>
-                    <span className="text-[11px] text-muted-foreground/60 ml-auto shrink-0">
+                    <span className="text-xs text-muted-foreground/60 ml-auto shrink-0">
                       {new Date(change.timestamp).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                     </span>
                   </div>

@@ -65,20 +65,20 @@ const SEVERITY_CONFIG = {
   error: {
     icon: ShieldAlert,
     label: '오류',
-    badgeClass: 'bg-red-100 text-red-700 border-red-300 dark:bg-red-900/40 dark:text-red-400 dark:border-red-700',
-    dotClass: 'bg-red-500',
+    badgeClass: 'bg-destructive/10 text-destructive border-destructive/30',
+    dotClass: 'bg-destructive',
   },
   warning: {
     icon: AlertTriangle,
     label: '경고',
-    badgeClass: 'bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-900/40 dark:text-amber-400 dark:border-amber-700',
-    dotClass: 'bg-amber-500',
+    badgeClass: 'bg-warning-light text-warning border-warning/30',
+    dotClass: 'bg-warning',
   },
   info: {
     icon: Info,
     label: '참고',
-    badgeClass: 'bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-900/40 dark:text-blue-400 dark:border-blue-700',
-    dotClass: 'bg-blue-500',
+    badgeClass: 'bg-info-light text-info border-info/30',
+    dotClass: 'bg-info',
   },
 } as const;
 
@@ -130,7 +130,7 @@ function IssueRow({ issue, onNavigate }: { issue: ValidationIssue; onNavigate: (
 
   return (
     <div className="flex items-start gap-2 py-1.5 px-2 rounded hover:bg-muted/50 transition-colors group">
-      <Icon className="w-3.5 h-3.5 mt-0.5 shrink-0" style={{ color: `var(--${issue.severity === 'error' ? 'destructive' : issue.severity === 'warning' ? 'amber' : 'blue'})` }} />
+      <Icon className="w-3.5 h-3.5 mt-0.5 shrink-0" style={{ color: `hsl(var(--${issue.severity === 'error' ? 'destructive' : issue.severity === 'warning' ? 'warning' : 'info'}))` }} />
       <span className="text-xs text-foreground flex-1 leading-relaxed">{issue.message}</span>
       <Button
         variant="ghost"
@@ -197,29 +197,29 @@ export default function ValidationResultsPanel({
             <div className="flex items-center gap-3 py-3 px-1 border-b border-border">
               {result.summary.errors > 0 && (
                 <div className="flex items-center gap-1.5">
-                  <div className="w-2 h-2 rounded-full bg-red-500" />
-                  <span className="text-xs font-medium text-red-600 dark:text-red-400">
+                  <div className="w-2 h-2 rounded-full bg-destructive" />
+                  <span className="text-xs font-medium text-destructive">
                     오류 {result.summary.errors}
                   </span>
                 </div>
               )}
               {result.summary.warnings > 0 && (
                 <div className="flex items-center gap-1.5">
-                  <div className="w-2 h-2 rounded-full bg-amber-500" />
-                  <span className="text-xs font-medium text-amber-600 dark:text-amber-400">
+                  <div className="w-2 h-2 rounded-full bg-warning" />
+                  <span className="text-xs font-medium text-warning">
                     경고 {result.summary.warnings}
                   </span>
                 </div>
               )}
               {result.summary.infos > 0 && (
                 <div className="flex items-center gap-1.5">
-                  <div className="w-2 h-2 rounded-full bg-blue-500" />
-                  <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
+                  <div className="w-2 h-2 rounded-full bg-info" />
+                  <span className="text-xs font-medium text-info">
                     참고 {result.summary.infos}
                   </span>
                 </div>
               )}
-              <span className="text-[10px] text-muted-foreground ml-auto font-mono">
+              <span className="text-xs text-muted-foreground ml-auto font-mono">
                 {result.runId.slice(0, 8)}
               </span>
             </div>
@@ -228,8 +228,8 @@ export default function ValidationResultsPanel({
             {isSuccess && (
               <div className="flex-1 flex items-center justify-center">
                 <div className="flex flex-col items-center gap-3 text-center">
-                  <div className="w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center">
-                    <CheckCircle2 className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+                  <div className="w-12 h-12 rounded-full bg-success-light flex items-center justify-center">
+                    <CheckCircle2 className="w-6 h-6 text-success" />
                   </div>
                   <div>
                     <p className="text-sm font-medium text-foreground">검증 통과</p>
@@ -251,7 +251,7 @@ export default function ValidationResultsPanel({
                           <div className="flex items-center gap-2">
                             <div className={`w-1.5 h-1.5 rounded-full ${config.dotClass}`} />
                             <span className="font-medium">{group.label}</span>
-                            <Badge variant="outline" className={`h-4 text-[9px] px-1 font-mono ${config.badgeClass}`}>
+                            <Badge variant="outline" className={`text-xs px-1 py-0.5 font-mono ${config.badgeClass}`}>
                               {group.issues.length}
                             </Badge>
                           </div>
@@ -259,10 +259,10 @@ export default function ValidationResultsPanel({
                         <AccordionContent className="pb-2">
                           {RULE_HELP[group.ruleCode] && (
                             <div className="mb-1.5 rounded-md bg-muted/40 px-2 py-1.5 space-y-0.5">
-                              <p className="text-[11px] text-foreground/80 leading-relaxed">
+                              <p className="text-xs text-foreground/80 leading-relaxed">
                                 {RULE_HELP[group.ruleCode].what}
                               </p>
-                              <p className="text-[11px] text-primary/90 leading-relaxed">
+                              <p className="text-xs text-primary/90 leading-relaxed">
                                 <span className="font-medium">고치는 법: </span>
                                 {RULE_HELP[group.ruleCode].fix}
                               </p>

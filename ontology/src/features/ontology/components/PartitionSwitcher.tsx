@@ -24,7 +24,8 @@ export default function PartitionSwitcher() {
   const current = partitions.find((p) => p.id === currentPartitionId);
   const label = showAllPartitions ? '전체 구획' : (current?.name ?? '구획');
 
-  const PALETTE = ['#2563eb', '#dc2626', '#16a34a', '#d97706', '#7c3aed', '#0891b2', '#db2777', '#65a30d'];
+  // Purple Rebrand: 무지개 폐지 — 보라 유사색 팔레트(인디고~마젠타)로 구획 구분
+  const PALETTE = ['#4026c5', '#6c2bd4', '#8060d7', '#9746ce', '#a16ed4', '#ab5ec9', '#c680d0', '#b893d7'];
 
   const handleCreate = async () => {
     const name = newName.trim();

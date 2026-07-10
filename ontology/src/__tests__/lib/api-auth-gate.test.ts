@@ -118,4 +118,16 @@ describe('updateSession — /api 검증 캐시 (PRD-M 후속)', () => {
 
     expect(getUserMock).toHaveBeenCalledTimes(2);
   });
+
+  it('로그인 직후 `/` 진입이 캐시를 시드해 직후 /api 재검증을 생략한다', async () => {
+    // 로그인 지연 개선 회귀: 페이지 라우트 getUser 성공도 캐시를 남겨,
+    // 직후 useLoadOntology 의 /api 버스트가 원격 재검증 없이 통과해야 한다.
+    getUserMock.mockResolvedValue({ data: { user: { id: 'user-1' } } });
+    const cookie = 'sb-test-auth-token=post-login-seed-token';
+
+    await updateSession(req('/', cookie)); // 로그인 직후 페이지 진입 → 시드
+    await updateSession(req('/api/classes', cookie)); // 직후 API 버스트 → 캐시 히트
+
+    expect(getUserMock).toHaveBeenCalledTimes(1);
+  });
 });

@@ -60,7 +60,7 @@ export default function CandidatePairCard({
 
   const preview = (
     <>
-      <p className="text-[10px] text-muted-foreground">{Math.round(score * 100)}% 유사</p>
+      <p className="text-xs text-muted-foreground">{Math.round(score * 100)}% 유사</p>
 
       <div className="mt-1.5 grid grid-cols-2 gap-2">
         {(['a', 'b'] as const).map((side) => {
@@ -70,23 +70,23 @@ export default function CandidatePairCard({
           return (
             <div
               key={side}
-              className={`rounded border p-1.5 ${isSuggested ? 'border-emerald-500/40 bg-emerald-500/5' : 'border-border'}`}
+              className={`rounded border p-1.5 ${isSuggested ? 'border-success/40 bg-success/5' : 'border-border'}`}
             >
               <div className="flex items-center gap-1">
-                <span className="text-[11px] font-medium text-foreground truncate">{node.name}</span>
+                <span className="text-xs font-medium text-foreground truncate">{node.name}</span>
                 {isSuggested && (
-                  <Badge variant="outline" className="h-3.5 text-[8px] px-1 text-emerald-600 border-emerald-500/40 shrink-0">
+                  <Badge variant="outline" className="h-5 text-xs px-1 text-success border-success/40 shrink-0">
                     추천 유지
                   </Badge>
                 )}
               </div>
-              <p className="text-[9px] text-muted-foreground mt-0.5">{statLine(kind, stats)}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{statLine(kind, stats)}</p>
             </div>
           );
         })}
       </div>
 
-      <p className="mt-1.5 text-[10px] text-muted-foreground">{reason}</p>
+      <p className="mt-1.5 text-xs text-muted-foreground">{reason}</p>
     </>
   );
 
@@ -95,7 +95,7 @@ export default function CandidatePairCard({
       <Button
         variant="outline"
         size="sm"
-        className="h-6 text-[10px] px-1.5 gap-0.5 flex-1"
+        className="h-6 text-xs px-1.5 gap-0.5 flex-1"
         onClick={() => setPending({ survivorId: a.id, mergedId: b.id, survivorName: a.name, mergedName: b.name, mergedStats: statsB })}
         title={`"${b.name}"을 "${a.name}"에 병합`}
       >
@@ -105,7 +105,7 @@ export default function CandidatePairCard({
       <Button
         variant="outline"
         size="sm"
-        className="h-6 text-[10px] px-1.5 gap-0.5 flex-1"
+        className="h-6 text-xs px-1.5 gap-0.5 flex-1"
         onClick={() => setPending({ survivorId: b.id, mergedId: a.id, survivorName: b.name, mergedName: a.name, mergedStats: statsA })}
         title={`"${a.name}"을 "${b.name}"에 병합`}
       >
@@ -115,7 +115,7 @@ export default function CandidatePairCard({
       <Button
         variant="ghost"
         size="sm"
-        className="h-6 text-[10px] px-1.5 gap-0.5"
+        className="h-6 text-xs px-1.5 gap-0.5"
         onClick={() => onDismiss('distinct')}
         title="별개 항목으로 표시"
       >
@@ -169,7 +169,7 @@ export default function CandidatePairCard({
               {statLine(kind, pending.mergedStats)}
             </div>
           )}
-          <p className="text-[10px] text-muted-foreground">되돌리려면 Ctrl+Z 를 누르세요.</p>
+          <p className="text-xs text-muted-foreground">되돌리려면 Ctrl+Z 를 누르세요.</p>
           <AlertDialogFooter>
             <AlertDialogCancel>취소</AlertDialogCancel>
             <AlertDialogAction

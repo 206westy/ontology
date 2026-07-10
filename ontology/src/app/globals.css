@@ -12,55 +12,56 @@
     --font-sans: var(--font-pretendard), var(--font-outfit), ui-sans-serif, system-ui, sans-serif;
     --font-mono: var(--font-jetbrains), ui-monospace, monospace;
 
-    /* PRD 3.2 Design Tokens */
-    --background: 0 0% 98%;         /* #fafafa */
-    --foreground: 240 10% 3.9%;      /* #18181b (close) */
-    --card: 0 0% 100%;               /* #ffffff */
-    --card-foreground: 240 10% 3.9%;
+    /* Purple Rebrand: 순백 서피스 · 보라 1색 강조 · 회색 중립 */
+    --background: 0 0% 100%;          /* 순백 */
+    --foreground: 240 8% 12%;         /* Ink */
+    --card: 0 0% 100%;
+    --card-foreground: 240 8% 12%;
     --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
-    --primary: 263 70% 50.4%;        /* #7c3aed */
+    --popover-foreground: 240 8% 12%;
+    --primary: 263 70% 50.4%;         /* #7c3aed 고정 */
     --primary-foreground: 0 0% 100%;
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%; /* #a1a1aa area */
+    --secondary: 240 5% 96.5%;
+    --secondary-foreground: 240 6% 25%;
+    --muted: 240 5% 96.5%;
+    --muted-foreground: 240 4% 46%;
 
-    /* v3: Accent separated from Primary */
-    --accent: 217 91% 60%;            /* #3b82f6 Blue -- links, secondary CTA */
+    /* Accent → 보라로 통일 (기존 파랑 폐지) */
+    --accent: 263 70% 50.4%;
     --accent-foreground: 0 0% 100%;
-    --accent-light: 214 95% 96%;      /* #eff6ff */
+    --accent-light: 263 100% 97%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 5.9% 90%;          /* #e4e4e7 */
-    --input: 240 5.9% 90%;
+    --destructive: 358 72% 54%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 240 6% 91%;
+    --input: 240 6% 89%;
     --ring: 263 70% 50.4%;
-    --radius: 10px;
-    --radius-sm: 6px;
-    --radius-lg: 14px;
+    --radius: 12px;
+    --radius-sm: 8px;
+    --radius-lg: 16px;
+    --radius-xl: 20px;
     --radius-full: 9999px;
 
     /* Text tokens */
-    --text-primary: 240 10% 3.9%;    /* #18181b */
-    --text-secondary: 240 3.8% 32%;  /* #52525b */
-    --text-muted: 240 3.8% 46.1%;    /* #a1a1aa */
+    --text-primary: 240 8% 12%;
+    --text-secondary: 240 5% 34%;
+    --text-muted: 240 4% 46%;
 
-    /* Shadow */
-    --shadow-card: 0 4px 16px rgba(0, 0, 0, 0.08);
+    /* Shadow — 더 옅고 부드럽게 */
+    --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.04);
 
-    /* === v3: Semantic Status Colors === */
-    --success: 142 71% 45%;           /* #22c55e */
+    /* === 상태 3원칙: 긍정·완료=보라 · 오류·주의=레드 · 중립·정보=회색 === */
+    --success: 263 70% 50.4%;
     --success-foreground: 0 0% 100%;
-    --success-light: 142 76% 95%;     /* #f0fdf4 */
+    --success-light: 263 100% 97%;
 
-    --warning: 38 92% 50%;            /* #f59e0b */
+    --warning: 358 72% 54%;
     --warning-foreground: 0 0% 100%;
-    --warning-light: 48 96% 95%;      /* #fefce8 */
+    --warning-light: 358 86% 97%;
 
-    --info: 217 91% 60%;              /* #3b82f6 */
+    --info: 240 4% 46%;
     --info-foreground: 0 0% 100%;
-    --info-light: 214 95% 96%;        /* #eff6ff */
+    --info-light: 240 5% 96.5%;
 
     /* === v3: AI Interaction === */
     --ai-primary: 263 70% 50.4%;      /* same hue as primary, semantic distinction */
@@ -68,36 +69,36 @@
     --ai-surface: 263 83% 97%;
 
     /* === v3: Surface Hierarchy === */
-    --surface-0: 0 0% 98%;            /* app background */
+    --surface-0: 0 0% 100%;           /* app background — 순백 */
     --surface-1: 0 0% 100%;           /* panels, cards */
-    --surface-2: 240 4.8% 95.9%;      /* input fields, dropdowns */
-    --surface-3: 240 5% 92%;          /* hover, active states */
+    --surface-2: 240 5% 96.5%;        /* input fields, dropdowns */
+    --surface-3: 240 5% 93%;          /* hover, active states */
     --surface-overlay: 0 0% 0% / 0.5; /* overlay backdrop */
 
     /* === v3: Elevation shadows === */
     --elevation-0: none;
-    --elevation-1: 0 1px 3px rgba(0, 0, 0, 0.06);
-    --elevation-2: 0 4px 16px rgba(0, 0, 0, 0.08);
-    --elevation-3: 0 8px 32px rgba(0, 0, 0, 0.12);
+    --elevation-1: 0 1px 2px rgba(0, 0, 0, 0.04);
+    --elevation-2: 0 4px 12px rgba(0, 0, 0, 0.06);
+    --elevation-3: 0 12px 32px rgba(0, 0, 0, 0.10);
     --elevation-ai: 0 0 20px hsl(263 70% 50.4% / 0.15);
 
     /* PRD 6.15 Extended design tokens */
     --ai-suggestion-bg: 263 83% 97%;
     --ai-suggestion-border: 263 70% 70%;
-    --progress-fill: 142 71% 45%;
+    --progress-fill: 263 70% 50.4%;
     --focus-ring-color: 263 70% 50.4% / 0.3;
 
     /* === v3: Typography Scale === */
-    --text-caption: 0.6875rem;      /* 11px */
-    --text-body-sm: 0.75rem;        /* 12px */
-    --text-body: 0.8125rem;         /* 13px */
-    --text-heading-sm: 0.875rem;    /* 14px */
-    --text-heading: 1.125rem;       /* 18px */
+    --text-caption: 0.75rem;        /* 12px (11px 폐지 — 최소 12px) */
+    --text-body-sm: 0.8125rem;      /* 13px */
+    --text-body: 0.875rem;          /* 14px */
+    --text-heading-sm: 1rem;        /* 16px */
+    --text-heading: 1.25rem;        /* 20px */
 
-    /* === v3: Leading (line-height) === */
-    --leading-tight: 1.3;
-    --leading-normal: 1.5;
-    --leading-relaxed: 1.6;
+    /* === Leading (line-height) — 여백 확대 === */
+    --leading-tight: 1.35;
+    --leading-normal: 1.55;
+    --leading-relaxed: 1.7;
 
     /* === v3: Tracking (letter-spacing) === */
     --tracking-tight: -0.01em;
@@ -119,42 +120,42 @@
     /* Node background fill opacity (Light: 0.12, Dark: 0.20) */
     --node-bg-opacity: 0.12;
 
-    /* 채도 낮춘 균일 명도 팔레트 (Light) — hue로만 구분, 퍼플은 선택 전용으로 제외 */
-    --node-root:     214 35% 55%;   /* #6487b4 muted slate-blue */
-    --node-mid:      202 40% 53%;   /* #5794b7 muted blue */
-    --node-leaf:     187 35% 47%;   /* #4e98a2 muted teal-cyan */
-    --node-instance: 142 30% 52%;   /* #60a97b muted green */
-    --node-person:   40 45% 55%;    /* #c09d59 muted amber */
-    --node-place:    14 45% 57%;    /* #c37760 muted terracotta */
-    --node-event:    332 38% 60%;   /* #c07296 muted rose */
-    --node-concept:  246 32% 64%;   /* #8c86c1 muted indigo */
-    --node-process:  168 36% 45%;   /* #499c8b muted teal */
-    --node-artifact: 26 34% 52%;    /* #ae7f5b muted brown */
+    /* Purple Rebrand: 무지개 폐지 — 보라 유사색 팔레트 (인디고~마젠타, hue 246~292) */
+    --node-root:     250 68% 46%;
+    --node-mid:      263 66% 50%;
+    --node-leaf:     276 58% 54%;
+    --node-instance: 288 52% 60%;
+    --node-person:   256 60% 61%;
+    --node-place:    270 54% 63%;
+    --node-event:    283 50% 58%;
+    --node-concept:  247 56% 66%;
+    --node-process:  292 46% 66%;
+    --node-artifact: 273 46% 71%;
 
     /* Node background fills (Light, opacity 0.12) */
-    --node-root-bg:     214 35% 55% / 0.12;
-    --node-mid-bg:      202 40% 53% / 0.12;
-    --node-leaf-bg:     187 35% 47% / 0.12;
-    --node-instance-bg: 142 30% 52% / 0.12;
-    --node-person-bg:   40 45% 55%  / 0.12;
-    --node-place-bg:    14 45% 57%  / 0.12;
-    --node-event-bg:    332 38% 60% / 0.12;
-    --node-concept-bg:  246 32% 64% / 0.12;
-    --node-process-bg:  168 36% 45% / 0.12;
-    --node-artifact-bg: 26 34% 52%  / 0.12;
+    --node-root-bg:     250 68% 46% / 0.12;
+    --node-mid-bg:      263 66% 50% / 0.12;
+    --node-leaf-bg:     276 58% 54% / 0.12;
+    --node-instance-bg: 288 52% 60% / 0.12;
+    --node-person-bg:   256 60% 61% / 0.12;
+    --node-place-bg:    270 54% 63% / 0.12;
+    --node-event-bg:    283 50% 58% / 0.12;
+    --node-concept-bg:  247 56% 66% / 0.12;
+    --node-process-bg:  292 46% 66% / 0.12;
+    --node-artifact-bg: 273 46% 71% / 0.12;
 
-    /* PRD-I §1: 온톨로지 역할색(증상·원인·점검·조치·부품·행정).
-       node 팔레트 hue를 재사용해 god-node처럼 튀지 않게. SVG·배지·엣지 모두 이 토큰 참조. */
-    --role-symptom: 332 38% 60%; /* 증상 — rose */
-    --role-cause:   14 45% 57%;  /* 원인 — terracotta */
-    --role-check:   202 40% 53%; /* 점검 — blue */
-    --role-action:  168 36% 45%; /* 조치 — teal */
-    --role-part:    26 34% 52%;  /* 부품 — brown */
-    --role-admin:   246 32% 64%; /* 행정 — indigo (primary 퍼플과 구분) */
+    /* PRD-I §1: 온톨로지 역할색 — Purple Rebrand 보라·회색 모노톤 램프.
+       SVG·배지·엣지 모두 이 토큰 참조. */
+    --role-symptom: 263 70% 50.4%; /* 증상 */
+    --role-cause:   263 45% 63%;   /* 원인 */
+    --role-check:   263 25% 42%;   /* 점검 */
+    --role-action:  240 6% 35%;    /* 조치 */
+    --role-part:    240 5% 58%;    /* 부품 */
+    --role-admin:   263 32% 76%;   /* 행정 */
 
-    /* === v4: Gradient Brand === */
+    /* === v4: Gradient Brand — 보라 축 === */
     --gradient-brand-from: 263 70% 50.4%;
-    --gradient-brand-to: 217 91% 60%;
+    --gradient-brand-to: 263 80% 66%;
 
     /* === v4: Surface raised (floating elements) === */
     --surface-raised: 0 0% 100%;
@@ -177,12 +178,12 @@
     /* === v4: Auto-save indicator === */
     --autosave-dot-size: 6px;
 
-    /* Chart colors */
-    --chart-1: 12 76% 61%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 197 37% 24%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 27 87% 67%;
+    /* Chart colors — 보라 축 */
+    --chart-1: 263 70% 50.4%;
+    --chart-2: 263 55% 66%;
+    --chart-3: 263 40% 80%;
+    --chart-4: 240 5% 65%;
+    --chart-5: 240 6% 38%;
   }
 
   .dark {
@@ -199,12 +200,12 @@
     --muted: 240 3.7% 15.9%;
     --muted-foreground: 240 5% 64.9%;
 
-    /* v3: Accent separated from Primary (dark) */
-    --accent: 217 91% 65%;            /* Blue, slightly brighter for dark */
+    /* Accent → 보라로 통일 (dark) */
+    --accent: 263 70% 62%;
     --accent-foreground: 0 0% 100%;
-    --accent-light: 217 40% 15%;
+    --accent-light: 263 40% 18%;
 
-    --destructive: 0 62.8% 30.6%;
+    --destructive: 358 62% 52%;
     --destructive-foreground: 0 0% 98%;
     --border: 240 3.7% 15.9%;
     --input: 240 3.7% 15.9%;
@@ -216,18 +217,18 @@
 
     --shadow-card: 0 4px 16px rgba(0, 0, 0, 0.32);
 
-    /* v3: Semantic Status Colors (dark) */
-    --success: 142 60% 40%;
+    /* 상태 3원칙 (dark): 보라 · 레드 · 회색 */
+    --success: 263 70% 62%;
     --success-foreground: 0 0% 100%;
-    --success-light: 142 40% 12%;
+    --success-light: 263 40% 18%;
 
-    --warning: 38 80% 45%;
+    --warning: 358 62% 58%;
     --warning-foreground: 0 0% 100%;
-    --warning-light: 38 40% 12%;
+    --warning-light: 358 40% 18%;
 
-    --info: 217 80% 55%;
+    --info: 240 5% 64%;
     --info-foreground: 0 0% 100%;
-    --info-light: 217 40% 12%;
+    --info-light: 240 5% 18%;
 
     /* v3: AI Interaction (dark) */
     --ai-primary: 263 70% 58%;
@@ -251,47 +252,47 @@
     /* PRD 6.15 Extended design tokens (dark) */
     --ai-suggestion-bg: 263 30% 12%;
     --ai-suggestion-border: 263 50% 40%;
-    --progress-fill: 142 60% 40%;
+    --progress-fill: 263 70% 62%;
     --focus-ring-color: 263 70% 58% / 0.3;
 
     /* Node background fill opacity */
     --node-bg-opacity: 0.20;
 
-    /* 채도 낮춘 균일 명도 팔레트 (Dark) — 다크 배경용 명도 상향, 퍼플 제외 */
-    --node-root:     214 38% 64%;   /* #809fc6 */
-    --node-mid:      202 44% 62%;   /* #74a9c9 */
-    --node-leaf:     187 40% 56%;   /* #62b1bc */
-    --node-instance: 142 34% 60%;   /* #76bc90 */
-    --node-person:   40 48% 64%;    /* #cfb277 */
-    --node-place:    14 50% 66%;    /* #d4917d */
-    --node-event:    332 42% 68%;   /* #d08bab */
-    --node-concept:  246 36% 72%;   /* #a39ed1 */
-    --node-process:  168 40% 56%;   /* #62bcaa */
-    --node-artifact: 26 38% 62%;    /* #c39979 */
+    /* Purple Rebrand (Dark): 보라 유사색 팔레트 — 다크 배경용 명도 상향 */
+    --node-root:     250 62% 62%;
+    --node-mid:      263 60% 65%;
+    --node-leaf:     276 56% 68%;
+    --node-instance: 288 50% 72%;
+    --node-person:   256 56% 70%;
+    --node-place:    270 52% 72%;
+    --node-event:    283 48% 70%;
+    --node-concept:  247 54% 74%;
+    --node-process:  292 46% 74%;
+    --node-artifact: 273 46% 77%;
 
     /* Node background fills (Dark, opacity 0.20; instance 0.18) */
-    --node-root-bg:     214 38% 64% / 0.20;
-    --node-mid-bg:      202 44% 62% / 0.20;
-    --node-leaf-bg:     187 40% 56% / 0.20;
-    --node-instance-bg: 142 34% 60% / 0.18;
-    --node-person-bg:   40 48% 64%  / 0.20;
-    --node-place-bg:    14 50% 66%  / 0.20;
-    --node-event-bg:    332 42% 68% / 0.20;
-    --node-concept-bg:  246 36% 72% / 0.20;
-    --node-process-bg:  168 40% 56% / 0.20;
-    --node-artifact-bg: 26 38% 62%  / 0.20;
+    --node-root-bg:     250 62% 62% / 0.20;
+    --node-mid-bg:      263 60% 65% / 0.20;
+    --node-leaf-bg:     276 56% 68% / 0.20;
+    --node-instance-bg: 288 50% 72% / 0.18;
+    --node-person-bg:   256 56% 70% / 0.20;
+    --node-place-bg:    270 52% 72% / 0.20;
+    --node-event-bg:    283 48% 70% / 0.20;
+    --node-concept-bg:  247 54% 74% / 0.20;
+    --node-process-bg:  292 46% 74% / 0.20;
+    --node-artifact-bg: 273 46% 77% / 0.20;
 
-    /* PRD-I §1: 역할색 다크 변형(명도 상향, node 다크 팔레트와 정합) */
-    --role-symptom: 332 42% 68%; /* 증상 */
-    --role-cause:   14 50% 66%;  /* 원인 */
-    --role-check:   202 44% 62%; /* 점검 */
-    --role-action:  168 40% 56%; /* 조치 */
-    --role-part:    26 38% 62%;  /* 부품 */
-    --role-admin:   246 36% 72%; /* 행정 */
+    /* PRD-I §1: 역할색 다크 — Purple Rebrand 모노톤 (명도 상향) */
+    --role-symptom: 263 65% 66%; /* 증상 */
+    --role-cause:   263 45% 72%; /* 원인 */
+    --role-check:   263 30% 58%; /* 점검 */
+    --role-action:  240 6% 58%;  /* 조치 */
+    --role-part:    240 5% 68%;  /* 부품 */
+    --role-admin:   263 35% 80%; /* 행정 */
 
-    /* === v4: Gradient Brand (dark) === */
+    /* === v4: Gradient Brand (dark) — 보라 축 === */
     --gradient-brand-from: 263 70% 58%;
-    --gradient-brand-to: 217 91% 65%;
+    --gradient-brand-to: 263 75% 72%;
 
     /* === v4: Surface raised (dark) === */
     --surface-raised: 240 10% 7.5%;
@@ -314,11 +315,11 @@
     /* === v4: Auto-save indicator === */
     --autosave-dot-size: 6px;
 
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
+    --chart-1: 263 70% 62%;
+    --chart-2: 263 55% 70%;
+    --chart-3: 263 40% 78%;
+    --chart-4: 240 5% 60%;
+    --chart-5: 240 6% 45%;
   }
 }
 
@@ -511,25 +512,25 @@
 }
 
 :root {
-  --sidebar: hsl(0 0% 98%);
-  --sidebar-foreground: hsl(240 5.3% 26.1%);
-  --sidebar-primary: hsl(240 5.9% 10%);
-  --sidebar-primary-foreground: hsl(0 0% 98%);
-  --sidebar-accent: hsl(240 4.8% 95.9%);
-  --sidebar-accent-foreground: hsl(240 5.9% 10%);
-  --sidebar-border: hsl(220 13% 91%);
-  --sidebar-ring: hsl(217.2 91.2% 59.8%);
+  --sidebar: hsl(0 0% 100%);
+  --sidebar-foreground: hsl(240 5% 34%);
+  --sidebar-primary: hsl(263 70% 50.4%);
+  --sidebar-primary-foreground: hsl(0 0% 100%);
+  --sidebar-accent: hsl(240 5% 96.5%);
+  --sidebar-accent-foreground: hsl(240 6% 25%);
+  --sidebar-border: hsl(240 6% 91%);
+  --sidebar-ring: hsl(263 70% 50.4%);
 }
 
 .dark {
   --sidebar: hsl(240 5.9% 10%);
   --sidebar-foreground: hsl(240 4.8% 95.9%);
-  --sidebar-primary: hsl(224.3 76.3% 48%);
+  --sidebar-primary: hsl(263 70% 62%);
   --sidebar-primary-foreground: hsl(0 0% 100%);
   --sidebar-accent: hsl(240 3.7% 15.9%);
   --sidebar-accent-foreground: hsl(240 4.8% 95.9%);
   --sidebar-border: hsl(240 3.7% 15.9%);
-  --sidebar-ring: hsl(217.2 91.2% 59.8%);
+  --sidebar-ring: hsl(263 70% 62%);
 }
 
 @theme inline {

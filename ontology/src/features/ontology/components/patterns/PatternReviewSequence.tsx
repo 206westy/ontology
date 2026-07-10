@@ -91,7 +91,7 @@ function ReviewProgress({ index, total, kind }: { index: number; total: number; 
   return (
     <div
       data-testid="review-progress"
-      className="mb-2 flex items-center gap-1.5 text-[11px] font-medium"
+      className="mb-2 flex items-center gap-1.5 text-xs font-medium"
     >
       <span className="text-primary">
         {index + 1}/{total} 단계
@@ -109,7 +109,7 @@ function ReviewSummary({ data }: { data: PatternReviewData }) {
     >
       <CheckCircle2 className="mx-auto mb-1 h-5 w-5 text-primary" />
       <p className="text-[12px] font-semibold text-foreground">검수 완료</p>
-      <p className="mt-0.5 text-[10px] text-muted-foreground">
+      <p className="mt-0.5 text-xs text-muted-foreground">
         용어 {data.termResolutions.length} · 중복 {(data.dedup ?? []).length} · 드리프트{' '}
         {driftOutsideCount(data.driftJudgments)} · 거버넌스 {(data.governance ?? []).length} · 보강{' '}
         {(data.enrichment ?? []).length} · 자문 {(data.critic ?? []).length} · 브릿지 {data.bridges.length}
@@ -301,14 +301,14 @@ function renderDedupStep(args: {
       title={item.name}
       evidence={item.evidence || undefined}
       preview={
-        detail ? <p className="text-[10px] text-muted-foreground">{detail}</p> : undefined
+        detail ? <p className="text-xs text-muted-foreground">{detail}</p> : undefined
       }
       actions={
         <>
           <Button
             variant="ghost"
             size="sm"
-            className="h-6 gap-0.5 px-2 text-[10px]"
+            className="h-6 gap-0.5 px-2 text-xs"
             onClick={() => {
               onIgnore?.(item);
               advance();
@@ -320,7 +320,7 @@ function renderDedupStep(args: {
           <Button
             variant="default"
             size="sm"
-            className="h-6 gap-0.5 px-2 text-[10px]"
+            className="h-6 gap-0.5 px-2 text-xs"
             onClick={() => {
               onConfirm?.(item);
               advance();
@@ -406,7 +406,7 @@ function renderCriticStep(args: {
       evidence={issue.reason}
       preview={
         issue.suggestion ? (
-          <p className="text-[10px] text-muted-foreground">{issue.suggestion}</p>
+          <p className="text-xs text-muted-foreground">{issue.suggestion}</p>
         ) : undefined
       }
       actions={
@@ -414,7 +414,7 @@ function renderCriticStep(args: {
           <Button
             variant="ghost"
             size="sm"
-            className="h-6 gap-0.5 px-2 text-[10px]"
+            className="h-6 gap-0.5 px-2 text-xs"
             onClick={() => {
               onIgnore?.(issue);
               advance();
@@ -426,7 +426,7 @@ function renderCriticStep(args: {
           <Button
             variant="outline"
             size="sm"
-            className="h-6 gap-0.5 px-2 text-[10px]"
+            className="h-6 gap-0.5 px-2 text-xs"
             onClick={() => {
               onAck?.(issue);
               advance();

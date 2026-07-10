@@ -103,7 +103,7 @@ export default function ExplorerContextMenu({
       className="fixed z-50 min-w-[180px] rounded-lg border border-border bg-popover p-1 shadow-elevation-2 animate-in fade-in-0 zoom-in-95"
       style={{ left: target.position.x, top: target.position.y }}
     >
-      <div className="px-2.5 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider truncate max-w-[200px]">
+      <div className="px-2.5 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider truncate max-w-[200px]">
         {target.nodeName}
       </div>
       <MenuSeparator />
@@ -131,7 +131,7 @@ export default function ExplorerContextMenu({
       <MenuItem destructive onClick={() => handleAction(() => onDelete?.(target.nodeId, target.nodeType))}>
         <Trash2 className="w-3.5 h-3.5" />
         삭제
-        <span className="ml-auto text-[10px]">Delete</span>
+        <span className="ml-auto text-xs">Delete</span>
       </MenuItem>
     </div>
   );
