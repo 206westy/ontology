@@ -1,14 +1,15 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { Sparkles, Send, User, Bot, Loader2, RotateCcw, Import, X, AlertTriangle } from 'lucide-react';
+import { Sparkles, Send, User, Bot, Loader2, RotateCcw, Import, X, AlertTriangle, Route } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { useOntologyStore } from '../hooks/useOntologyStore';
-import { assistApi } from '../api';
+import { assistApi, ragApi, type RagAnswerResult } from '../api';
 import type { OntologyAction } from '../lib/schemas';
+import EvidencePathCard from './ai/EvidencePathCard';
 import { isBulkInput } from '../lib/input-heuristics';
 import { uuid } from '../lib/uuid';
 import type { ActionPlan } from '../lib/plan-actions';
@@ -35,6 +36,8 @@ interface ChatMessage {
   role: 'user' | 'assistant';
   text: string;
   actions?: ActionItem[];
+  // PRD-N M4: 진단형 RAG 답변의 근거경로·출처(있으면 답변 아래 렌더).
+  evidence?: RagAnswerResult;
 }
 
 const ASSIST_TIMEOUT_MS = 45_000;
@@ -46,6 +49,8 @@ export default function AIAssistantTab({ nodeName }: { nodeName: string }) {
   const [elapsed, setElapsed] = useState(0);
   // "모두 적용" 전 영향 요약 확인용. null 이면 닫힘.
   const [applyConfirm, setApplyConfirm] = useState<{ msgId: string; indices: number[]; plan: ActionPlan } | null>(null);
+  // PRD-N M4: 근거 기반 답변 모드(진단형 RAG). off 면 기존 구조화 액션 어시스턴트.
+  const [groundedMode, setGroundedMode] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -64,6 +69,7 @@ export default function AIAssistantTab({ nodeName }: { nodeName: string }) {
   const previewAssistantActions = useOntologyStore((s) => s.previewAssistantActions);
   const highlightNodes = useOntologyStore((s) => s.highlightNodes);
   const openPopover = useOntologyStore((s) => s.openPopover);
+  const currentPartitionId = useOntologyStore((s) => s.currentPartitionId);
 
   const ontologySummary = useMemo(() => {
     const summary = `Classes: ${aiClasses.length}, Instances: ${aiInstances.length}, Relations: ${aiEdges.length}`;
@@ -145,23 +151,35 @@ export default function AIAssistantTab({ nodeName }: { nodeName: string }) {
     }, ASSIST_TIMEOUT_MS);
 
     try {
-      const res = await assistApi.send(
-        { message: trimmed, selectedNodeId: selectedNodeId ?? undefined, ontologySummary },
-        controller.signal,
-      );
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: uuid(),
-          role: 'assistant',
-          text: res.reply,
-          actions: res.actions.map((action) => ({ action, state: 'pending' as ActionState })),
-        },
-      ]);
-      // H1: 서버가 형식 오류로 드롭한 제안이 있으면 사용자에게 알린다(조용한 누락 방지).
-      const warnings = (res as { warnings?: string[] }).warnings;
-      if (warnings?.length) {
-        toast.warning(warnings.join(' '));
+      if (groundedMode) {
+        // PRD-N M4: 진단형 RAG — 구획 스코프 탐색 + 근거경로. 액션 제안 대신 근거 답변.
+        const res = await ragApi.answer({
+          question: trimmed,
+          partitionId: currentPartitionId ?? undefined,
+        });
+        setMessages((prev) => [
+          ...prev,
+          { id: uuid(), role: 'assistant', text: res.answer, evidence: res },
+        ]);
+      } else {
+        const res = await assistApi.send(
+          { message: trimmed, selectedNodeId: selectedNodeId ?? undefined, ontologySummary },
+          controller.signal,
+        );
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: uuid(),
+            role: 'assistant',
+            text: res.reply,
+            actions: res.actions.map((action) => ({ action, state: 'pending' as ActionState })),
+          },
+        ]);
+        // H1: 서버가 형식 오류로 드롭한 제안이 있으면 사용자에게 알린다(조용한 누락 방지).
+        const warnings = (res as { warnings?: string[] }).warnings;
+        if (warnings?.length) {
+          toast.warning(warnings.join(' '));
+        }
       }
     } catch (err) {
       const aborted = err instanceof DOMException && err.name === 'AbortError';
@@ -189,7 +207,7 @@ export default function AIAssistantTab({ nodeName }: { nodeName: string }) {
       abortRef.current = null;
       setLoading(false);
     }
-  }, [loading, selectedNodeId, ontologySummary, stopTimers]);
+  }, [loading, selectedNodeId, ontologySummary, stopTimers, groundedMode, currentPartitionId]);
 
   const handleSubmit = useCallback(() => {
     void submitMessage(input);
@@ -333,6 +351,11 @@ export default function AIAssistantTab({ nodeName }: { nodeName: string }) {
                       {msg.text}
                     </div>
 
+                    {/* PRD-N M4: 근거경로·출처(진단형 RAG 답변). 경로 클릭 → 캔버스 하이라이트. */}
+                    {msg.evidence && (
+                      <EvidencePathCard evidence={msg.evidence} onHighlight={highlightNodes} />
+                    )}
+
                     {msg.actions && msg.actions.length > 0 && (
                       <div className="mt-2 space-y-1.5">
                         {pendingIdx.length > 1 && (
@@ -444,13 +467,40 @@ export default function AIAssistantTab({ nodeName }: { nodeName: string }) {
           </div>
         )}
 
+        {/* PRD-N M4: 근거 기반 답변 모드 토글 — 켜면 현재 구획을 탐색해 근거경로와 함께 답한다. */}
+        <div className="mb-1.5 flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setGroundedMode((v) => !v)}
+            className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-xs transition-colors ${
+              groundedMode
+                ? 'border-primary/50 text-primary'
+                : 'border-border text-muted-foreground hover:text-foreground'
+            }`}
+            title={
+              groundedMode
+                ? '근거 기반 답변: 현재 구획을 탐색해 근거경로와 함께 답합니다. 클릭하면 일반 어시스턴트로 전환.'
+                : '일반 어시스턴트(구조화 제안). 클릭하면 근거 기반(근거경로) 답변으로 전환.'
+            }
+          >
+            <Route className="w-3 h-3" />
+            {groundedMode ? '근거 기반' : '일반'}
+          </button>
+        </div>
+
         <div className="flex gap-1.5 items-end">
           <textarea
             ref={textareaRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={nodeName ? `"${nodeName}"에 대해 요청하세요...` : 'AI에게 요청하세요...'}
+            placeholder={
+              groundedMode
+                ? '근거 기반으로 물어보세요 (현재 구획 탐색)...'
+                : nodeName
+                  ? `"${nodeName}"에 대해 요청하세요...`
+                  : 'AI에게 요청하세요...'
+            }
             className="flex-1 min-h-[32px] max-h-[120px] text-xs bg-transparent border border-border rounded-md px-2.5 py-1.5 outline-none focus:border-primary/50 resize-none placeholder:text-muted-foreground"
             rows={1}
             disabled={loading}

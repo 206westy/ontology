@@ -70,6 +70,8 @@ function normalizeRdfPayload(
 async function insertOntology(
   ontology: OntologyPayload,
   strategy: 'replace' | 'merge',
+  // PRD-N M1: 지정 시 임포트되는 클래스 전부를 이 구획에 귀속(템플릿 시딩 → 새 구획).
+  partitionId?: string,
 ): Promise<ImportStats> {
   const db = await getDb();
 
@@ -112,6 +114,8 @@ async function insertOntology(
           color: (cls.color as string) ?? '#7c3aed',
           positionX: (cls.positionX as number) ?? 0,
           positionY: (cls.positionY as number) ?? 0,
+          // 라우트 지정 구획이 있으면 우선, 없으면 페이로드의 값(있을 때), 없으면 DB 기본 구획.
+          partitionId: partitionId ?? (cls.partitionId as string | undefined),
         });
         stats.classes++;
       }
@@ -294,7 +298,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { ontology, strategy } = parsed.data;
+    const { ontology, strategy, partitionId } = parsed.data;
     const fullOntology: OntologyPayload = {
       classes: ontology.classes,
       properties: ontology.properties,
@@ -305,7 +309,7 @@ export async function POST(request: NextRequest) {
       constraints: ontology.constraints,
     };
 
-    const stats = await insertOntology(fullOntology, strategy);
+    const stats = await insertOntology(fullOntology, strategy, partitionId);
 
     return NextResponse.json(
       {

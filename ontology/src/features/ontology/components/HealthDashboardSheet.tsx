@@ -15,6 +15,9 @@ import {
   UploadCloud,
   GitFork,
   Trash2,
+  Database,
+  Percent,
+  Clock,
 } from 'lucide-react';
 import {
   Sheet,
@@ -38,6 +41,7 @@ import {
 import MetricCard from './health/MetricCard';
 import ViolationList from './health/ViolationList';
 import ConnectivityCqSection from './health/ConnectivityCqSection';
+import { computeGrounding, STALE_DAYS } from '../lib/metrics/grounding';
 
 export default function HealthDashboardSheet({
   open,
@@ -55,6 +59,8 @@ export default function HealthDashboardSheet({
   const edges = useOntologyStore((s) => s.edges);
   const storeClasses = useOntologyStore((s) => s.classes);
   const storeInstances = useOntologyStore((s) => s.instances);
+  const properties = useOntologyStore((s) => s.properties);
+  const instanceValues = useOntologyStore((s) => s.instanceValues);
   const relationTypes = useOntologyStore((s) => s.relationTypes);
   const removeEdge = useOntologyStore((s) => s.removeEdge);
   const activePatternCq = useOntologyStore((s) => s.activePatternCq);
@@ -97,6 +103,18 @@ export default function HealthDashboardSheet({
     const relName = (rtId: string) => relationTypes.find((r) => r.id === rtId)?.name ?? 'relation';
     return findStructureIssues(edges, nodeName, relName);
   }, [edges, storeClasses, storeInstances, relationTypes]);
+
+  // PRD-N M3: 데이터 접지(바인딩률·채움률·신선도) — store 배열로 라이브 계산.
+  const grounding = useMemo(
+    () =>
+      computeGrounding({
+        classes: storeClasses,
+        instances: storeInstances,
+        properties,
+        instanceValues,
+      }),
+    [storeClasses, storeInstances, properties, instanceValues],
+  );
 
   const load = useCallback(() => {
     setLoading(true);
@@ -200,6 +218,31 @@ export default function HealthDashboardSheet({
                   value={structureIssues.length}
                   tone={structureIssues.length > 0 ? 'warning' : 'success'}
                   hint="자기 루프·중복 엣지"
+                />
+                {/* PRD-N M3: 데이터 접지 축 */}
+                <MetricCard
+                  icon={Database}
+                  label="데이터 바인딩률"
+                  value={`${Math.round(grounding.bindingRate * 100)}%`}
+                  tone={grounding.bindingRate < 0.5 ? 'warning' : 'success'}
+                  hint={`실데이터로 접지된 클래스 ${grounding.boundClasses}/${grounding.totalClasses}`}
+                />
+                <MetricCard
+                  icon={Percent}
+                  label="속성 채움률"
+                  value={`${Math.round(grounding.fillRate * 100)}%`}
+                  hint="인스턴스가 실제 값으로 채운 속성 비율"
+                />
+                <MetricCard
+                  icon={Clock}
+                  label="데이터 신선도"
+                  value={grounding.oldestAgeDays === null ? '—' : `${grounding.oldestAgeDays}일 전`}
+                  tone={grounding.stalePartitionIds.length > 0 ? 'warning' : 'default'}
+                  hint={
+                    grounding.stalePartitionIds.length > 0
+                      ? `${grounding.stalePartitionIds.length}개 구획이 ${STALE_DAYS}일 넘게 미갱신`
+                      : '가장 오래된 구획 데이터 기준'
+                  }
                 />
               </div>
 

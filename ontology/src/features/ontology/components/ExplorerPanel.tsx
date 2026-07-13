@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
+import { toast } from 'sonner';
 import { useOntologyStore } from '../hooks/useOntologyStore';
 import { getNodeCssColors } from '../constants/colors';
 import { getColorKey } from '../lib/to-cytoscape-elements';
@@ -176,10 +177,23 @@ const TreeItem = memo(function TreeItem({ item, searchQuery, onContextMenu }: { 
             ({item.instanceCount})
           </span>
         )}
+        {/* PRD-N M3: 미접지(인스턴스 0개) 개념 — 저채도 배지 + 데이터 연결 진입점. */}
         {isClass && item.instanceCount === 0 && (
-          <span className="text-xs font-mono text-muted-foreground/50 ml-auto shrink-0">
-            (0)
-          </span>
+          <button
+            type="button"
+            className="ml-auto shrink-0 rounded border border-warning/30 px-1.5 py-0.5 text-xs text-warning/70 transition-colors hover:border-warning hover:text-warning"
+            title="이 개념은 실데이터(인스턴스)가 없습니다. 클릭해 데이터를 연결하세요."
+            onClick={(e) => {
+              e.stopPropagation();
+              selectNode(item.id, 'class');
+              focusNode(item.id);
+              toast.info(`"${item.name}"에 데이터가 없습니다`, {
+                description: '오른쪽 패널에서 인스턴스를 추가하거나 CSV로 데이터를 연결하세요.',
+              });
+            }}
+          >
+            미접지
+          </button>
         )}
       </div>
 

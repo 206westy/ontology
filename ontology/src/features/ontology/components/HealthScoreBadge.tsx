@@ -5,6 +5,7 @@ import { Gauge } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useOntologyStore } from '../hooks/useOntologyStore';
 import { computeHealth } from '../lib/metrics/health';
+import { computeGrounding } from '../lib/metrics/grounding';
 
 // S5 — 상시 모델 헬스 점수 배지. S0 computeHealth를 store에서 라이브로 계산해
 // 툴바에 항상 노출한다. 입력/편집으로 모델이 바뀌면 점수가 즉시 갱신되므로
@@ -22,10 +23,17 @@ export default function HealthScoreBadge() {
   const classes = useDeferredValue(useOntologyStore((s) => s.classes));
   const instances = useDeferredValue(useOntologyStore((s) => s.instances));
   const edges = useDeferredValue(useOntologyStore((s) => s.edges));
+  // PRD-N M3: 데이터 바인딩률(실데이터 접지) 축 — 라이브 재계산으로 "입력 전후 델타" 노출.
+  const properties = useDeferredValue(useOntologyStore((s) => s.properties));
+  const instanceValues = useDeferredValue(useOntologyStore((s) => s.instanceValues));
 
   const report = useMemo(
     () => computeHealth({ classes, instances, edges }),
     [classes, instances, edges],
+  );
+  const grounding = useMemo(
+    () => computeGrounding({ classes, instances, properties, instanceValues }),
+    [classes, instances, properties, instanceValues],
   );
 
   // 빈 모델에서는 점수가 의미 없으므로 숨긴다.
@@ -40,7 +48,7 @@ export default function HealthScoreBadge() {
       onClick={open}
       title={`구조 건강도 ${report.score}/100 · 별모양 ${pct(report.starIndex)}% · 고립 ${pct(
         report.isolationRate,
-      )}% · 출처 ${pct(report.provenanceCoverage)}%`}
+      )}% · 출처 ${pct(report.provenanceCoverage)}% · 바인딩 ${pct(grounding.bindingRate)}%`}
       aria-label={`구조 건강도 ${report.score}점, 클릭하면 건강도 대시보드 열림`}
     >
       <Badge

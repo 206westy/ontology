@@ -6,6 +6,7 @@ import { getNeo4jDriver } from '@/lib/neo4j/client';
 import { findWriteClauseViolation } from '@/lib/neo4j/read-only';
 import { LLM_MODELS } from '@/lib/llm/models';
 import { text2CypherRequestSchema } from '@/features/ontology/lib/schemas';
+import { buildScopeSystemBlock, countCrossPartition } from '@/lib/neo4j/scope';
 import { handleApiError } from '@/lib/api-error';
 
 // Extract Neo4j schema for LLM context.
@@ -88,6 +89,8 @@ async function getNeo4jSchema(): Promise<string> {
 // 실행 전 쓰기 절을 차단하고(1차) Neo4j read 트랜잭션으로 실행해(2차) 이중으로 막는다.
 async function executeCypherQuery(
   query: string,
+  // PRD-N M2: 스코프 시 { partition } 을 바인딩한다. LLM 은 $partition 만 참조.
+  params: Record<string, unknown> = {},
 ): Promise<{ success: boolean; data?: unknown[]; error?: string }> {
   const violation = findWriteClauseViolation(query);
   if (violation) {
@@ -102,7 +105,7 @@ async function executeCypherQuery(
 
   try {
     // executeRead 로 read 트랜잭션을 강제한다(쓰기 절은 DB 레벨에서도 거부됨).
-    const result = await session.executeRead((tx) => tx.run(query));
+    const result = await session.executeRead((tx) => tx.run(query, params));
     const data = result.records.map((record) => {
       const obj: Record<string, unknown> = {};
       (record.keys as string[]).forEach((key: string) => {
@@ -137,7 +140,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { question, executeQuery, maxRetries } = parsed.data;
+    const { question, executeQuery, maxRetries, partitionId, allPartitions } = parsed.data;
+    // PRD-N M2: partitionId 지정 + 전체질의 아님 → 현재 구획으로 스코프. $partition 바인딩.
+    const scoped = !!partitionId && !allPartitions;
+    const execParams: Record<string, unknown> = scoped ? { partition: partitionId } : {};
 
     // 1. Get Neo4j schema
     let schemaText: string;
@@ -179,7 +185,7 @@ Rules:
 - If execution fails, use the correctCypher tool to fix and re-run
 
 Neo4j Schema:
-${schemaText}`,
+${schemaText}${buildScopeSystemBlock(scoped ? partitionId : null)}`,
       prompt: `Generate a Cypher query for this question: "${question}"
 
 If you generate a query, also explain what it does in plain language.`,
@@ -194,7 +200,7 @@ If you generate a query, also explain what it does in plain language.`,
             if (!executeQuery) {
               return { skipped: true, message: 'Query execution disabled by user', query };
             }
-            return { ...await executeCypherQuery(query), query };
+            return { ...await executeCypherQuery(query, execParams), query };
           },
         }),
         correctCypher: tool({
@@ -209,7 +215,7 @@ If you generate a query, also explain what it does in plain language.`,
             if (!executeQuery) {
               return { skipped: true, correctedQuery };
             }
-            return { ...await executeCypherQuery(correctedQuery), correctedQuery };
+            return { ...await executeCypherQuery(correctedQuery, execParams), correctedQuery };
           },
         }),
       },
@@ -253,6 +259,12 @@ If you generate a query, also explain what it does in plain language.`,
       }
     }
 
+    // PRD-N M2: 스코프 질의면 결과 내 타 구획 오염을 계량해 응답에 노출(지표·UI 경고).
+    const crossPartition =
+      scoped && partitionId && queryResults
+        ? countCrossPartition(queryResults, partitionId)
+        : undefined;
+
     return NextResponse.json({
       question,
       cypher: cypherQuery,
@@ -260,6 +272,8 @@ If you generate a query, also explain what it does in plain language.`,
       executed: executeQuery,
       results: queryResults,
       error: executionError,
+      scoped,
+      crossPartition,
     });
   } catch (err) {
     return handleApiError(err);

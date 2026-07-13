@@ -33,7 +33,7 @@ import {
   NODE_KIND_QUESTION,
   NODE_KIND_DESCRIPTIONS,
 } from './NodeKindToggle';
-import { llmApi, enrichApi, dedupApi, constraintsApi, type LlmParseResult, type DetectSubgraphInput } from '../api';
+import { llmApi, enrichApi, dedupApi, constraintsApi, partitionSuggestApi, partitionsApi, type LlmParseResult, type DetectSubgraphInput } from '../api';
 import { mapParseResult, findPossibleDuplicates, computeIslands, partitionRelationsByLayer } from '../lib/parse-mapping';
 import { stableEntityId, stableEdgeId } from '../lib/identity';
 import { DEFAULT_PARTITION_ID } from '../lib/types';
@@ -48,10 +48,14 @@ import {
 } from '../lib/confirm-triage';
 import { buildParseSchemaContext } from '../lib/schema-context';
 import type { EnrichmentItem, EnrichProposal } from '../lib/enrich-types';
-import type { GovernanceProposal, DedupResolveResponse } from '../lib/schemas';
+import type { GovernanceProposal, DedupResolveResponse, PartitionSuggestResponse } from '../lib/schemas';
+import type { BridgeSuggestion } from '../lib/bridge/cross-partition';
+import { collectPartitionNodes } from '../lib/partition/suggest';
+import { computeInstanceRebindDiff, type InstanceRebindDiff } from '../lib/metrics/grounding';
 import IslandList from './preview/IslandList';
 import EnrichmentCard from './preview/EnrichmentCard';
 import GovernanceProposalCard from './preview/GovernanceProposalCard';
+import PartitionSuggestCard from './preview/PartitionSuggestCard';
 import { toast } from 'sonner';
 import { calcPopoverPosition } from '../lib/popover-position';
 import { useDraggable } from '../hooks/useDraggable';
@@ -319,6 +323,10 @@ export default function NewNodePopover() {
   const addInstance = useOntologyStore((s) => s.addInstance);
   const currentPartitionId = useOntologyStore((s) => s.currentPartitionId);
   const setInstanceValue = useOntologyStore((s) => s.setInstanceValue);
+  // PRD-N M1: AI 자동 구획 제안 — 구획 목록/전환. 생성은 partitionsApi.create(plain)로
+  // 직접 호출한다(react-query 훅은 QueryClientProvider 를 요구해 격리 렌더 테스트를 깬다).
+  const partitions = useOntologyStore((s) => s.partitions);
+  const selectPartition = useOntologyStore((s) => s.selectPartition);
 
   const classes = useOntologyStore((s) => s.classes);
   const relationTypes = useOntologyStore((s) => s.relationTypes);
@@ -358,6 +366,15 @@ export default function NewNodePopover() {
   // PRD-L M5: 고신뢰(auto) 묶음 펼침 여부 — 기본 접힘(저신뢰만 표면화). 저신뢰가 없으면
   // 접을 게 없으므로 렌더 시 자동으로 펼쳐 보인다(아래 isAutoOpen).
   const [autoExpanded, setAutoExpanded] = useState(false);
+  // PRD-N M1: 구획 판정 결과(attach/new/bridge) + HITL 수락 상태.
+  const [partitionSuggestion, setPartitionSuggestion] = useState<PartitionSuggestResponse | null>(null);
+  const [suggestionDismissed, setSuggestionDismissed] = useState(false);
+  // "새 구획으로 분리" 수락 여부(HITL). 실제 구획 생성은 확정(handleConfirm) 시점으로 지연 —
+  // 미확정 취소 시 빈 구획이 서버에 남지 않게 한다(orphan 방지).
+  const [separateAccepted, setSeparateAccepted] = useState(false);
+  const [acceptedBridges, setAcceptedBridges] = useState<BridgeSuggestion[]>([]);
+  // PRD-N M3: CSV 재바인딩 diff(신규/갱신/소실) — CSV 재업로드가 중복 없이 흡수됨을 보여줌.
+  const [rebindDiff, setRebindDiff] = useState<InstanceRebindDiff | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   // PRD-K M2 (A6): 가짜 진행률 대신 정직한 표시 — 실제 파이프라인 단계 안내 + 경과시간.
   const [elapsedSec, setElapsedSec] = useState(0);
@@ -585,6 +602,11 @@ export default function NewNodePopover() {
     setExitGuardOpen(false);
     setAuxStep(0);
     setAutoExpanded(false);
+    setPartitionSuggestion(null);
+    setSuggestionDismissed(false);
+    setSeparateAccepted(false);
+    setAcceptedBridges([]);
+    setRebindDiff(null);
     classAC.clear();
     setShowClassAC(false);
     closePopover();
@@ -797,6 +819,65 @@ export default function NewNodePopover() {
   // governance / 보강 / 중복검사 (which read inputText) work for CSV too.
   const TEXT_CHAR_LIMIT = 8000;
   const CSV_CHAR_LIMIT = 15000;
+  // PRD-N M1: 파싱 결과와 현재 구획의 기존 노드로 구획 판정을 요청한다(결정론+명명).
+  // 현재 구획에 노드가 없으면(첫 입력) 분리할 대상이 없어 건너뛴다(무소음).
+  const runPartitionSuggest = async (mapped: ParsedResult) => {
+    const pid = currentPartitionId ?? DEFAULT_PARTITION_ID;
+    const currentNodes = collectPartitionNodes(classes, instances, pid);
+    if (currentNodes.length === 0) return;
+
+    const entities = [
+      ...mapped.classes.map((c) => ({ name: c.name, nodeKind: 'class' as const })),
+      ...mapped.instances.map((i) => ({ name: i.name, nodeKind: 'instance' as const })),
+    ];
+    if (entities.length === 0) return;
+    const relations = mapped.relations.map((r) => ({
+      source: r.sourceName,
+      target: r.targetName,
+    }));
+
+    try {
+      const res = await partitionSuggestApi.suggest({
+        entities,
+        relations,
+        currentPartitionId: pid,
+        currentPartitionNodes: currentNodes,
+        partitionsSummary: partitions.map((p) => ({ id: p.id, name: p.name })),
+      });
+      setPartitionSuggestion(res);
+      // bridge 는 기본 전량 수락(사용자가 개별 "별개"로 뺄 수 있음).
+      if (res.decision === 'bridge') setAcceptedBridges(res.bridges);
+    } catch {
+      // 구획 제안 실패는 비치명 — 파싱 프리뷰는 그대로 진행한다.
+    }
+  };
+
+  // "새 구획으로 분리" 수락 → 플래그만 세운다. 실제 구획 생성은 확정 시점에서(지연 생성).
+  const handleAcceptSeparate = () => {
+    if (!partitionSuggestion || partitionSuggestion.decision === 'attach') return;
+    setSeparateAccepted(true);
+  };
+
+  const handleKeepCurrent = () => {
+    setSuggestionDismissed(true);
+    setSeparateAccepted(false);
+    setAcceptedBridges([]);
+  };
+
+  const handleAcceptBridge = (b: BridgeSuggestion) => {
+    setAcceptedBridges((prev) =>
+      prev.some((x) => x.sourceId === b.sourceId && x.targetId === b.targetId)
+        ? prev
+        : [...prev, b],
+    );
+  };
+
+  const handleDistinctBridge = (b: BridgeSuggestion) => {
+    setAcceptedBridges((prev) =>
+      prev.filter((x) => !(x.sourceId === b.sourceId && x.targetId === b.targetId)),
+    );
+  };
+
   const handleGenerate = async (opts?: { source?: string; kind?: 'text' | 'csv' }) => {
     const kind = opts?.kind ?? 'text';
     const source = opts?.source ?? inputText;
@@ -838,10 +919,12 @@ export default function NewNodePopover() {
 
       stopElapsedTimer();
 
+      // PRD-N M3: CSV 재업로드는 기존 인스턴스를 드롭하지 않는다(빈 셋) — 재바인딩으로
+      // 흡수하기 위해 confirm 까지 흘려보낸다. 텍스트 파스는 기존대로 이름 중복 드롭.
       const mapped = mapParseResult(
         result,
         existingClassNames,
-        new Set(instances.map((i) => i.name)),
+        kind === 'csv' ? new Set<string>() : new Set(instances.map((i) => i.name)),
       );
       // H1: 라우트 레벨 경고(예: 관계 추출 단계 실패)를 매핑 경고 앞에 합쳐 검토 UI에 노출.
       if (result.warnings?.length) {
@@ -856,6 +939,25 @@ export default function NewNodePopover() {
       setParsed(mapped);
       setPhase('preview');
       void runGapDetection(mapped);
+      // PRD-N M1: 구획 판정(이질 도메인 → 새 구획 분리 제안). 비동기, 비치명.
+      void runPartitionSuggest(mapped);
+      // PRD-N M3: CSV 재바인딩 diff — 안정식별자로 기존 인스턴스와 대조(신규/갱신/소실).
+      if (kind === 'csv') {
+        const classIdByName: Record<string, string> = {};
+        classes.forEach((c) => {
+          classIdByName[c.name] = c.id;
+        });
+        setRebindDiff(
+          computeInstanceRebindDiff(
+            instances.map((i) => ({ id: i.id, classId: i.classId, name: i.name })),
+            mapped.instances.map((i) => ({ name: i.name, className: i.className })),
+            classIdByName,
+            currentPartitionId ?? DEFAULT_PARTITION_ID,
+          ),
+        );
+      } else {
+        setRebindDiff(null);
+      }
     } catch {
       if (controller.signal.aborted) return;
 
@@ -1019,7 +1121,7 @@ export default function NewNodePopover() {
     }
   };
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (!parsed) return;
 
     // PRD-K M3: 부분 반영 — 체크 해제(제외)된 항목을 뺀 유효 결과만 확정한다.
@@ -1042,7 +1144,25 @@ export default function NewNodePopover() {
 
     // P1-1: 이 확정으로 만드는 노드는 현재 구획에 속한다. 안정 id 산출에 같은
     // 구획을 써 재유입 시 동일 id 로 수렴시킨다(random UUID 대신 content-hash).
-    const partition = currentPartitionId ?? DEFAULT_PARTITION_ID;
+    // PRD-N M1: "새 구획으로 분리"를 수락했으면 이 시점에 구획을 만들어 귀속한다(지연 생성 —
+    // 미확정 취소 시 orphan 방지). 생성 실패 시 확정을 중단해 엉뚱한 구획 반영을 막는다.
+    let partition = currentPartitionId ?? DEFAULT_PARTITION_ID;
+    let createdPartitionId: string | null = null;
+    if (separateAccepted && partitionSuggestion && partitionSuggestion.decision !== 'attach') {
+      try {
+        const name = partitionSuggestion.suggestedPartitionName?.trim() || '새 구획';
+        const PALETTE = ['#4026c5', '#6c2bd4', '#8060d7', '#9746ce', '#a16ed4', '#ab5ec9', '#c680d0', '#b893d7'];
+        const color = PALETTE[partitions.length % PALETTE.length];
+        const created = (await partitionsApi.create({ name, description: '', color })) as { id: string };
+        partition = created.id;
+        createdPartitionId = created.id;
+      } catch (err) {
+        toast.error('구획 생성 실패 — 확정을 중단합니다', {
+          description: err instanceof Error ? err.message : undefined,
+        });
+        return;
+      }
+    }
 
     // PRD-E P2-5: reuse 는 생성 스킵하고 기존 id 로 별칭. relate 는 생성 후 엣지 추가.
     const relateLinks: { fromName: string; targetId: string; relationType: string }[] = [];
@@ -1094,6 +1214,8 @@ export default function NewNodePopover() {
       const enrich = adoptedDefinition.get(cls.name);
       const id = addClass({
         id: stableEntityId(cls.name, 'class', partition),
+        // PRD-N M1: 선택된 구획(신규 or 현재)에 명시 귀속. store 기본 fallback 우회.
+        partitionId: partition,
         name: cls.name,
         description: enrich ? enrich.value : cls.description,
         color: cls.color ?? NODE_COLORS.mid,
@@ -1134,6 +1256,7 @@ export default function NewNodePopover() {
     // relations can reference them.
     const instanceIdMap = new Map<string, string>();
     instances.forEach((i) => instanceIdMap.set(i.name, i.id));
+    let rebindUpdatedCount = 0;
     effective.instances.forEach((inst) => {
       const classId = classIdMap.get(inst.className);
       if (!classId) return;
@@ -1146,8 +1269,20 @@ export default function NewNodePopover() {
       if (dd?.decision === 'relate' && dd.targetId && dd.relationType) {
         relateLinks.push({ fromName: inst.name, targetId: dd.targetId, relationType: dd.relationType });
       }
+      // PRD-N M3: 재바인딩 — 이미 있는 안정식별자면 신규 생성 대신 값만 갱신(중복 방지).
+      // CSV 재업로드가 diff 로 흡수되는 경로(기존 인스턴스를 중복 생성하지 않음).
+      const stableId = stableEntityId(inst.name, 'instance', partition);
+      if (instances.some((i) => i.id === stableId)) {
+        instanceIdMap.set(inst.name, stableId);
+        (inst.values ?? []).forEach((v) => {
+          const propId = propIdMap.get(`${inst.className}::${v.propertyName}`);
+          if (propId) setInstanceValue(stableId, propId, v.value);
+        });
+        rebindUpdatedCount++;
+        return;
+      }
       const instId = addInstance({
-        id: stableEntityId(inst.name, 'instance', partition),
+        id: stableId,
         name: inst.name,
         classId,
         description: inst.description ?? '',
@@ -1223,6 +1358,36 @@ export default function NewNodePopover() {
       createdEdgeCount++;
     });
 
+    // PRD-N M1: 수락된 교차 개념 bridge — 새 구획 노드 ↔ 기존 구획 동일 대상(same_as, is_bridge).
+    // 새 구획으로 분리해 실제로 구획을 만든 경우에만 적용한다.
+    if (createdPartitionId) {
+      acceptedBridges.forEach((b) => {
+        const from = resolveNode(b.sourceName);
+        if (!from || from.id === b.targetId) return;
+        const targetKind: 'class' | 'instance' = classes.some((c) => c.id === b.targetId)
+          ? 'class'
+          : 'instance';
+        let relTypeId = relTypeIdByName.get(b.relationType);
+        if (!relTypeId) {
+          relTypeId = addRelationType({ name: b.relationType });
+          relTypeIdByName.set(b.relationType, relTypeId);
+        }
+        addEdge({
+          id: stableEdgeId(from.id, b.targetId, b.relationType),
+          sourceId: from.id,
+          targetId: b.targetId,
+          sourceKind: from.kind,
+          targetKind,
+          relationTypeId: relTypeId,
+          isBridge: true,
+          sourceType: 'user',
+          confidence: null,
+          evidence: b.evidence ?? null,
+        });
+        createdEdgeCount++;
+      });
+    }
+
     // PRD-K M3 (A5): 확정 피드백 3종 — ① 성공 토스트(+일괄 되돌리기) ② 새 노드
     // 캔버스 하이라이트(fit+pulse) ③ CommitBar 카운트는 pendingChanges 증가로 반영.
     const undoSteps = Math.max(
@@ -1233,6 +1398,8 @@ export default function NewNodePopover() {
       createdClassCount > 0 ? `클래스 ${createdClassCount}` : null,
       createdInstanceCount > 0 ? `인스턴스 ${createdInstanceCount}` : null,
       createdEdgeCount > 0 ? `관계 ${createdEdgeCount}` : null,
+      // PRD-N M3: CSV 재바인딩으로 값만 갱신된 기존 인스턴스.
+      rebindUpdatedCount > 0 ? `인스턴스 갱신 ${rebindUpdatedCount}` : null,
     ]
       .filter(Boolean)
       .join(', ');
@@ -1255,6 +1422,9 @@ export default function NewNodePopover() {
     if (createdNodeIds.length > 0) {
       useOntologyStore.getState().highlightNodes(createdNodeIds);
     }
+
+    // PRD-N M1: 새 구획으로 분리했으면 그 워크스페이스로 전환해 결과를 바로 보여준다.
+    if (createdPartitionId) selectPartition(createdPartitionId);
 
     resetAndClose();
   };
@@ -2110,6 +2280,45 @@ export default function NewNodePopover() {
                       </span>
                     )}
                   </span>
+                </div>
+              )}
+
+              {/* PRD-N M1: AI 자동 구획 제안 밴드(트리아지 상단). attach 는 무소음(렌더 X). */}
+              {parsed &&
+                partitionSuggestion &&
+                partitionSuggestion.decision !== 'attach' &&
+                !suggestionDismissed && (
+                  <div className="mb-3" data-testid="partition-suggest-band">
+                    <PartitionSuggestCard
+                      decision={partitionSuggestion.decision}
+                      suggestedPartitionName={partitionSuggestion.suggestedPartitionName}
+                      rationale={partitionSuggestion.rationale}
+                      bridges={partitionSuggestion.bridges}
+                      applied={separateAccepted}
+                      onSeparate={handleAcceptSeparate}
+                      onKeepCurrent={handleKeepCurrent}
+                      onConnectBridge={handleAcceptBridge}
+                      onDistinctBridge={handleDistinctBridge}
+                    />
+                  </div>
+                )}
+
+              {/* PRD-N M3: CSV 재바인딩 요약 — 재업로드가 중복 없이 diff 로 흡수됨을 표시. */}
+              {rebindDiff && (rebindDiff.updated.length > 0 || rebindDiff.missing.length > 0) && (
+                <div
+                  className="mb-3 rounded-lg border border-info/30 bg-info/5 p-2 text-xs"
+                  data-testid="rebind-diff"
+                >
+                  <span className="font-medium text-info">CSV 재바인딩</span>{' '}
+                  <span className="text-muted-foreground">
+                    신규 {rebindDiff.created.length} · 갱신 {rebindDiff.updated.length}
+                    {rebindDiff.missing.length > 0 && <> · 소실 {rebindDiff.missing.length}</>}
+                  </span>
+                  {rebindDiff.missing.length > 0 && (
+                    <p className="mt-0.5 text-muted-foreground/70">
+                      새 CSV에 없는 기존 인스턴스는 삭제하지 않고 그대로 둡니다.
+                    </p>
+                  )}
                 </div>
               )}
 

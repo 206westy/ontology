@@ -36,6 +36,70 @@ export const updatePartitionSchema = z.object({
 export type CreatePartitionInput = z.infer<typeof createPartitionSchema>;
 export type UpdatePartitionInput = z.infer<typeof updatePartitionSchema>;
 
+// ─── AI 자동 구획 제안 (PRD-N M1) ───────────────────────────
+// 추출분 + 현재 구획 노드 이름을 받아 attach/new/bridge 를 판정한다.
+// 결정론은 서버가 decidePartitionScope 로 수행, LLM 은 새 구획 명명에만 쓴다.
+const partitionSuggestEntitySchema = z.object({
+  name: z.string().min(1),
+  nodeKind: z.enum(['class', 'instance']).optional(),
+});
+const partitionSuggestRelationSchema = z.object({
+  source: z.string().min(1),
+  target: z.string().min(1),
+});
+export const partitionSuggestRequestSchema = z.object({
+  entities: z.array(partitionSuggestEntitySchema),
+  relations: z.array(partitionSuggestRelationSchema).optional().default([]),
+  currentPartitionId: looseUuid().nullable().optional(),
+  // 현재 구획의 기존 노드 이름(겹침 판정 소스) — 클라이언트 store 에서 수집.
+  currentPartitionNodes: z
+    .array(
+      z.object({
+        id: z.string(),
+        name: z.string(),
+        kind: z.enum(['class', 'instance']),
+      }),
+    )
+    .optional()
+    .default([]),
+  // 다른 구획 요약(이름 충돌 회피용) — LLM 명명 프롬프트에만 사용.
+  partitionsSummary: z
+    .array(z.object({ id: z.string(), name: z.string() }))
+    .optional()
+    .default([]),
+});
+export type PartitionSuggestRequestInput = z.infer<typeof partitionSuggestRequestSchema>;
+
+// BridgeSuggestion(cross-partition.ts) 의 와이어 표현.
+export const bridgeSuggestionSchema = z.object({
+  sourceId: z.string(),
+  targetId: z.string(),
+  sourceName: z.string(),
+  targetName: z.string(),
+  sourcePartition: z.string(),
+  targetPartition: z.string(),
+  kind: z.enum(['class', 'instance']),
+  score: z.number(),
+  relationType: z.string(),
+  evidence: z.string(),
+});
+
+export const partitionSuggestResponseSchema = z.object({
+  decision: z.enum(['attach', 'new', 'bridge']),
+  overlapRatio: z.number(),
+  suggestedPartitionName: z.string().nullable().optional(),
+  bridges: z.array(bridgeSuggestionSchema).optional().default([]),
+  unmatchedNames: z.array(z.string()).optional().default([]),
+  rationale: z.string().nullable().optional(),
+});
+export type PartitionSuggestResponse = z.infer<typeof partitionSuggestResponseSchema>;
+
+// 라우트의 LLM 명명 호출 전용 구조화 출력 스키마.
+export const partitionNameResponseSchema = z.object({
+  suggestedPartitionName: z.string().min(1),
+  rationale: z.string(),
+});
+
 // ─── Classes ───────────────────────────────────────────────
 export const createClassSchema = z.object({
   id: z.string().uuid().optional(),
@@ -663,9 +727,31 @@ export const text2CypherRequestSchema = z.object({
   question: z.string().min(1),
   executeQuery: z.boolean().optional().default(false),
   maxRetries: z.number().int().min(0).max(3).optional().default(1),
+  // PRD-N M2: 구획 스코프. partitionId 지정 + allPartitions=false 면 그 구획으로 한정
+  // (생성 Cypher에 WHERE n.partition = $partition 강제). 미지정/allPartitions 면 무스코프(기존 동작).
+  partitionId: looseUuid().nullable().optional(),
+  allPartitions: z.boolean().optional().default(false),
 });
 
 export type Text2CypherRequestInput = z.infer<typeof text2CypherRequestSchema>;
+
+// ─── 진단형 RAG: 근거경로 답변 (PRD-N M4) ────────────────────
+export const ragAnswerRequestSchema = z.object({
+  question: z.string().min(1),
+  // 구획 스코프(가드레일). 지정 시 탐색이 이 구획을 벗어나지 않는다.
+  partitionId: looseUuid().nullable().optional(),
+  k: z.number().int().min(1).max(20).optional().default(5),
+  maxDepth: z.number().int().min(1).max(4).optional().default(2),
+});
+// z.input: default 필드(k/maxDepth)를 클라이언트에서 생략 가능하게(서버가 채움).
+export type RagAnswerRequestInput = z.input<typeof ragAnswerRequestSchema>;
+
+// LLM 종합 전용 구조화 출력 — 경로 밖 추측은 hasUngrounded 로 분리.
+export const ragAnswerLlmSchema = z.object({
+  answer: z.string(),
+  hasUngrounded: z.boolean(),
+  ungroundedNote: z.string().nullable().optional(),
+});
 
 // ─── Import / Export (v3) ─────────────────────────────────
 // PRD-L M1: axioms/axiomClasses 키는 스키마에서 제거됐다. zod 는 알 수 없는 키를
@@ -682,6 +768,9 @@ export const importRequestSchema = z.object({
     constraints: z.array(z.record(z.string(), z.unknown())).default([]),
   }),
   strategy: z.enum(['replace', 'merge']).default('replace'),
+  // PRD-N M1: 지정 시 임포트되는 클래스 전부를 이 구획에 귀속(템플릿 시딩→새 구획).
+  // 미지정 시 기존 동작(클래스 자체 partition_id 또는 DB 기본 구획).
+  partitionId: looseUuid().optional(),
 });
 
 export type ImportRequestInput = z.infer<typeof importRequestSchema>;

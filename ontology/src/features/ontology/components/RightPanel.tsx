@@ -34,6 +34,8 @@ import AutocompleteSuggestions from './AutocompleteSuggestions';
 import Text2CypherTab from './Text2CypherTab';
 import ConstraintsPanel from './ConstraintsPanel';
 import EvidencePanel, { type EdgeEvidence } from './EvidencePanel';
+import { commitsApi } from '../api';
+import { summarizeLineage, type LineageSummary } from '../lib/lineage/lineage';
 import { sourceTypeLabel } from '../lib/source-type-labels';
 import { NodeKindToggle } from './NodeKindToggle';
 
@@ -764,6 +766,26 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
   const selectedNodeId = useOntologyStore((s) => s.selectedNodeId);
   const selectedNodeType = useOntologyStore((s) => s.selectedNodeType);
   const updateClass = useOntologyStore((s) => s.updateClass);
+  // PRD-N M5: 선택 노드 계보(근거 탭) — 훅 없이 plain fetch(격리 렌더 테스트 안전).
+  const [lineageSummary, setLineageSummary] = useState<LineageSummary | null>(null);
+  useEffect(() => {
+    if (!selectedNodeId) {
+      setLineageSummary(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await commitsApi.lineage(selectedNodeId);
+        if (!cancelled) setLineageSummary(summarizeLineage(res.events));
+      } catch {
+        if (!cancelled) setLineageSummary(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedNodeId]);
   const selectNode = useOntologyStore((s) => s.selectNode);
   const requestNodeExpansion = useOntologyStore((s) => s.requestNodeExpansion);
   const aiExpandRequest = useOntologyStore((s) => s.aiExpandRequest);
@@ -1460,6 +1482,7 @@ export default function RightPanel({ onDeleteRequest }: { onDeleteRequest?: () =
         <TabsContent value="evidence" className="flex-1 mt-0 min-h-0 flex flex-col">
           <EvidencePanel
             nodeName={nodeName}
+            lineage={lineageSummary}
             nodeProvenance={
               selectedClass
                 ? {

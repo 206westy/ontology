@@ -6,6 +6,12 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { confidenceBand, CONFIDENCE_BAND_LABEL } from '@/components/ui/confirm-card';
 import { sourceTypeLabel } from '../lib/source-type-labels';
+import type { LineageSummary } from '../lib/lineage/lineage';
+
+// PRD-N M5: 계보 요약(생성·변경·발행)을 한 줄로. 날짜는 YYYY-MM-DD 로 간결히.
+function fmtDay(iso: string | null): string {
+  return iso ? iso.slice(0, 10) : '—';
+}
 
 // PRD-I M5: 근거(투명성) 탭. 데이터 모델에 이미 영속화된 provenance(sourceType/evidence/confidence)를
 // 노드/관계 단위로 드러낸다. M6 결정: AI confidence 원시값(%)은 재현 불가능 신호라 노출하지 않고,
@@ -28,6 +34,8 @@ interface EvidencePanelProps {
   nodeName: string;
   nodeProvenance?: EvidenceProvenance | null;
   edgeEvidence: EdgeEvidence[];
+  // PRD-N M5: 노드 계보(커밋 체인 요약). 없으면 계보 섹션 생략.
+  lineage?: LineageSummary | null;
 }
 
 // evidence 텍스트가 실제 근거인지(‘existing’ 같은 placeholder 제외) 판별.
@@ -70,10 +78,11 @@ function EvidenceQuote({ evidence }: { evidence?: string | null }) {
   );
 }
 
-export default function EvidencePanel({ nodeName, nodeProvenance, edgeEvidence }: EvidencePanelProps) {
+export default function EvidencePanel({ nodeName, nodeProvenance, edgeEvidence, lineage }: EvidencePanelProps) {
   const nodeHasProvenance = hasProvenance(nodeProvenance);
   const edgesWithProvenance = edgeEvidence.filter((e) => hasProvenance(e));
-  const isEmpty = !nodeHasProvenance && edgesWithProvenance.length === 0;
+  const hasLineage = !!lineage && lineage.totalEvents > 0;
+  const isEmpty = !nodeHasProvenance && edgesWithProvenance.length === 0 && !hasLineage;
 
   if (isEmpty) {
     return (
@@ -100,6 +109,42 @@ export default function EvidencePanel({ nodeName, nodeProvenance, edgeEvidence }
       </div>
 
       <Separator />
+
+      {/* PRD-N M5: 계보(어디서 왔나) — 생성·변경·발행을 한 화면에서 추적 */}
+      {hasLineage && lineage && (
+        <>
+          <div className="px-4 py-2 space-y-1" data-testid="evidence-lineage">
+            <span className="text-xs font-semibold tracking-tight text-foreground/80">
+              계보 (어디서 왔나)
+            </span>
+            <div className="space-y-0.5 text-xs text-muted-foreground">
+              <p>
+                생성: {fmtDay(lineage.createdAt)}
+                {lineage.createdBy ? ` · ${lineage.createdBy}` : ''}
+              </p>
+              <p>
+                변경: {lineage.changeCount}회 · 최근 {fmtDay(lineage.lastChangedAt)}
+              </p>
+              <p className="flex items-center gap-1">
+                발행:{' '}
+                {lineage.publishedAt ? (
+                  <>
+                    {fmtDay(lineage.publishedAt)}
+                    {lineage.versionTag && (
+                      <Badge variant="outline" className="h-4 px-1 text-xs">
+                        {lineage.versionTag}
+                      </Badge>
+                    )}
+                  </>
+                ) : (
+                  '미발행'
+                )}
+              </p>
+            </div>
+          </div>
+          <Separator />
+        </>
+      )}
 
       {/* 노드 출처 */}
       {nodeHasProvenance && (

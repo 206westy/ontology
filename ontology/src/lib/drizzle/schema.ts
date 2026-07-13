@@ -406,6 +406,9 @@ export const commits = pgTable(
     parentCommitId: uuid('parent_commit_id').references((): any => commits.id, {
       onDelete: 'set null',
     }),
+    // PRD-N M5: 발행 시점 부여 — 시맨틱 버전 태그 + 구획별 변경 요약(발행 이력 구분).
+    versionTag: text('version_tag'),
+    changeSummary: jsonb('change_summary'),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),

@@ -18,6 +18,8 @@ import type {
   BridgeSuggestion,
   CreateBridgeInput,
 } from './lib/bridge/cross-partition';
+import type { EvidencePath, Provenance } from './lib/rag/traverse';
+import type { LineageEvent } from './lib/lineage/lineage';
 import type {
   OntologyEdge,
   OntologyBranch,
@@ -45,6 +47,7 @@ import type {
   ValidateRequestInput,
   LlmChatRequestInput,
   Text2CypherRequestInput,
+  RagAnswerRequestInput,
   ImportRequestInput,
   AssistRequestInput,
   AssistantActionResponse,
@@ -53,6 +56,8 @@ import type {
   DedupResolveRequestInput,
   DedupResolveResponse,
   GovernanceProposal,
+  PartitionSuggestRequestInput,
+  PartitionSuggestResponse,
 } from './lib/schemas';
 
 async function handleResponse<T>(res: Response): Promise<T> {
@@ -364,6 +369,17 @@ export const llmApi = {
     }).then((r) => handleResponse<LlmParseResult>(r)),
 };
 
+// ─── 구획 판정 (PRD-N M1: AI 자동 구획 제안) ────────────────
+// 결정론 판정(attach/new/bridge) + new/bridge 시 LLM 명명. attach 는 무소음.
+export const partitionSuggestApi = {
+  suggest: (data: PartitionSuggestRequestInput): Promise<PartitionSuggestResponse> =>
+    fetch('/api/llm/partition/suggest', {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify(data),
+    }).then((r) => handleResponse<PartitionSuggestResponse>(r)),
+};
+
 // ─── LLM Enrichment (A-3 / A-4) ─────────────────────────────
 export interface DetectSubgraphInput {
   nodes: {
@@ -557,6 +573,11 @@ export const commitsApi = {
   // Neo4j 반영 안 된 커밋 ID(오래된 순) — "반영본 채우기"용.
   unpushed: (): Promise<{ ids: string[]; count: number }> =>
     fetch('/api/commits?unpushed=true').then((r) => handleResponse(r)),
+  // PRD-N M5: 노드 계보 — 이 노드를 건드린 커밋 이벤트(시간순).
+  lineage: (targetId: string): Promise<{ events: LineageEvent[] }> =>
+    fetch(`/api/commits/lineage?targetId=${encodeURIComponent(targetId)}`).then((r) =>
+      handleResponse<{ events: LineageEvent[] }>(r),
+    ),
 };
 
 // ─── Neo4j ────────────────────────────────────────────────
@@ -724,6 +745,10 @@ export interface Text2CypherResult {
   executed: boolean;
   results?: unknown[];
   error?: string;
+  // PRD-N M2: 스코프 질의 시 결과 내 타 구획 오염 계량(교차 구획 오염률 지표).
+  crossPartition?: { totalNodes: number; foreignNodes: number };
+  // 요청이 스코프였는지(현재 구획 한정) — UI 배지·출처 표기용.
+  scoped?: boolean;
 }
 
 export const text2CypherApi = {
@@ -733,6 +758,25 @@ export const text2CypherApi = {
       headers: jsonHeaders,
       body: JSON.stringify(data),
     }).then((r) => handleResponse<Text2CypherResult>(r)),
+};
+
+// ─── 진단형 RAG: 근거경로 답변 (PRD-N M4) ────────────────────
+export interface RagAnswerResult {
+  answer: string;
+  paths: EvidencePath[];
+  sources: Provenance[];
+  grounded: boolean;
+  ungroundedNote: string | null;
+  entryCount: number;
+}
+
+export const ragApi = {
+  answer: (data: RagAnswerRequestInput): Promise<RagAnswerResult> =>
+    fetch('/api/rag/answer', {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify(data),
+    }).then((r) => handleResponse<RagAnswerResult>(r)),
 };
 
 // ─── AI Assistant structured actions (P0-1) ───────────────

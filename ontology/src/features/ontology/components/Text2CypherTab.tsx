@@ -16,6 +16,8 @@ import {
   AlertCircle,
   Crosshair,
   WifiOff,
+  Layers,
+  Globe,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -205,7 +207,13 @@ function addToHistory(entry: Omit<HistoryEntry, 'id' | 'timestamp'>) {
 
 // ─── Result display components ────────────────────────────
 
-function ResultTable({ data }: { data: unknown[] }) {
+function ResultTable({
+  data,
+  partitionNames,
+}: {
+  data: unknown[];
+  partitionNames?: Record<string, string>;
+}) {
   if (data.length === 0) {
     return (
       <p className="text-xs text-muted-foreground py-4 text-center">
@@ -242,7 +250,7 @@ function ResultTable({ data }: { data: unknown[] }) {
                 >
                   {columns.map((col) => (
                     <td key={col} className="px-2.5 py-1.5 whitespace-nowrap">
-                      {formatCellValue(record[col])}
+                      {formatCellValue(record[col], partitionNames)}
                     </td>
                   ))}
                 </tr>
@@ -260,8 +268,15 @@ function ResultTable({ data }: { data: unknown[] }) {
   );
 }
 
-function formatCellValue(value: unknown): string {
+function formatCellValue(
+  value: unknown,
+  partitionNames?: Record<string, string>,
+): string {
   if (value === null || value === undefined) return '(null)';
+  // PRD-N M2: partition id 컬럼(전체 질의의 출처 구획)을 구획 이름으로 사람이 읽게 표기.
+  if (typeof value === 'string' && partitionNames && partitionNames[value]) {
+    return `${partitionNames[value]} (구획)`;
+  }
   if (typeof value === 'object') return JSON.stringify(value);
   return String(value);
 }
@@ -420,6 +435,21 @@ export default function Text2CypherTab() {
 
   const highlightNodes = useOntologyStore((s) => s.highlightNodes);
   const pendingCount = useOntologyStore((s) => s.pendingChanges.length);
+  // PRD-N M2: 구획 스코프 질의 — 기본은 현재 구획만, 전체 질의는 opt-in.
+  const currentPartitionId = useOntologyStore((s) => s.currentPartitionId);
+  const partitions = useOntologyStore((s) => s.partitions);
+  const [allPartitionsQuery, setAllPartitionsQuery] = useState(false);
+  const [crossPartition, setCrossPartition] = useState<{
+    totalNodes: number;
+    foreignNodes: number;
+  } | null>(null);
+  const partitionNameById = useMemo(
+    () => Object.fromEntries(partitions.map((p) => [p.id, p.name])),
+    [partitions],
+  );
+  const currentPartitionName = currentPartitionId
+    ? (partitionNameById[currentPartitionId] ?? null)
+    : null;
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const historyRef = useRef<HTMLDivElement>(null);
@@ -433,6 +463,15 @@ export default function Text2CypherTab() {
   useEffect(() => {
     setHistory(loadHistory());
   }, []);
+
+  // PRD-N M2: 구획 전환 시 질의 컨텍스트 리셋 — 다른 구획 결과가 섞이지 않게.
+  useEffect(() => {
+    setResults(null);
+    setGeneratedCypher('');
+    setExplanation('');
+    setError(null);
+    setCrossPartition(null);
+  }, [currentPartitionId]);
 
   // Check Neo4j connection on mount (production graph is the query target)
   useEffect(() => {
@@ -477,6 +516,8 @@ export default function Text2CypherTab() {
         question,
         executeQuery: false,
         maxRetries: 1,
+        partitionId: currentPartitionId ?? undefined,
+        allPartitions: allPartitionsQuery,
       });
 
       setGeneratedCypher(result.cypher);
@@ -490,7 +531,7 @@ export default function Text2CypherTab() {
     } finally {
       setLoading(false);
     }
-  }, [input, loading]);
+  }, [input, loading, currentPartitionId, allPartitionsQuery]);
 
   // 운영(반영본) Neo4j 에 직접 실행되므로, 실행 전 확인 다이얼로그를 거친다.
   const [execConfirmOpen, setExecConfirmOpen] = useState(false);
@@ -502,10 +543,11 @@ export default function Text2CypherTab() {
     setExecuting(true);
     setError(null);
     setResults(null);
+    setCrossPartition(null);
 
     try {
       if (mode === 'direct') {
-        // Direct mode: execute raw Cypher via neo4j query endpoint
+        // Direct mode: execute raw Cypher via neo4j query endpoint (원저작 — 스코프 강제 안 함)
         const result = await neo4jApi.query(cypher);
         setGeneratedCypher(cypher);
         setResults(result.data);
@@ -516,6 +558,8 @@ export default function Text2CypherTab() {
           question: input.trim(),
           executeQuery: true,
           maxRetries: 1,
+          partitionId: currentPartitionId ?? undefined,
+          allPartitions: allPartitionsQuery,
         });
 
         if (result.cypher) {
@@ -530,13 +574,14 @@ export default function Text2CypherTab() {
         if (result.results) {
           setResults(result.results);
         }
+        setCrossPartition(result.crossPartition ?? null);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : '쿼리 실행에 실패했습니다');
     } finally {
       setExecuting(false);
     }
-  }, [mode, generatedCypher, cypherDraft, executing, input]);
+  }, [mode, generatedCypher, cypherDraft, executing, input, currentPartitionId, allPartitionsQuery]);
 
   const handleCopy = useCallback(async () => {
     const cypher = mode === 'nl' ? generatedCypher : cypherDraft;
@@ -621,25 +666,51 @@ export default function Text2CypherTab() {
             </div>
           )}
 
-          {/* Mode toggle + history */}
+          {/* Mode toggle + scope toggle + history */}
           <div className="flex items-center justify-between gap-2">
-            <button
-              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-              onClick={() => {
-                setMode((m) => (m === 'nl' ? 'direct' : 'nl'));
-                setResults(null);
-                setError(null);
-              }}
-            >
-              {mode === 'nl' ? (
-                <ToggleLeft className="w-4 h-4 text-primary" />
-              ) : (
-                <ToggleRight className="w-4 h-4 text-primary" />
+            <div className="flex items-center gap-3">
+              <button
+                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                onClick={() => {
+                  setMode((m) => (m === 'nl' ? 'direct' : 'nl'));
+                  setResults(null);
+                  setError(null);
+                }}
+              >
+                {mode === 'nl' ? (
+                  <ToggleLeft className="w-4 h-4 text-primary" />
+                ) : (
+                  <ToggleRight className="w-4 h-4 text-primary" />
+                )}
+                <span className="font-medium">
+                  {mode === 'nl' ? '자연어 모드' : 'Cypher 직접입력'}
+                </span>
+              </button>
+
+              {/* PRD-N M2: 질의 구획 스코프 토글 — 기본 현재 구획, 클릭 시 전체 질의(opt-in) */}
+              {mode === 'nl' && (
+                <button
+                  className={`flex items-center gap-1 text-xs transition-colors ${
+                    allPartitionsQuery ? 'text-warning' : 'text-primary'
+                  } hover:opacity-80`}
+                  onClick={() => setAllPartitionsQuery((v) => !v)}
+                  title={
+                    allPartitionsQuery
+                      ? '전체 구획을 대상으로 질의합니다. 클릭하면 현재 구획으로 좁힙니다.'
+                      : '현재 구획만 질의합니다. 클릭하면 전체 구획으로 넓힙니다.'
+                  }
+                >
+                  {allPartitionsQuery ? (
+                    <Globe className="w-3.5 h-3.5" />
+                  ) : (
+                    <Layers className="w-3.5 h-3.5" />
+                  )}
+                  <span className="font-medium max-w-[120px] truncate">
+                    {allPartitionsQuery ? '전체 구획' : (currentPartitionName ?? '현재 구획')}
+                  </span>
+                </button>
               )}
-              <span className="font-medium">
-                {mode === 'nl' ? '자연어 모드' : 'Cypher 직접입력'}
-              </span>
-            </button>
+            </div>
 
             <div className="relative" ref={historyRef}>
               <button
@@ -850,7 +921,7 @@ export default function Text2CypherTab() {
               </div>
 
               {resultView === 'table' ? (
-                <ResultTable data={results} />
+                <ResultTable data={results} partitionNames={partitionNameById} />
               ) : resultView === 'graph' ? (
                 <ResultGraph data={results} />
               ) : (
@@ -862,6 +933,19 @@ export default function Text2CypherTab() {
                 <p className="text-xs text-muted-foreground/70">
                   이 결과는 Neo4j(반영본) 기준입니다. 최근 편집은 push 후 반영됩니다.
                 </p>
+                {/* PRD-N M2: 스코프 질의의 교차 구획 오염 신호(오염률 → 0 목표) */}
+                {crossPartition &&
+                  (crossPartition.foreignNodes > 0 ? (
+                    <Badge variant="outline" className="h-5 text-xs px-1 text-warning border-warning/40">
+                      타 구획 {crossPartition.foreignNodes}개 섞임
+                    </Badge>
+                  ) : (
+                    crossPartition.totalNodes > 0 && (
+                      <Badge variant="outline" className="h-5 text-xs px-1 text-success border-success/40">
+                        현재 구획 격리됨
+                      </Badge>
+                    )
+                  ))}
                 {pendingCount > 0 && (
                   <Badge variant="outline" className="h-5 text-xs px-1 text-warning border-warning/40">
                     미반영 변경 {pendingCount}건

@@ -18,6 +18,10 @@ import {
   compressDetails,
   formatBatchedCypherPreview,
 } from '@/lib/neo4j/cypher-batch';
+import {
+  computePublishVersion,
+  summarizeChangesByPartition,
+} from '@/features/ontology/lib/lineage/lineage';
 
 const idArray = (ids: string[]) =>
   ids.length > 0
@@ -446,13 +450,39 @@ export async function POST(request: NextRequest) {
       // 가지므로, 실패해도 데이터 손실은 없지만 양 DB 플래그가 어긋난다.
       // 짧게 재시도하고, 끝내 실패하면 "실패"가 아니라 "부분 성공(경고)"으로 보고한다.
       // (실패로 보고하면 사용자가 재반영해 중복 push 를 유발한다.)
+      // PRD-N M5: 발행 스냅샷에 버전 태그 + 구획별 변경 요약을 부여(발행 이력 구분).
+      // 부가 정보라 실패해도 발행 플래그 갱신은 그대로 진행한다.
+      let versionTag: string | null = null;
+      let changeSummary: unknown = null;
+      try {
+        const relRows = (await db.execute(
+          sql`SELECT COUNT(DISTINCT pushed_at)::int AS n FROM commits WHERE pushed_to_neo4j = true`,
+        )) as unknown as Array<{ n: number }>;
+        versionTag = computePublishVersion(relRows[0]?.n ?? 0);
+        changeSummary = summarizeChangesByPartition(
+          effectiveDetails.map((d) => ({
+            operation: d.operation,
+            targetTable: d.targetTable,
+            afterSnapshot: d.afterSnapshot ?? null,
+            beforeSnapshot: d.beforeSnapshot ?? null,
+          })),
+        );
+      } catch (e) {
+        console.error('[Neo4j Push] 버전 태그 계산 실패(발행은 계속):', e);
+      }
+
       let flagUpdated = false;
       let flagError: string | undefined;
       for (let attempt = 0; attempt < 3 && !flagUpdated; attempt++) {
         try {
           await db
             .update(commits)
-            .set({ pushedToNeo4j: true, pushedAt: new Date() })
+            .set({
+              pushedToNeo4j: true,
+              pushedAt: new Date(),
+              ...(versionTag ? { versionTag } : {}),
+              ...(changeSummary ? { changeSummary } : {}),
+            })
             .where(inArray(commits.id, commitIds));
           flagUpdated = true;
         } catch (e) {

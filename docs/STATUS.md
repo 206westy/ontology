@@ -37,6 +37,7 @@ docs/
 | PRD-L.md | 팔란티어 3레이어 정리 & 확신-초안 확정 (L-1.2) | **M1~M6 전량 구현 + 핵심 여정 라이브 검증 완료(2026-07-08 → 완료 이동).** 라이브 검증: 텍스트→파싱→미리보기에서 트리아지 밴드(자동 반영 7·검토 필요 4+사유 배지)·지식/행동 레이어 배지·NodeKindToggle 원탭 전환·자동 반영 접힘 그룹·확정 문구 전부 실화면 확인, 확정→배치 저장→**어휘집 성장 실증**. 검증 중 커버리지 갭 발견·수정(9749fb0): 유형 재사용 시 어휘집 미성장 → recordRelationUsage(엣지 생성=재등장) 5초크포인트(edges/bridges/batch/import/merge) 배선, 라이브 재실증(점검함 재사용 2건→occurrence 2·임베딩 생성). 709테스트. 미결(백로그): Dynamic 레이어 UI 노출 여부. 커밋 b8e42b1/c8afba1/a93c6c2/d4669d3/9131f3e/ac035cd, 마이그레이션 4종 라이브. M1=공리+제약→constraints.kind(enforced/memo) 단일 규칙(axioms DROP, useRules, 강제됨/설명 메모 배지). M2=category(5)→layer(semantic지식/kinetic행동), categoryConfidence 완전 삭제, Stage2 프롬프트 ~1450자→330자(-77%), 정체성(stableEdgeId·dedup키)에서 분류 제외. M3=add_relation 단일 액션(유형 자동생성+엣지, TBox/ABox 보존), ConstraintsPanel '관계' 라벨. M4=NodeKindToggle 공통 어포던스(평문 질문+원탭 전환, 3곳 문구 수렴 소스 테스트 고정), Stage1 확신 커밋 1줄. M5=confirm-triage(<0.7/Critic/미해소→review), 자동반영 접힘+검토필요 사유배지 표면화, 반영 모델 불변, L5 속성규칙 2블록→1(-190자). M6=relation_glossary(사후 정합 전용·재주입 금지 소스 게이트, 초크포인트 4곳: api/batch/import/merge, 재등장=occurrence_count+1·원본 보존, similar_to 후보 링크만)+GET API. **라이브 누적 실증 완료**(3라운드: 새이름→행증가, 재등장→1행 카운트2, layer 보존). 테스트 657→706(+49), 각 마일스톤 lint·빌드 그린. |
 
 | PRD-M.md | Docker Neo4j 복귀 + 발행 파이프라인 고속화 | **M0~M4 당일 구현·라이브 검증 완료(2026-07-08).** M0=Docker `neo4j-onto`(5.26) 재기동+unless-stopped+스키마 부트스트랩+MCP 무수정 재연결 검증, Desktop 폐기. M1=생애주기 압축(`compressDetails`: ADD…DEL 상쇄·MOD 병합), M2=UNWIND 배칭(`cypher-batch.ts`, 템플릿 우선순위·상한 1000행)+_SyncState 1문장, M3=임베딩 드리프트 보정(미보유 노드→Supabase 벡터 동기화), M4=배칭 프리뷰 요약. 압축 가드: 기발행 커밋 섞이면 압축 생략. **라이브 실증: detail 194건→UNWIND 5구문**, 발행 성공·상쇄 정확. 724테스트(+15)·lint·빌드 그린. 잔여 관찰: 발행 지연의 대부분은 Supabase 읽기 왕복(회사망) — 별도 주제 |
+| PRD-N.md | 구획 지능 & 접지·운영추론 (M1~M5) | **M1~M5 전량 구현·검증 완료(2026-07-13).** 플랜 `.claude/plans/prd-n-m{1,2,3,4,5}.plan.md`. **M1** AI 자동 구획 제안(결정론 판정+LLM 명명 only·attach 무소음·bridge·지연 구획 생성·템플릿 시딩 귀속). **M2** 추론 격리(`lib/neo4j/scope.ts`·Text2Cypher `$partition` 서버 바인딩·교차 오염률·전체질의 opt-in·RAG over-fetch 필터·Text2CypherTab 배지/출처/전환 리셋). **M3** Grounder(`lib/metrics/grounding.ts` 바인딩률·채움률·신선도·CSV 재바인딩 diff + 헬스 뱃지/대시보드 접지 축 + ExplorerPanel 미접지 배지 + CSV stable-id 갱신). **M4** Operator(`lib/rag/traverse.ts` 스코프 탐색·가드레일 `ALL(n.partition=$p)` + `rag/answer` 진단형 RAG·근거경로·출처·근거없음 분리 + AIAssistantTab 근거 모드·경로 클릭 하이라이트). **M5** Steward 잔여(`lib/lineage/lineage.ts` 계보 요약·버전 태그·구획 변경요약 + Evidence 탭 계보 섹션 + `commits.version_tag/change_summary` 마이그레이션 + push 발행 버전 태그). **806테스트·타입·lint 그린, 회귀 0.** **MCP 라이브 실증**: M2 :Concept 스코프 격리·M3 바인딩률 0.333/채움률 0 메트릭 일치·M4 스코프 탐색 브릿지 이탈 차단·M5 마이그레이션 컬럼+계보 쿼리. **후속: `npm run build`(dev 서버 구동 중 미실행, tsc 대체)·앱 라이브 UX 검증**(Neo4j 반영본 데이터 필요) |
 
 추가 (이번 세션, 별도 메모리): 노드 기준 AI 확장 진입점, RLS 보안 락다운(14테이블 deny-all).
 
@@ -71,7 +72,7 @@ docs/
 
 | 문서 | 범위 | 비고 |
 |------|------|------|
-| PRD-N.md | 구획 지능 & 접지·운영추론 | v5-prd-B(B-5·B-6)+v6-roadmap(P2~P4) 미개발분을 2026-07-08 코드 대조로 선별 승계. M1=AI 자동 구획 제안(HITL, connectivity·BridgeSuggestCard 재사용)+템플릿 시딩 구획 귀속, M2=Text2Cypher/RAG 구획 스코프(전체 질의 opt-in), M3=Grounder(바인딩률·신선도 헬스 통합·CSV 재바인딩, 현 자산 한정), M4=Operator(진단형 RAG+근거경로+가드레일, 읽기 전용), M5=Steward 잔여(계보 뷰·버전 태그, 후순위) |
+| (없음 — PRD-N 진행중 이동) | — | — |
 
 ## ⚠️ 테스트 부채 (기능 결함 아님)
 

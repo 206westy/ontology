@@ -26,11 +26,15 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
-import { importExportApi } from '../api';
+import { Checkbox } from '@/components/ui/checkbox';
+import { importExportApi, partitionsApi } from '../api';
 import { TEMPLATES, buildImportPayload } from '../constants/templates';
 import type { TemplateMetadata } from '../constants/templates';
 import { useOntologyStore } from '../hooks/useOntologyStore';
 import { safeTransition, nodeEnter } from '@/lib/motion-presets';
+
+// PRD-N M1: 구획 색 팔레트(PartitionSwitcher 와 동일 — 보라 유사색).
+const PARTITION_PALETTE = ['#4026c5', '#6c2bd4', '#8060d7', '#9746ce', '#a16ed4', '#ab5ec9', '#c680d0', '#b893d7'];
 
 interface EmptyStateProps {
   onDoubleClick: (event: React.MouseEvent) => void;
@@ -172,6 +176,8 @@ export default function EmptyState({ onDoubleClick }: EmptyStateProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const [confirmTemplate, setConfirmTemplate] = useState<TemplateMetadata | null>(null);
   const [loadingId, setLoadingId] = useState<string | null>(null);
+  // PRD-N M1: 템플릿을 새 구획으로 시딩(기본 on). off 면 기존 동작(현재 구획 교체).
+  const [seedNewPartition, setSeedNewPartition] = useState(true);
   const openPopover = useOntologyStore((s) => s.openPopover);
   const openGuided = useOntologyStore((s) => s.openGuided);
 
@@ -206,18 +212,40 @@ export default function EmptyState({ onDoubleClick }: EmptyStateProps) {
       return;
     }
     const templateId = confirmTemplate.id;
+    const templateName = confirmTemplate.nameKo;
     setConfirmTemplate(null);
     setLoadingId(templateId);
 
     try {
       const payload = buildImportPayload(templateId);
-      await importExportApi.importOntology(payload);
+      if (seedNewPartition) {
+        // PRD-N M1: 템플릿 이름으로 새 구획을 만들고, 그 구획에 merge 로 시딩(기존 유지).
+        const partitionsLen = useOntologyStore.getState().partitions.length;
+        const color = PARTITION_PALETTE[partitionsLen % PARTITION_PALETTE.length];
+        const created = (await partitionsApi.create({
+          name: templateName,
+          description: '',
+          color,
+        })) as { id: string };
+        await importExportApi.importOntology({
+          ...payload,
+          strategy: 'merge',
+          partitionId: created.id,
+        });
+        // 리로드 후 새 구획에서 결과를 보게 선택을 미리 저장한다(workspace-persistence).
+        useOntologyStore.getState().selectPartition(created.id);
+      } else {
+        await importExportApi.importOntology(payload);
+      }
       window.location.reload();
     } catch (err) {
       console.error('Template import failed:', err);
+      toast.error('템플릿 불러오기 실패', {
+        description: err instanceof Error ? err.message : undefined,
+      });
       setLoadingId(null);
     }
-  }, [confirmTemplate]);
+  }, [confirmTemplate, seedNewPartition]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -322,12 +350,30 @@ export default function EmptyState({ onDoubleClick }: EmptyStateProps) {
               {confirmTemplate?.nameKo} 템플릿 불러오기
             </AlertDialogTitle>
             <AlertDialogDescription>
-              기존 데이터를 모두 삭제하고 <strong>{confirmTemplate?.nameKo}</strong> 템플릿으로
-              교체합니다. 클래스 {confirmTemplate?.classCount}개,
-              관계 {confirmTemplate?.relationCount}개,
-              프로퍼티 {confirmTemplate?.propertyCount}개가 생성됩니다.
+              {seedNewPartition ? (
+                <>
+                  <strong>{confirmTemplate?.nameKo}</strong> 이름의 <strong>새 구획</strong>을 만들고
+                  거기에 추가합니다(기존 데이터 유지). 클래스 {confirmTemplate?.classCount}개,
+                  관계 {confirmTemplate?.relationCount}개,
+                  프로퍼티 {confirmTemplate?.propertyCount}개가 생성됩니다.
+                </>
+              ) : (
+                <>
+                  기존 데이터를 모두 삭제하고 <strong>{confirmTemplate?.nameKo}</strong> 템플릿으로
+                  교체합니다. 클래스 {confirmTemplate?.classCount}개,
+                  관계 {confirmTemplate?.relationCount}개,
+                  프로퍼티 {confirmTemplate?.propertyCount}개가 생성됩니다.
+                </>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <label className="flex items-center gap-2 px-1 py-1.5 text-sm text-foreground cursor-pointer">
+            <Checkbox
+              checked={seedNewPartition}
+              onCheckedChange={(v) => setSeedNewPartition(v === true)}
+            />
+            새 구획으로 시딩 <span className="text-muted-foreground">(끄면 현재 데이터를 교체)</span>
+          </label>
           <AlertDialogFooter>
             <AlertDialogCancel>취소</AlertDialogCancel>
             <AlertDialogAction onClick={handleConfirmLoad}>
