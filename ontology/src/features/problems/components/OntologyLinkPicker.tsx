@@ -117,7 +117,7 @@ export default function OntologyLinkPicker({ problemId }: { problemId: string })
           <div className="text-sm font-medium">대상 온톨로지</div>
           {ontologies.length === 0 ? (
             <div className="text-xs text-muted-foreground rounded-lg border border-dashed border-border py-6 text-center">
-              재사용할 온톨로지가 없습니다. "새로 만들기"를 선택하세요.
+              재사용할 온톨로지가 없습니다. 「새로 만들기」를 선택하세요.
             </div>
           ) : (
             <div className="space-y-1.5 max-h-64 overflow-y-auto">

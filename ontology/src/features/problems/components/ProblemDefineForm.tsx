@@ -181,7 +181,7 @@ export default function ProblemDefineForm({ initial }: Props) {
           </Button>
         </div>
         <p className="text-xs text-muted-foreground">
-          "무엇을 물어 어떤 결정을 내릴 것인가." 아래 패턴 추천에서 초안을 불러올 수 있습니다.
+          「무엇을 물어 어떤 결정을 내릴 것인가」 아래 패턴 추천에서 초안을 불러올 수 있습니다.
         </p>
         {patternCqs.length > 0 && (
           <div className="space-y-1.5 rounded-md border border-dashed border-primary/40 bg-primary/5 p-2.5">
