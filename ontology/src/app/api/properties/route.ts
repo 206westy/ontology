@@ -2,22 +2,23 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/drizzle';
 import { properties } from '@/lib/drizzle/schema';
 import { createPropertySchema } from '@/features/ontology/lib/schemas';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { handleApiError } from '@/lib/api-error';
+import { getOntologyScope } from '@/lib/authz/ontologyContext';
 
 export async function GET(request: NextRequest) {
   const classId = request.nextUrl.searchParams.get('classId');
 
   try {
+    const { ontologyId } = await getOntologyScope(request);
     const db = await getDb();
-    const rows = classId
-      ? await db.query.properties.findMany({
-          where: eq(properties.classId, classId),
-          orderBy: (p, { asc }) => [asc(p.sortOrder)],
-        })
-      : await db.query.properties.findMany({
-          orderBy: (p, { asc }) => [asc(p.sortOrder)],
-        });
+    const where = classId
+      ? and(eq(properties.ontologyId, ontologyId), eq(properties.classId, classId))
+      : eq(properties.ontologyId, ontologyId);
+    const rows = await db.query.properties.findMany({
+      where,
+      orderBy: (p, { asc }) => [asc(p.sortOrder)],
+    });
 
     return NextResponse.json(rows);
   } catch (err) {
@@ -37,11 +38,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const { ontologyId } = await getOntologyScope(request, 'editor');
     const db = await getDb();
     const [row] = await db
       .insert(properties)
       .values({
         ...(parsed.data.id ? { id: parsed.data.id } : {}),
+        ontologyId,
         classId: parsed.data.classId,
         name: parsed.data.name,
         dataType: parsed.data.dataType,

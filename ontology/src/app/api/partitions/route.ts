@@ -2,14 +2,18 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/drizzle';
 import { partitions } from '@/lib/drizzle/schema';
 import { createPartitionSchema } from '@/features/ontology/lib/schemas';
+import { eq } from 'drizzle-orm';
 import { handleApiError } from '@/lib/api-error';
+import { getOntologyScope } from '@/lib/authz/ontologyContext';
 
 // PRD-B B-1: 구획 CRUD (목록 / 생성)
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const { ontologyId } = await getOntologyScope(request);
     const db = await getDb();
     const rows = await db.query.partitions.findMany({
+      where: eq(partitions.ontologyId, ontologyId),
       orderBy: (p, { asc }) => [asc(p.createdAt)],
     });
     return NextResponse.json(rows);
@@ -27,11 +31,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
     }
 
+    const { ontologyId } = await getOntologyScope(request, 'editor');
     const db = await getDb();
     const [row] = await db
       .insert(partitions)
       .values({
         ...(parsed.data.id ? { id: parsed.data.id } : {}),
+        ontologyId,
         name: parsed.data.name,
         description: parsed.data.description,
         color: parsed.data.color,

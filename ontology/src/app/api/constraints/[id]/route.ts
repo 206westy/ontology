@@ -2,18 +2,20 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/drizzle';
 import { constraints } from '@/lib/drizzle/schema';
 import { updateConstraintSchema } from '@/features/ontology/lib/schemas';
-import { eq, sql } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 import { handleApiError } from '@/lib/api-error';
+import { getOntologyScope } from '@/lib/authz/ontologyContext';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
-export async function GET(_request: NextRequest, ctx: RouteContext) {
+export async function GET(request: NextRequest, ctx: RouteContext) {
   const { id } = await ctx.params;
 
   try {
+    const { ontologyId } = await getOntologyScope(request);
     const db = await getDb();
     const row = await db.query.constraints.findFirst({
-      where: eq(constraints.id, id),
+      where: and(eq(constraints.id, id), eq(constraints.ontologyId, ontologyId)),
       with: {
         sourceClass: true,
         targetClass: true,
@@ -46,11 +48,12 @@ export async function PATCH(request: NextRequest, ctx: RouteContext) {
       );
     }
 
+    const { ontologyId } = await getOntologyScope(request, 'editor');
     const db = await getDb();
     const [row] = await db
       .update(constraints)
       .set({ ...parsed.data, updatedAt: sql`now()` })
-      .where(eq(constraints.id, id))
+      .where(and(eq(constraints.id, id), eq(constraints.ontologyId, ontologyId)))
       .returning();
 
     if (!row) {
@@ -58,7 +61,7 @@ export async function PATCH(request: NextRequest, ctx: RouteContext) {
     }
 
     const result = await db.query.constraints.findFirst({
-      where: eq(constraints.id, id),
+      where: and(eq(constraints.id, id), eq(constraints.ontologyId, ontologyId)),
       with: {
         sourceClass: true,
         targetClass: true,
@@ -73,14 +76,15 @@ export async function PATCH(request: NextRequest, ctx: RouteContext) {
   }
 }
 
-export async function DELETE(_request: NextRequest, ctx: RouteContext) {
+export async function DELETE(request: NextRequest, ctx: RouteContext) {
   const { id } = await ctx.params;
 
   try {
+    const { ontologyId } = await getOntologyScope(request, 'editor');
     const db = await getDb();
     const [row] = await db
       .delete(constraints)
-      .where(eq(constraints.id, id))
+      .where(and(eq(constraints.id, id), eq(constraints.ontologyId, ontologyId)))
       .returning();
 
     if (!row) {

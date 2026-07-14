@@ -127,6 +127,8 @@ async function insertOntology(
           id: rt.id as string,
           name: rt.name as string,
           description: (rt.description as string) ?? '',
+          // PRD-BM-D01 리뷰: layer 를 보존(누락 시 DB 기본 'semantic'으로 kinetic 관계가 소실).
+          layer: rt.layer === 'kinetic' ? 'kinetic' : 'semantic',
           sourceClassId: (rt.sourceClassId as string) ?? null,
           targetClassId: (rt.targetClassId as string) ?? null,
         });

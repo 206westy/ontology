@@ -5,11 +5,9 @@ import { branches, commits } from '@/lib/drizzle/schema';
 import { desc, eq, isNull, and } from 'drizzle-orm';
 import { handleApiError } from '@/lib/api-error';
 import { getCurrentUser } from '@/lib/supabase/auth-server';
-
-// PRD-J M2: 브랜치 = 분기 시점 그래프 스냅샷(base_snapshot) + 이후 커밋 체인.
-// 스냅샷은 store/loadOntology 가 받는 형태와 동일한 엔티티 배열 묶음이다.
-// (엔티티 API 응답 = drizzle 행 = store 형태이므로 변환 없이 재사용)
-export const BRANCH_SNAPSHOT_SCHEMA_VERSION = 1;
+import { getOntologyScope } from '@/lib/authz/ontologyContext';
+// PRD-J M2: 브랜치 스냅샷 로직은 lib/branches/snapshot 로 추출(links 라우트와 공유).
+import { buildMainSnapshot } from '@/lib/branches/snapshot';
 
 const createBranchSchema = z.object({
   name: z
@@ -23,36 +21,9 @@ const createBranchSchema = z.object({
   description: z.string().optional().default(''),
 });
 
-async function buildMainSnapshot(db: Awaited<ReturnType<typeof getDb>>) {
-  const [
-    allClasses,
-    allProperties,
-    allInstances,
-    allInstanceValues,
-    allRelationTypes,
-    allEdges,
-  ] = await Promise.all([
-    db.query.classes.findMany(),
-    db.query.properties.findMany(),
-    db.query.instances.findMany(),
-    db.query.instanceValues.findMany(),
-    db.query.relationTypes.findMany(),
-    db.query.edges.findMany(),
-  ]);
-
-  return {
-    schemaVersion: BRANCH_SNAPSHOT_SCHEMA_VERSION,
-    classes: allClasses,
-    properties: allProperties,
-    instances: allInstances,
-    instanceValues: allInstanceValues,
-    relationTypes: allRelationTypes,
-    edges: allEdges,
-  };
-}
-
 export async function GET(request: NextRequest) {
   try {
+    const { ontologyId } = await getOntologyScope(request);
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status') ?? 'active';
 
@@ -72,7 +43,10 @@ export async function GET(request: NextRequest) {
         mergeCommitId: true,
         createdAt: true,
       },
-      ...(status !== 'all' ? { where: eq(branches.status, status) } : {}),
+      where:
+        status !== 'all'
+          ? and(eq(branches.ontologyId, ontologyId), eq(branches.status, status))
+          : eq(branches.ontologyId, ontologyId),
       orderBy: [desc(branches.createdAt)],
     });
 
@@ -94,21 +68,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const { ontologyId } = await getOntologyScope(request, 'editor');
     const db = await getDb();
     const user = await getCurrentUser().catch(() => null);
 
-    // 분기 기준점: main 최신 커밋(있다면). 3-way 충돌 검사(M3)의 base 가 된다.
+    // 분기 기준점: 이 온톨로지 main 최신 커밋(있다면). 3-way 충돌 검사(M3)의 base.
     const latestMain = await db.query.commits.findFirst({
       columns: { id: true },
-      where: isNull(commits.branchId),
+      where: and(eq(commits.ontologyId, ontologyId), isNull(commits.branchId)),
       orderBy: [desc(commits.createdAt)],
     });
 
-    const snapshot = await buildMainSnapshot(db);
+    const snapshot = await buildMainSnapshot(db, ontologyId);
 
     const [branch] = await db
       .insert(branches)
       .values({
+        ontologyId,
         name: parsed.data.name,
         description: parsed.data.description,
         authorId: user?.id ?? null,

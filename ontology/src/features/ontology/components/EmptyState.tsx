@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
+import Link from 'next/link';
 import { m, AnimatePresence } from 'motion/react';
 import {
   Sparkles,
@@ -14,6 +15,7 @@ import {
   ClipboardPaste,
   Wand2,
   Boxes,
+  Store,
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -32,6 +34,8 @@ import { TEMPLATES, buildImportPayload } from '../constants/templates';
 import type { TemplateMetadata } from '../constants/templates';
 import { useOntologyStore } from '../hooks/useOntologyStore';
 import { safeTransition, nodeEnter } from '@/lib/motion-presets';
+import { LocalPatternShelf } from './patterns/LocalPatternShelf';
+import { logPatternEvent, logPatternEventOnce } from '../lib/patterns/events';
 
 // PRD-N M1: 구획 색 팔레트(PartitionSwitcher 와 동일 — 보라 유사색).
 const PARTITION_PALETTE = ['#4026c5', '#6c2bd4', '#8060d7', '#9746ce', '#a16ed4', '#ab5ec9', '#c680d0', '#b893d7'];
@@ -183,9 +187,16 @@ export default function EmptyState({ onDoubleClick }: EmptyStateProps) {
 
   const transition = safeTransition(nodeEnter);
 
+  // PRD-BM-D01 (M0-7): 빈 캔버스 진입 = 세션 시작. TTFG(첫 그래프까지 시간)의 시작 앵커.
+  useEffect(() => {
+    logPatternEventOnce({ eventType: 'session_started' });
+  }, []);
+
   // 붙여넣기(파싱) 플로우를 화면 중앙에서 연다. initialText 가 있으면 자동 파싱.
   const openPasteFlow = useCallback(
     (initialText: string) => {
+      // PRD-BM-D01 (M0-7): 자유입력 코호트 표식(패턴 시작 vs 자유입력 활성화 델타).
+      logPatternEventOnce({ eventType: 'free_input_started' });
       openPopover({
         type: 'newNode',
         position: { x: window.innerWidth / 2, y: 160 },
@@ -316,7 +327,19 @@ export default function EmptyState({ onDoubleClick }: EmptyStateProps) {
               <Boxes className="w-3.5 h-3.5" />
               패턴으로 시작
             </button>
+            {/* PRD-BM-D01 (M1-6): 공유 패턴 카탈로그 진입점. */}
+            <Link
+              href="/marketplace"
+              className="inline-flex items-center gap-1.5 text-[12px] text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <Store className="w-3.5 h-3.5" />
+              마켓플레이스 둘러보기
+            </Link>
           </div>
+
+          {/* PRD-BM-D01 (M0-7): 저장된 로컬 캐시 패턴을 카드로 노출 + 1클릭 새 구획 시딩.
+              캐시가 비면 스스로 숨는다. 전체 카탈로그는 /marketplace(M1). */}
+          <LocalPatternShelf className="mx-auto mb-5 w-full max-w-md text-left" />
 
           {/* B-4: 중앙 입력창(InlineTextInput)·CTA(파일/URL)·예시 카드는 더블클릭 팝오버와 중복이라 제거.
               템플릿은 B-2 랜딩 전까지 빠른 시작용으로 유지. */}

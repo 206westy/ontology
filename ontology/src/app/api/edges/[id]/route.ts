@@ -1,19 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/drizzle';
 import { edges } from '@/lib/drizzle/schema';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { handleApiError } from '@/lib/api-error';
+import { getOntologyScope } from '@/lib/authz/ontologyContext';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
-export async function DELETE(_request: NextRequest, ctx: RouteContext) {
+export async function DELETE(request: NextRequest, ctx: RouteContext) {
   const { id } = await ctx.params;
 
   try {
+    const { ontologyId } = await getOntologyScope(request, 'editor');
     const db = await getDb();
     const [row] = await db
       .delete(edges)
-      .where(eq(edges.id, id))
+      .where(and(eq(edges.id, id), eq(edges.ontologyId, ontologyId)))
       .returning();
 
     if (!row) {

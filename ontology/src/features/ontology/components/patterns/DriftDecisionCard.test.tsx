@@ -21,6 +21,7 @@ const pattern: Pattern = {
   sourceUri: null,
   sourceLabel: null,
   license: null,
+  occurrenceCount: 1,
   isDraft: false,
   previousVersionId: null,
   createdAt: '2026-07-02T00:00:00.000Z',

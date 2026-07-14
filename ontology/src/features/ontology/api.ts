@@ -83,6 +83,14 @@ export interface DiscoverPatternResult {
   draft?: PromotePatternRequestInput;
 }
 
+export interface PatternCatalogQuery {
+  domain?: string;
+  visibility?: string;
+  source?: string;
+  q?: string;
+  sort?: string;
+}
+
 export const patternsApi = {
   list: (): Promise<Pattern[]> =>
     fetch('/api/patterns').then((r) => handleResponse<Pattern[]>(r)),
@@ -90,6 +98,14 @@ export const patternsApi = {
     fetch(`/api/patterns?domain=${encodeURIComponent(domain)}`).then((r) =>
       handleResponse<{ pattern: Pattern | null }>(r),
     ),
+  // PRD-BM-D01 (M1-2): 마켓플레이스 카탈로그(필터/정렬). mode=catalog 로 히트 분기 회피.
+  catalog: (query: PatternCatalogQuery = {}): Promise<Pattern[]> => {
+    const qs = new URLSearchParams({ mode: 'catalog' });
+    for (const [k, v] of Object.entries(query)) {
+      if (v) qs.set(k, v);
+    }
+    return fetch(`/api/patterns?${qs.toString()}`).then((r) => handleResponse<Pattern[]>(r));
+  },
   // 승격(promote): 발견 초안을 캐시에 영속화.
   promote: (data: PromotePatternRequestInput): Promise<Pattern> =>
     fetch('/api/patterns', {

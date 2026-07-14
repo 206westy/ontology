@@ -50,3 +50,8 @@ ds-bundle/
 .design-sync/learnings/
 .design-sync/node_modules
 .design-sync/compiled.css
+
+# E2E 생성 아티팩트
+/e2e/pf-report.json
+/test-results/
+/playwright-report/

@@ -39,6 +39,7 @@ function fmeaPattern(): Pattern {
     sourceUri: null,
     sourceLabel: null,
     license: null, // 미확인 라이선스 — 발행 경고 대상.
+    occurrenceCount: 1,
     isDraft: false,
     previousVersionId: null,
     createdAt: '2026-07-02T00:00:00Z',

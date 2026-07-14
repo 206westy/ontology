@@ -116,6 +116,7 @@ async function judgeDriftForReview(
       sourceUri: null,
       sourceLabel: null,
       license: args.pattern.license,
+      occurrenceCount: 1,
       isDraft: false,
       previousVersionId: null,
       createdAt: '',

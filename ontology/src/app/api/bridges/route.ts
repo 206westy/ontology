@@ -3,6 +3,7 @@ import { sql } from 'drizzle-orm';
 import { getDb } from '@/lib/drizzle';
 import { edges } from '@/lib/drizzle/schema';
 import { handleApiError } from '@/lib/api-error';
+import { getOntologyScope } from '@/lib/authz/ontologyContext';
 import { recordAttribution } from '@/lib/attribution';
 import { recordRelationUsage } from '@/lib/relation-glossary';
 import {
@@ -47,6 +48,7 @@ function toCandidate(kind: 'class' | 'instance') {
 async function classCandidates(
   db: Awaited<ReturnType<typeof getDb>>,
   k: number,
+  ontologyId: string,
 ): Promise<CrossPartitionCandidate[]> {
   const rows = (await db.execute(sql`
     SELECT a.id::text AS source_id, a.name AS source_name, a.partition_id::text AS source_partition,
@@ -55,6 +57,7 @@ async function classCandidates(
     FROM classes a
     JOIN classes b ON a.id < b.id AND a.partition_id <> b.partition_id
     WHERE a.embedding IS NOT NULL AND b.embedding IS NOT NULL
+      AND a.ontology_id = ${ontologyId}::uuid AND b.ontology_id = ${ontologyId}::uuid
     ORDER BY a.embedding <=> b.embedding
     LIMIT ${k}
   `)) as unknown as SimRow[];
@@ -64,6 +67,7 @@ async function classCandidates(
 async function instanceCandidates(
   db: Awaited<ReturnType<typeof getDb>>,
   k: number,
+  ontologyId: string,
 ): Promise<CrossPartitionCandidate[]> {
   const rows = (await db.execute(sql`
     SELECT ia.id::text AS source_id, ia.name AS source_name, ca.partition_id::text AS source_partition,
@@ -74,6 +78,7 @@ async function instanceCandidates(
     JOIN instances ib ON ia.id < ib.id
     JOIN classes cb ON ib.class_id = cb.id AND ca.partition_id <> cb.partition_id
     WHERE ia.embedding IS NOT NULL AND ib.embedding IS NOT NULL
+      AND ia.ontology_id = ${ontologyId}::uuid AND ib.ontology_id = ${ontologyId}::uuid
     ORDER BY ia.embedding <=> ib.embedding
     LIMIT ${k}
   `)) as unknown as SimRow[];
@@ -85,10 +90,11 @@ export async function GET(request: NextRequest) {
     const kParam = Number(request.nextUrl.searchParams.get('k'));
     const k = Number.isFinite(kParam) && kParam > 0 ? Math.floor(kParam) : DEFAULT_LIMIT;
 
+    const { ontologyId } = await getOntologyScope(request);
     const db = await getDb();
     const [classes, instances] = await Promise.all([
-      classCandidates(db, k),
-      instanceCandidates(db, k),
+      classCandidates(db, k, ontologyId),
+      instanceCandidates(db, k, ontologyId),
     ]);
 
     const suggestions = buildBridgeSuggestions([...classes, ...instances]);
@@ -106,10 +112,12 @@ export async function POST(request: NextRequest) {
     }
     const data = parsed.data;
 
+    const { ontologyId } = await getOntologyScope(request, 'editor');
     const db = await getDb();
     const [row] = await db
       .insert(edges)
       .values({
+        ontologyId,
         relationTypeId: data.relationTypeId,
         sourceId: data.sourceId,
         targetId: data.targetId,

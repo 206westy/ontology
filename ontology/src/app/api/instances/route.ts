@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/drizzle';
 import { instances, instanceValues } from '@/lib/drizzle/schema';
 import { createInstanceSchema } from '@/features/ontology/lib/schemas';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { handleApiError } from '@/lib/api-error';
+import { getOntologyScope } from '@/lib/authz/ontologyContext';
 import { parsePagination } from '@/lib/pagination';
 
 export async function GET(request: NextRequest) {
@@ -11,24 +12,20 @@ export async function GET(request: NextRequest) {
   const { limit, offset } = parsePagination(request.nextUrl.searchParams);
 
   try {
+    const { ontologyId } = await getOntologyScope(request);
     const db = await getDb();
-    // PRD-Perf M0-1: 1536차원 embedding 은 서버 전용(dedup/RAG) 자산 — 클라이언트 응답에서 제외.
-    const rows = classId
-      ? await db.query.instances.findMany({
-          where: eq(instances.classId, classId),
-          columns: { embedding: false },
-          with: { values: true },
-          orderBy: (i, { asc }) => [asc(i.name)],
-          limit,
-          offset,
-        })
-      : await db.query.instances.findMany({
-          columns: { embedding: false },
-          with: { values: true },
-          orderBy: (i, { asc }) => [asc(i.name)],
-          limit,
-          offset,
-        });
+    // PRD-PF-A: 활성 온톨로지로 스코프. PRD-Perf M0-1: embedding 은 응답에서 제외.
+    const where = classId
+      ? and(eq(instances.ontologyId, ontologyId), eq(instances.classId, classId))
+      : eq(instances.ontologyId, ontologyId);
+    const rows = await db.query.instances.findMany({
+      where,
+      columns: { embedding: false },
+      with: { values: true },
+      orderBy: (i, { asc }) => [asc(i.name)],
+      limit,
+      offset,
+    });
 
     return NextResponse.json(rows);
   } catch (err) {
@@ -48,11 +45,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const { ontologyId } = await getOntologyScope(request, 'editor');
     const db = await getDb();
     const [instance] = await db
       .insert(instances)
       .values({
         ...(parsed.data.id ? { id: parsed.data.id } : {}),
+        ontologyId,
         classId: parsed.data.classId,
         name: parsed.data.name,
         description: parsed.data.description,
@@ -66,6 +65,7 @@ export async function POST(request: NextRequest) {
             .insert(instanceValues)
             .values(
               parsed.data.values.map((v) => ({
+                ontologyId,
                 instanceId: instance.id,
                 propertyId: v.propertyId,
                 value: v.value ?? null,

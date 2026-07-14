@@ -5,11 +5,15 @@ import { createInstanceValueSchema } from '@/features/ontology/lib/schemas';
 import { eq, and } from 'drizzle-orm';
 import { z } from 'zod';
 import { handleApiError } from '@/lib/api-error';
+import { getOntologyScope } from '@/lib/authz/ontologyContext';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const { ontologyId } = await getOntologyScope(request);
     const db = await getDb();
-    const rows = await db.query.instanceValues.findMany();
+    const rows = await db.query.instanceValues.findMany({
+      where: eq(instanceValues.ontologyId, ontologyId),
+    });
 
     const result = rows.map((row) => ({
       id: row.id,
@@ -36,10 +40,12 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
+    const { ontologyId } = await getOntologyScope(request, 'editor');
     const db = await getDb();
 
     const existing = await db.query.instanceValues.findFirst({
       where: and(
+        eq(instanceValues.ontologyId, ontologyId),
         eq(instanceValues.instanceId, parsed.data.instanceId),
         eq(instanceValues.propertyId, parsed.data.propertyId),
       ),
@@ -58,6 +64,7 @@ export async function PATCH(request: NextRequest) {
     const [row] = await db
       .insert(instanceValues)
       .values({
+        ontologyId,
         instanceId: parsed.data.instanceId,
         propertyId: parsed.data.propertyId,
         value: parsed.data.value ?? null,
@@ -87,11 +94,13 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
+    const { ontologyId } = await getOntologyScope(request, 'editor');
     const db = await getDb();
     const [row] = await db
       .delete(instanceValues)
       .where(
         and(
+          eq(instanceValues.ontologyId, ontologyId),
           eq(instanceValues.instanceId, parsed.data.instanceId),
           eq(instanceValues.propertyId, parsed.data.propertyId),
         ),

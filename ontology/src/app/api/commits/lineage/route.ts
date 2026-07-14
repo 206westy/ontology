@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { getDb } from '@/lib/drizzle';
 import { commits, commitDetails } from '@/lib/drizzle/schema';
 import { handleApiError } from '@/lib/api-error';
+import { getOntologyScope } from '@/lib/authz/ontologyContext';
 
 // PRD-N M5: 노드 계보 — 이 노드(targetId)를 건드린 커밋 이벤트를 시간순으로 반환.
 // commit_details(target_id) ⨝ commits. provenance/패턴 출처는 노드 속성으로 별도 표시.
 export async function GET(request: NextRequest) {
   try {
+    const { ontologyId } = await getOntologyScope(request);
     const targetId = new URL(request.url).searchParams.get('targetId');
     if (!targetId) {
       return NextResponse.json({ error: 'targetId 파라미터가 필요합니다.' }, { status: 400 });
@@ -25,7 +27,12 @@ export async function GET(request: NextRequest) {
       })
       .from(commitDetails)
       .innerJoin(commits, eq(commitDetails.commitId, commits.id))
-      .where(eq(commitDetails.targetId, targetId));
+      .where(
+        and(
+          eq(commitDetails.ontologyId, ontologyId),
+          eq(commitDetails.targetId, targetId),
+        ),
+      );
 
     const events = rows
       .map((r) => ({

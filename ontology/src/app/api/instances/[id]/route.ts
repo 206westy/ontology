@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/drizzle';
 import { instances } from '@/lib/drizzle/schema';
 import { updateInstanceSchema } from '@/features/ontology/lib/schemas';
-import { eq, sql } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 import { omit } from 'es-toolkit';
 import { handleApiError } from '@/lib/api-error';
+import { getOntologyScope } from '@/lib/authz/ontologyContext';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -22,6 +23,7 @@ export async function PATCH(request: NextRequest, ctx: RouteContext) {
       );
     }
 
+    const { ontologyId } = await getOntologyScope(request, 'editor');
     const db = await getDb();
     // PRD-E P2-2 + PRD-Perf M3-1: 임베딩 텍스트(name/description)가 "실제로 바뀔 때만"
     // 무효화 → 워커가 재생성. 같은 값 재저장(autosave 등)은 재임베딩을 유발하지 않는다.
@@ -38,7 +40,7 @@ export async function PATCH(request: NextRequest, ctx: RouteContext) {
           : {}),
         updatedAt: sql`now()`,
       })
-      .where(eq(instances.id, id))
+      .where(and(eq(instances.id, id), eq(instances.ontologyId, ontologyId)))
       .returning();
 
     if (!row) {
@@ -52,14 +54,15 @@ export async function PATCH(request: NextRequest, ctx: RouteContext) {
   }
 }
 
-export async function DELETE(_request: NextRequest, ctx: RouteContext) {
+export async function DELETE(request: NextRequest, ctx: RouteContext) {
   const { id } = await ctx.params;
 
   try {
+    const { ontologyId } = await getOntologyScope(request, 'editor');
     const db = await getDb();
     const [row] = await db
       .delete(instances)
-      .where(eq(instances.id, id))
+      .where(and(eq(instances.id, id), eq(instances.ontologyId, ontologyId)))
       .returning();
 
     if (!row) {

@@ -2,13 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/drizzle';
 import { relationTypes } from '@/lib/drizzle/schema';
 import { createRelationTypeSchema } from '@/features/ontology/lib/schemas';
+import { eq } from 'drizzle-orm';
 import { handleApiError } from '@/lib/api-error';
+import { getOntologyScope } from '@/lib/authz/ontologyContext';
 import { recordRelationTerm } from '@/lib/relation-glossary';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const { ontologyId } = await getOntologyScope(request);
     const db = await getDb();
     const rows = await db.query.relationTypes.findMany({
+      where: eq(relationTypes.ontologyId, ontologyId),
       orderBy: (r, { asc }) => [asc(r.name)],
     });
 
@@ -30,11 +34,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const { ontologyId } = await getOntologyScope(request, 'editor');
     const db = await getDb();
     const [row] = await db
       .insert(relationTypes)
       .values({
         ...(parsed.data.id ? { id: parsed.data.id } : {}),
+        ontologyId,
         name: parsed.data.name,
         description: parsed.data.description,
         // PRD-L M2: 2레이어 분류 저장.

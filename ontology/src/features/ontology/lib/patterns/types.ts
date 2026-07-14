@@ -6,6 +6,9 @@ import { relationLayerEnum, type RelationLayer } from '../schemas';
 
 export type PatternMethod = 'retrieved' | 'adapted' | 'synthesized' | 'bootstrap';
 
+// PRD-BM-D01 (M1): 공유 스코프. 첫 공유 단위는 org(B2B 안전).
+export type PatternVisibility = 'private' | 'org' | 'public';
+
 export interface PatternRole {
   name: string;
   nodeKind: 'class';
@@ -40,6 +43,11 @@ export interface Pattern {
   sourceUri: string | null;
   sourceLabel: string | null;
   license: string | null;
+  // PRD-BM-D01 (M0): 사용빈도 신뢰 신호(카드 노출·큐레이션).
+  occurrenceCount: number;
+  // PRD-BM-D01 (M1): 공유 스코프 + 헬스. rowToPattern 이 DB 에서 항상 채운다(옵셔널=하위호환).
+  visibility?: PatternVisibility;
+  health?: number | null;
   isDraft: boolean;
   previousVersionId: string | null;
   createdAt: string;
@@ -126,5 +134,48 @@ export const promotePatternRequestSchema = patternBundleSchema.extend({
 export type PromotePatternRequestInput = z.infer<
   typeof promotePatternRequestSchema
 >;
+
+// ─── PRD-BM-D01 (M0): 패턴 마켓플레이스 계측 이벤트 ────────────────────────
+export const patternEventTypeEnum = z.enum([
+  'session_started',
+  'free_input_started',
+  'pattern_seeded',
+  'first_commit',
+]);
+
+export const patternSourceEnum = z.enum(['cache', 'discovered', 'shared']);
+
+// UUID 형식 검증(nil-style 허용). 비-UUID 가 통과해 DB 타입 에러(500)로 새는 것을 막는다.
+const uuidString = () =>
+  z
+    .string()
+    .regex(
+      /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/,
+      'Invalid UUID',
+    );
+
+export const patternEventRequestSchema = z.object({
+  sessionId: z.string().min(1).max(128),
+  eventType: patternEventTypeEnum,
+  patternId: uuidString().nullable().optional(),
+  patternSource: patternSourceEnum.nullable().optional(),
+  partitionId: uuidString().nullable().optional(),
+  // userId 는 받지 않는다 — 클라이언트 제공값은 위조 가능. 필요 시 서버가 세션에서 주입.
+  props: z
+    .record(z.string(), z.unknown())
+    .refine((p) => JSON.stringify(p).length <= 4096, 'props 가 너무 큽니다(4KB 초과)')
+    .optional(),
+});
+
+export type PatternEventRequestInput = z.infer<typeof patternEventRequestSchema>;
+
+// ─── PRD-BM-D01 (M2): 공유 패턴 발행 ──────────────────────────────────────
+export const publishPatternRequestSchema = z.object({
+  visibility: z.enum(['org', 'public']),
+  // 라이선스 미확인 패턴 발행 승인(게이트). 미확인인데 false 면 서버가 차단.
+  acknowledgeLicense: z.boolean().optional().default(false),
+});
+
+export type PublishPatternRequestInput = z.input<typeof publishPatternRequestSchema>;
 
 export { patternMethodEnum };

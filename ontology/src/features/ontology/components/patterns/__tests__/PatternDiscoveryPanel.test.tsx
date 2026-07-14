@@ -53,6 +53,7 @@ const cachedResult: DiscoverPatternResult = {
     sourceUri: null,
     sourceLabel: null,
     license: 'CC0-1.0',
+    occurrenceCount: 1,
     isDraft: false,
     previousVersionId: null,
     createdAt: '2026-01-01T00:00:00Z',

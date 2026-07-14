@@ -8,12 +8,25 @@ import {
   selectCachedPattern,
   nextPatternVersion,
 } from '@/features/ontology/lib/patterns/cache';
+import {
+  filterAndSortPatterns,
+  isCatalogQuery,
+} from '@/features/ontology/lib/patterns/catalog';
 
 // PRD-H (H1/M1): 패턴 캐시 목록/히트(GET) + 승격(POST).
+// PRD-BM-D01 (M1-2): 카탈로그 필터·정렬 확장. 단독 ?domain= 은 히트(하위호환).
 
 export async function GET(request: NextRequest) {
   try {
-    const domain = request.nextUrl.searchParams.get('domain');
+    const sp = request.nextUrl.searchParams;
+    const query = {
+      domain: sp.get('domain'),
+      visibility: sp.get('visibility'),
+      source: sp.get('source'),
+      q: sp.get('q'),
+      sort: sp.get('sort'),
+      mode: sp.get('mode'),
+    };
     const db = await getDb();
     const rows = (
       await db.query.patterns.findMany({
@@ -21,10 +34,15 @@ export async function GET(request: NextRequest) {
       })
     ).map(rowToPattern);
 
-    // domain 지정 시 히트(최신 비-draft) 하나, 아니면 전체 목록.
-    if (domain) {
-      return NextResponse.json({ pattern: selectCachedPattern(domain, rows) });
+    // 카탈로그 모드(필터/정렬 파라미터 존재) → 좁힌 목록.
+    if (isCatalogQuery(query)) {
+      return NextResponse.json(filterAndSortPatterns(rows, query));
     }
+    // 하위호환: 단독 ?domain= 은 도메인 히트(수렴) 하나.
+    if (query.domain) {
+      return NextResponse.json({ pattern: selectCachedPattern(query.domain, rows) });
+    }
+    // 기본: 전체 목록.
     return NextResponse.json(rows);
   } catch (err) {
     return handleApiError(err);

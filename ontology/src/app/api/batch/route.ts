@@ -12,8 +12,9 @@ import {
 import { batchRequestSchema, type BatchOperation } from '@/features/ontology/lib/schemas';
 import { DEFAULT_PARTITION_ID, toRelationLayer } from '@/features/ontology/lib/types';
 import { mapAttributionSourceType } from '@/lib/attribution';
-import { eq, sql } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 import { handleApiError } from '@/lib/api-error';
+import { getOntologyScope } from '@/lib/authz/ontologyContext';
 import {
   recordRelationTerm,
   recordRelationUsage,
@@ -82,6 +83,7 @@ async function applyCreates(
   recordedRelations: Array<{ name: string; layer: RelationLayer }>,
   // PRD-L M6 (L7) 보강: 생성된 엣지의 관계유형 사용도 수집(재사용 유형도 어휘집이 자라야 함).
   usedRelationTypeIds: string[],
+  ontologyId: string,
 ) {
   const byType = new Map<string, Array<BatchOperation & { __idx: number }>>();
   for (const op of creates) {
@@ -106,6 +108,7 @@ async function applyCreates(
             const d = op.data as Record<string, unknown>;
             return {
               ...(d.id ? { id: str(d.id) } : {}),
+              ontologyId,
               name: str(d.name),
               parentId: optStr(d.parentId),
               partitionId: (d.partitionId as string | undefined) ?? DEFAULT_PARTITION_ID,
@@ -134,6 +137,7 @@ async function applyCreates(
             const d = op.data as Record<string, unknown>;
             return {
               ...(d.id ? { id: str(d.id) } : {}),
+              ontologyId,
               name: str(d.name),
               description: (d.description as string | undefined) ?? '',
               // PRD-L M2: layer 보존 — 과거 category(5분류)는 하위호환 변환, 누락은 semantic.
@@ -164,6 +168,7 @@ async function applyCreates(
             const d = op.data as Record<string, unknown>;
             return {
               ...(d.id ? { id: str(d.id) } : {}),
+              ontologyId,
               classId: str(d.classId),
               name: str(d.name),
               dataType: (d.dataType as string | undefined) ?? 'string',
@@ -186,6 +191,7 @@ async function applyCreates(
             const d = op.data as Record<string, unknown>;
             return {
               ...(d.id ? { id: str(d.id) } : {}),
+              ontologyId,
               classId: str(d.classId),
               name: str(d.name),
               // RAG 문맥용 description 보존.
@@ -230,6 +236,7 @@ async function applyCreates(
             const d = op.data as Record<string, unknown>;
             return {
               ...(d.id ? { id: str(d.id) } : {}),
+              ontologyId,
               relationTypeId: str(d.relationTypeId),
               sourceId: str(d.sourceId),
               targetId: str(d.targetId),
@@ -259,7 +266,7 @@ async function applyCreates(
   if (ivRows.length > 0) {
     await tx
       .insert(instanceValues)
-      .values(ivRows.map((v) => ({ instanceId: v.instanceId, propertyId: v.propertyId, value: v.value })))
+      .values(ivRows.map((v) => ({ ontologyId, instanceId: v.instanceId, propertyId: v.propertyId, value: v.value })))
       .onConflictDoUpdate({
         target: [instanceValues.instanceId, instanceValues.propertyId],
         set: { value: sql`excluded.value` },
@@ -273,7 +280,7 @@ async function applyCreates(
 
   // 어트리뷰션 일괄 기록(단일 진실원) — provenance 있는 것만.
   if (attrRows.length > 0) {
-    await tx.insert(attributions).values(attrRows.map((a) => a!));
+    await tx.insert(attributions).values(attrRows.map((a) => ({ ...a!, ontologyId })));
   }
 }
 
@@ -282,6 +289,7 @@ async function applyMutation(
   tx: Tx,
   op: BatchOperation & { __idx: number },
   results: OpResult[],
+  ontologyId: string,
 ) {
   const data = op.data as Record<string, unknown>;
   const { id: _id, ...fields } = data;
@@ -289,21 +297,21 @@ async function applyMutation(
 
   if (op.action === 'update' && op.id) {
     if (op.type === 'class') {
-      await tx.update(classes).set({ ...fields, updatedAt: sql`now()` } as any).where(eq(classes.id, op.id));
+      await tx.update(classes).set({ ...fields, updatedAt: sql`now()` } as any).where(and(eq(classes.id, op.id), eq(classes.ontologyId, ontologyId)));
     } else if (op.type === 'relation_type') {
-      await tx.update(relationTypes).set(fields as any).where(eq(relationTypes.id, op.id));
+      await tx.update(relationTypes).set(fields as any).where(and(eq(relationTypes.id, op.id), eq(relationTypes.ontologyId, ontologyId)));
     } else if (op.type === 'property') {
-      await tx.update(properties).set(fields as any).where(eq(properties.id, op.id));
+      await tx.update(properties).set(fields as any).where(and(eq(properties.id, op.id), eq(properties.ontologyId, ontologyId)));
     } else if (op.type === 'instance') {
-      await tx.update(instances).set({ ...fields, updatedAt: sql`now()` } as any).where(eq(instances.id, op.id));
+      await tx.update(instances).set({ ...fields, updatedAt: sql`now()` } as any).where(and(eq(instances.id, op.id), eq(instances.ontologyId, ontologyId)));
     }
   } else if (op.action === 'delete' && op.id) {
-    if (op.type === 'class') await tx.delete(classes).where(eq(classes.id, op.id));
-    else if (op.type === 'relation_type') await tx.delete(relationTypes).where(eq(relationTypes.id, op.id));
-    else if (op.type === 'property') await tx.delete(properties).where(eq(properties.id, op.id));
-    else if (op.type === 'instance') await tx.delete(instances).where(eq(instances.id, op.id));
-    else if (op.type === 'instance_value') await tx.delete(instanceValues).where(eq(instanceValues.id, op.id));
-    else if (op.type === 'edge') await tx.delete(edges).where(eq(edges.id, op.id));
+    if (op.type === 'class') await tx.delete(classes).where(and(eq(classes.id, op.id), eq(classes.ontologyId, ontologyId)));
+    else if (op.type === 'relation_type') await tx.delete(relationTypes).where(and(eq(relationTypes.id, op.id), eq(relationTypes.ontologyId, ontologyId)));
+    else if (op.type === 'property') await tx.delete(properties).where(and(eq(properties.id, op.id), eq(properties.ontologyId, ontologyId)));
+    else if (op.type === 'instance') await tx.delete(instances).where(and(eq(instances.id, op.id), eq(instances.ontologyId, ontologyId)));
+    else if (op.type === 'instance_value') await tx.delete(instanceValues).where(and(eq(instanceValues.id, op.id), eq(instanceValues.ontologyId, ontologyId)));
+    else if (op.type === 'edge') await tx.delete(edges).where(and(eq(edges.id, op.id), eq(edges.ontologyId, ontologyId)));
   }
 
   results.push({ index: op.__idx, type: op.type, action: op.action, success: true, id: resultId });
@@ -325,6 +333,7 @@ export async function POST(request: NextRequest) {
       .filter((o) => o.action === 'delete')
       .sort((a, b) => (DELETE_ORDER[a.type] ?? 99) - (DELETE_ORDER[b.type] ?? 99));
 
+    const { ontologyId } = await getOntologyScope(request, 'editor');
     const db = await getDb();
     const results: OpResult[] = [];
     const recordedRelations: Array<{ name: string; layer: RelationLayer }> = [];
@@ -332,9 +341,9 @@ export async function POST(request: NextRequest) {
 
     await db.transaction(async (tx) => {
       try {
-        await applyCreates(tx, creates, results, recordedRelations, usedRelationTypeIds);
-        for (const op of updates) await applyMutation(tx, op, results);
-        for (const op of deletes) await applyMutation(tx, op, results);
+        await applyCreates(tx, creates, results, recordedRelations, usedRelationTypeIds, ontologyId);
+        for (const op of updates) await applyMutation(tx, op, results, ontologyId);
+        for (const op of deletes) await applyMutation(tx, op, results, ontologyId);
       } catch (err) {
         throw new Error(
           `Batch failed: ${err instanceof Error ? err.message : 'Unknown error'}`,

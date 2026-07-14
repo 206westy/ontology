@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/drizzle';
 import { edges } from '@/lib/drizzle/schema';
 import { createEdgeSchema } from '@/features/ontology/lib/schemas';
-import { eq, or } from 'drizzle-orm';
+import { eq, or, and } from 'drizzle-orm';
 import { handleApiError } from '@/lib/api-error';
+import { getOntologyScope } from '@/lib/authz/ontologyContext';
 import { recordAttribution } from '@/lib/attribution';
 import { recordRelationUsage } from '@/lib/relation-glossary';
 import { parsePagination } from '@/lib/pagination';
@@ -13,19 +14,20 @@ export async function GET(request: NextRequest) {
   const { limit, offset } = parsePagination(request.nextUrl.searchParams);
 
   try {
+    const { ontologyId } = await getOntologyScope(request);
     const db = await getDb();
-    const rows = nodeId
-      ? await db.query.edges.findMany({
-          where: or(eq(edges.sourceId, nodeId), eq(edges.targetId, nodeId)),
-          with: { relationType: true },
-          limit,
-          offset,
-        })
-      : await db.query.edges.findMany({
-          with: { relationType: true },
-          limit,
-          offset,
-        });
+    const where = nodeId
+      ? and(
+          eq(edges.ontologyId, ontologyId),
+          or(eq(edges.sourceId, nodeId), eq(edges.targetId, nodeId)),
+        )
+      : eq(edges.ontologyId, ontologyId);
+    const rows = await db.query.edges.findMany({
+      where,
+      with: { relationType: true },
+      limit,
+      offset,
+    });
 
     return NextResponse.json(rows);
   } catch (err) {
@@ -45,11 +47,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const { ontologyId } = await getOntologyScope(request, 'editor');
     const db = await getDb();
     const [row] = await db
       .insert(edges)
       .values({
         ...(parsed.data.id ? { id: parsed.data.id } : {}),
+        ontologyId,
         relationTypeId: parsed.data.relationTypeId,
         sourceId: parsed.data.sourceId,
         targetId: parsed.data.targetId,
@@ -94,10 +98,11 @@ export async function DELETE(request: NextRequest) {
   }
 
   try {
+    const { ontologyId } = await getOntologyScope(request, 'editor');
     const db = await getDb();
     const [row] = await db
       .delete(edges)
-      .where(eq(edges.id, id))
+      .where(and(eq(edges.id, id), eq(edges.ontologyId, ontologyId)))
       .returning();
 
     if (!row) {

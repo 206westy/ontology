@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/drizzle';
 import { relationTypes } from '@/lib/drizzle/schema';
 import { updateRelationTypeSchema } from '@/features/ontology/lib/schemas';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { handleApiError } from '@/lib/api-error';
+import { getOntologyScope } from '@/lib/authz/ontologyContext';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -21,11 +22,12 @@ export async function PATCH(request: NextRequest, ctx: RouteContext) {
       );
     }
 
+    const { ontologyId } = await getOntologyScope(request, 'editor');
     const db = await getDb();
     const [row] = await db
       .update(relationTypes)
       .set(parsed.data)
-      .where(eq(relationTypes.id, id))
+      .where(and(eq(relationTypes.id, id), eq(relationTypes.ontologyId, ontologyId)))
       .returning();
 
     if (!row) {
@@ -38,14 +40,15 @@ export async function PATCH(request: NextRequest, ctx: RouteContext) {
   }
 }
 
-export async function DELETE(_request: NextRequest, ctx: RouteContext) {
+export async function DELETE(request: NextRequest, ctx: RouteContext) {
   const { id } = await ctx.params;
 
   try {
+    const { ontologyId } = await getOntologyScope(request, 'editor');
     const db = await getDb();
     const [row] = await db
       .delete(relationTypes)
-      .where(eq(relationTypes.id, id))
+      .where(and(eq(relationTypes.id, id), eq(relationTypes.ontologyId, ontologyId)))
       .returning();
 
     if (!row) {

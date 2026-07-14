@@ -1,5 +1,20 @@
 import { NextResponse } from 'next/server';
 
+// ─── Authz Errors (PRD-PF-A: 앱계층 스코프 가드) ─────────────
+export class UnauthorizedError extends Error {
+  constructor(message = '인증이 필요합니다.') {
+    super(message);
+    this.name = 'UnauthorizedError';
+  }
+}
+
+export class ForbiddenError extends Error {
+  constructor(message = '접근 권한이 없습니다.') {
+    super(message);
+    this.name = 'ForbiddenError';
+  }
+}
+
 // ─── Error Source Classification ────────────────────────────
 
 export type ErrorSource = 'supabase' | 'llm' | 'neo4j' | 'validation' | 'unknown';
@@ -255,6 +270,20 @@ function handleLlmError(err: LlmError): NextResponse<ApiErrorResponse> {
 // ─── Unified Error Handler ──────────────────────────────────
 
 export function handleApiError(err: unknown): NextResponse<ApiErrorResponse> {
+  // PRD-PF-A: 앱계층 스코프 가드 실패 → 401/403(서비스롤이 RLS 를 우회하므로 여기가 1차 방어).
+  if (err instanceof UnauthorizedError) {
+    return NextResponse.json(
+      { error: err.message, source: 'validation' as ErrorSource },
+      { status: 401 },
+    );
+  }
+  if (err instanceof ForbiddenError) {
+    return NextResponse.json(
+      { error: err.message, source: 'validation' as ErrorSource },
+      { status: 403 },
+    );
+  }
+
   // Neo4j errors (check before DB errors since both may have `code`)
   if (isNeo4jError(err)) {
     return handleNeo4jError(err);

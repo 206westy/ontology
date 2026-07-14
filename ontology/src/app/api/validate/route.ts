@@ -11,8 +11,9 @@ import {
 } from '@/lib/drizzle/schema';
 import { validateRequestSchema } from '@/features/ontology/lib/schemas';
 import { findSimilarPairs } from '@/features/ontology/lib/similarity';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { handleApiError } from '@/lib/api-error';
+import { getOntologyScope } from '@/lib/authz/ontologyContext';
 
 // Drizzle relational query on self-referencing tables can lose type info.
 // Explicit row type avoids `unknown` inference for classes columns.
@@ -40,9 +41,12 @@ interface ValidationIssue {
 // Rule: Cyclic is-a detection (class hierarchy must be a DAG)
 async function checkCyclicIsA(
   db: Awaited<ReturnType<typeof getDb>>,
+  ontologyId: string,
 ): Promise<ValidationIssue[]> {
   const issues: ValidationIssue[] = [];
-  const allClasses = await db.query.classes.findMany() as unknown as ClassRow[];
+  const allClasses = (await db.query.classes.findMany({
+    where: eq(classes.ontologyId, ontologyId),
+  })) as unknown as ClassRow[];
 
   const parentMap = new Map<string, string | null>();
   for (const cls of allClasses) {
@@ -75,14 +79,19 @@ async function checkCyclicIsA(
 // Rule: Required properties check (instances must fill required props)
 async function checkRequiredProperties(
   db: Awaited<ReturnType<typeof getDb>>,
+  ontologyId: string,
 ): Promise<ValidationIssue[]> {
   const issues: ValidationIssue[] = [];
 
   const allInstances = await db.query.instances.findMany({
+    where: eq(instances.ontologyId, ontologyId),
     with: { values: true },
   });
   const requiredProps = await db.query.properties.findMany({
-    where: eq(properties.isRequired, true),
+    where: and(
+      eq(properties.ontologyId, ontologyId),
+      eq(properties.isRequired, true),
+    ),
   });
 
   const requiredByClass = new Map<string, typeof requiredProps>();
@@ -127,16 +136,22 @@ async function checkRequiredProperties(
 // Rule: Cardinality violation check (edges with min/max cardinality on constraints)
 async function checkCardinality(
   db: Awaited<ReturnType<typeof getDb>>,
+  ontologyId: string,
 ): Promise<ValidationIssue[]> {
   const issues: ValidationIssue[] = [];
 
   const cardinalityConstraints = await db.query.constraints.findMany({
-    where: eq(constraints.constraintType, 'cardinality'),
+    where: and(
+      eq(constraints.ontologyId, ontologyId),
+      eq(constraints.constraintType, 'cardinality'),
+    ),
   });
 
   if (cardinalityConstraints.length === 0) return issues;
 
-  const allEdges = await db.query.edges.findMany();
+  const allEdges = await db.query.edges.findMany({
+    where: eq(edges.ontologyId, ontologyId),
+  });
 
   for (const constraint of cardinalityConstraints) {
     if (!constraint.isActive) continue;
@@ -148,7 +163,10 @@ async function checkCardinality(
 
     // Get all instances of the source class
     const sourceInstances = await db.query.instances.findMany({
-      where: eq(instances.classId, constraint.sourceClassId),
+      where: and(
+        eq(instances.ontologyId, ontologyId),
+        eq(instances.classId, constraint.sourceClassId),
+      ),
     });
 
     // For classes: count outgoing edges of the specific relation type
@@ -191,12 +209,19 @@ async function checkCardinality(
 // Rule: Orphan node detection (classes/instances with no edges)
 async function checkOrphanNodes(
   db: Awaited<ReturnType<typeof getDb>>,
+  ontologyId: string,
 ): Promise<ValidationIssue[]> {
   const issues: ValidationIssue[] = [];
 
-  const allClasses = await db.query.classes.findMany() as unknown as ClassRow[];
-  const allInstances = await db.query.instances.findMany();
-  const allEdges = await db.query.edges.findMany();
+  const allClasses = (await db.query.classes.findMany({
+    where: eq(classes.ontologyId, ontologyId),
+  })) as unknown as ClassRow[];
+  const allInstances = await db.query.instances.findMany({
+    where: eq(instances.ontologyId, ontologyId),
+  });
+  const allEdges = await db.query.edges.findMany({
+    where: eq(edges.ontologyId, ontologyId),
+  });
 
   const connectedIds = new Set<string>();
   for (const edge of allEdges) {
@@ -233,8 +258,11 @@ async function checkOrphanNodes(
 // Rule: Similar name detection (shared Levenshtein-based util)
 async function checkSimilarNames(
   db: Awaited<ReturnType<typeof getDb>>,
+  ontologyId: string,
 ): Promise<ValidationIssue[]> {
-  const allClasses = (await db.query.classes.findMany()) as unknown as ClassRow[];
+  const allClasses = (await db.query.classes.findMany({
+    where: eq(classes.ontologyId, ontologyId),
+  })) as unknown as ClassRow[];
   const pairs = findSimilarPairs(allClasses.map((c) => ({ id: c.id, name: c.name })));
 
   return pairs.map(({ a, b, score, exact }) => ({
@@ -251,7 +279,10 @@ async function checkSimilarNames(
 // Map of all available rules
 const RULES: Record<
   string,
-  (db: Awaited<ReturnType<typeof getDb>>) => Promise<ValidationIssue[]>
+  (
+    db: Awaited<ReturnType<typeof getDb>>,
+    ontologyId: string,
+  ) => Promise<ValidationIssue[]>
 > = {
   cyclic_isa: checkCyclicIsA,
   required_properties: checkRequiredProperties,
@@ -272,6 +303,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const { ontologyId } = await getOntologyScope(request, 'editor');
     const db = await getDb();
     const rulesToRun = parsed.data.rules ?? Object.keys(RULES);
 
@@ -280,7 +312,7 @@ export async function POST(request: NextRequest) {
     for (const ruleName of rulesToRun) {
       const runner = RULES[ruleName];
       if (!runner) continue;
-      const issues = await runner(db);
+      const issues = await runner(db, ontologyId);
       allIssues.push(...issues);
     }
 
@@ -289,6 +321,7 @@ export async function POST(request: NextRequest) {
     if (allIssues.length > 0) {
       await db.insert(validationResults).values(
         allIssues.map((issue) => ({
+          ontologyId,
           runId,
           severity: issue.severity,
           ruleCode: issue.ruleCode,

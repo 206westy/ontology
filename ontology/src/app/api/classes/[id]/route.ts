@@ -2,20 +2,22 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/drizzle';
 import { classes } from '@/lib/drizzle/schema';
 import { updateClassSchema } from '@/features/ontology/lib/schemas';
-import { eq, sql } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 import { omit } from 'es-toolkit';
 import { handleApiError } from '@/lib/api-error';
+import { getOntologyScope } from '@/lib/authz/ontologyContext';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
-export async function GET(_request: NextRequest, ctx: RouteContext) {
+export async function GET(request: NextRequest, ctx: RouteContext) {
   const { id } = await ctx.params;
 
   try {
+    const { ontologyId } = await getOntologyScope(request);
     const db = await getDb();
     // PRD-Perf M0-1: embedding 은 서버 전용 — 본체·연관 행 모두 응답에서 제외.
     const row = await db.query.classes.findFirst({
-      where: eq(classes.id, id),
+      where: and(eq(classes.id, id), eq(classes.ontologyId, ontologyId)),
       columns: { embedding: false },
       with: {
         children: { columns: { embedding: false } },
@@ -49,6 +51,7 @@ export async function PATCH(request: NextRequest, ctx: RouteContext) {
       );
     }
 
+    const { ontologyId } = await getOntologyScope(request, 'editor');
     const db = await getDb();
     // PRD-E P2-2 + PRD-Perf M3-1: 임베딩 텍스트(name/description)가 "실제로 바뀔 때만"
     // 무효화 → 워커가 재생성. 같은 값 재저장(autosave 등)은 재임베딩을 유발하지 않는다.
@@ -65,7 +68,7 @@ export async function PATCH(request: NextRequest, ctx: RouteContext) {
           : {}),
         updatedAt: sql`now()`,
       })
-      .where(eq(classes.id, id))
+      .where(and(eq(classes.id, id), eq(classes.ontologyId, ontologyId)))
       .returning();
 
     if (!row) {
@@ -79,14 +82,15 @@ export async function PATCH(request: NextRequest, ctx: RouteContext) {
   }
 }
 
-export async function DELETE(_request: NextRequest, ctx: RouteContext) {
+export async function DELETE(request: NextRequest, ctx: RouteContext) {
   const { id } = await ctx.params;
 
   try {
+    const { ontologyId } = await getOntologyScope(request, 'editor');
     const db = await getDb();
     const [row] = await db
       .delete(classes)
-      .where(eq(classes.id, id))
+      .where(and(eq(classes.id, id), eq(classes.ontologyId, ontologyId)))
       .returning();
 
     if (!row) {

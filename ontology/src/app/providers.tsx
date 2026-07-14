@@ -10,6 +10,10 @@ import {
 import { ThemeProvider } from 'next-themes';
 import { LazyMotion } from 'motion/react';
 import { Toaster } from 'sonner';
+import { installOntologyFetch } from '@/lib/api-client';
+
+// PRD-PF-A: 활성 온톨로지를 모든 /api/* 요청 헤더에 주입(모듈 로드 시 1회, 클라이언트).
+installOntologyFetch();
 
 // PRD-Perf(LazyMotion): 애니메이션 기능 번들(domAnimation)을 비동기 청크로 분리.
 // 컴포넌트는 m.* 을 쓰므로 초기 번들에는 motion 코어(~5KB)만 남는다.

@@ -5,6 +5,7 @@ import { createCommitSchema } from '@/features/ontology/lib/schemas';
 import { desc, eq, asc, and, isNull } from 'drizzle-orm';
 import { handleApiError } from '@/lib/api-error';
 import { getCurrentUser } from '@/lib/supabase/auth-server';
+import { getOntologyScope } from '@/lib/authz/ontologyContext';
 import { parsePagination } from '@/lib/pagination';
 
 // PRD-Perf M0-3: autosave 로 커밋이 단조 증가 — 무제한 조회를 기본 최근 50건으로 바운드.
@@ -22,6 +23,7 @@ function projectSnapshotName(snapshot: unknown): { name: string } | null {
 
 export async function GET(request: NextRequest) {
   try {
+    const { ontologyId } = await getOntologyScope(request);
     const { searchParams } = new URL(request.url);
     const autoSaveFilter = searchParams.get('autoSave');
     const unpushedOnly = searchParams.get('unpushed') === 'true';
@@ -34,7 +36,11 @@ export async function GET(request: NextRequest) {
     if (unpushedOnly) {
       const rows = await db.query.commits.findMany({
         columns: { id: true, createdAt: true },
-        where: and(eq(commits.pushedToNeo4j, false), isNull(commits.branchId)),
+        where: and(
+          eq(commits.ontologyId, ontologyId),
+          eq(commits.pushedToNeo4j, false),
+          isNull(commits.branchId),
+        ),
         orderBy: [asc(commits.createdAt)],
       });
       return NextResponse.json({ ids: rows.map((r) => r.id), count: rows.length });
@@ -47,9 +53,13 @@ export async function GET(request: NextRequest) {
       orderBy: [desc(commits.createdAt)],
       limit: limit ?? DEFAULT_COMMITS_LIMIT,
       offset,
-      ...(autoSaveFilter != null
-        ? { where: (c: any, { eq }: any) => eq(c.isAutoSave, autoSaveFilter === 'true') }
-        : {}),
+      where: (c, ops) =>
+        autoSaveFilter != null
+          ? ops.and(
+              ops.eq(c.ontologyId, ontologyId),
+              ops.eq(c.isAutoSave, autoSaveFilter === 'true'),
+            )
+          : ops.eq(c.ontologyId, ontologyId),
     });
 
     const slim = rows.map((row) => ({
@@ -79,25 +89,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const { ontologyId } = await getOntologyScope(request, 'editor');
     const db = await getDb();
 
     // PRD-J M1: 작성자는 클라이언트 주장이 아니라 서버 세션에서 주입(위조 불가).
     // 미로그인(개발/단독 사용)이어도 커밋은 막지 않는다 — author 만 NULL.
     const user = await getCurrentUser().catch(() => null);
 
-    // 같은 체인(같은 branchId, autosave 포함)의 직전 커밋을 부모로 기록.
+    // 같은 체인(같은 branchId, autosave 포함)의 직전 커밋을 부모로 기록(온톨로지 스코프).
     const branchId = parsed.data.branchId ?? null;
     const prev = await db.query.commits.findFirst({
       columns: { id: true },
       where: branchId
-        ? eq(commits.branchId, branchId)
-        : isNull(commits.branchId),
+        ? and(eq(commits.ontologyId, ontologyId), eq(commits.branchId, branchId))
+        : and(eq(commits.ontologyId, ontologyId), isNull(commits.branchId)),
       orderBy: [desc(commits.createdAt)],
     });
 
     const [commit] = await db
       .insert(commits)
       .values({
+        ontologyId,
         message: parsed.data.message,
         isAutoSave: parsed.data.isAutoSave,
         branchId,
@@ -115,6 +127,7 @@ export async function POST(request: NextRequest) {
             .insert(commitDetails)
             .values(
               parsed.data.details.map((d, i) => ({
+                ontologyId,
                 commitId: commit.id,
                 operation: d.operation,
                 targetTable: d.targetTable,

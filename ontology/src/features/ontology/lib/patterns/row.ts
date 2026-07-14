@@ -24,6 +24,9 @@ export interface PatternRow {
   sourceUri: string | null;
   sourceLabel: string | null;
   license: string | null;
+  occurrenceCount?: number;
+  visibility?: string | null;
+  health?: number | null;
   isDraft: boolean;
   previousVersionId: string | null;
   createdAt: Date | string;
@@ -46,6 +49,9 @@ export function rowToPattern(row: PatternRow): Pattern {
     sourceUri: row.sourceUri,
     sourceLabel: row.sourceLabel,
     license: row.license,
+    occurrenceCount: row.occurrenceCount ?? 1,
+    visibility: (row.visibility as Pattern['visibility']) ?? 'private',
+    health: row.health ?? null,
     isDraft: row.isDraft,
     previousVersionId: row.previousVersionId,
     createdAt:

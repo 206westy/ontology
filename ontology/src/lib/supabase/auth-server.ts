@@ -37,11 +37,20 @@ export async function createAuthServerClient() {
   );
 }
 
-/** 현재 인증된 사용자(없으면 null). getUser 는 토큰을 검증한다. */
+/**
+ * 현재 인증된 사용자(없으면 null).
+ *
+ * 성능(핵심): 미들웨어가 모든 /api·페이지 요청에서 getUser()로 세션을 먼저 "보안 검증"한
+ * 뒤에야 이 코드가 실행된다(미인증은 미들웨어가 401/redirect 로 선차단). 그러므로 라우트
+ * 핸들러에서 getUser()(원격 Auth HTTPS 왕복 ~0.5-0.7s, 시드니)를 재차 돌 필요가 없다 —
+ * getSession()으로 이미 검증·갱신된 쿠키 세션을 로컬에서 읽는다(네트워크 0). 이는 미들웨어의
+ * /api 60s 검증 캐시와 동일한 신뢰 모델이며, 라우트당 왕복 1회를 제거해 전 API 지연을 낮춘다.
+ * (보안: 위조 토큰은 미들웨어 getUser 가 이미 401 로 차단 → 라우트엔 검증된 토큰만 도달.)
+ */
 export async function getCurrentUser() {
   const supabase = await createAuthServerClient();
   const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return user;
+    data: { session },
+  } = await supabase.auth.getSession();
+  return session?.user ?? null;
 }

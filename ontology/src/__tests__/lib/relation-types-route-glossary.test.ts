@@ -17,6 +17,16 @@ vi.mock('@/lib/drizzle', () => ({
   }),
 }));
 
+// PRD-PF-A: 라우트가 앱계층 스코프 가드를 통과하도록 온톨로지 스코프를 모킹.
+vi.mock('@/lib/authz/ontologyContext', () => ({
+  getOntologyScope: vi.fn().mockResolvedValue({
+    userId: 'u1',
+    ontologyId: '22222222-2222-2222-2222-222222222222',
+    workspaceId: '11111111-1111-1111-1111-111111111111',
+    role: 'editor',
+  }),
+}));
+
 import { POST } from '@/app/api/relation-types/route';
 import { recordRelationTerm } from '@/lib/relation-glossary';
 

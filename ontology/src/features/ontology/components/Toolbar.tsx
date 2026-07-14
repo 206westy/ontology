@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import {
   MousePointer2,
   Hand,
@@ -20,10 +21,13 @@ import {
   Activity,
   Wand2,
   ChevronDown,
+  Store,
 } from 'lucide-react';
 import FilterPanel from './FilterPanel';
 import PartitionSwitcher from './PartitionSwitcher';
 import BranchSwitcher from './BranchSwitcher';
+import OntologySwitcher from '@/features/workspace/components/OntologySwitcher';
+import FunctionsPanel from '@/features/functions/components/FunctionsPanel';
 import MergeRequestSheet from './MergeRequestSheet';
 import ValidationResultsPanel from './ValidationResultsPanel';
 import EntityResolutionSheet from './EntityResolutionSheet';
@@ -67,11 +71,15 @@ export default function Toolbar() {
   useEffect(() => {
     const openER = () => setShowEntityResolution(true);
     const openHealth = () => setShowHealth(true);
+    // PRD-PF-C 5.4: 문제(분기) 컨텍스트에서 병합 요청 화면으로 진입.
+    const openMR = () => setShowMergeRequests(true);
     window.addEventListener('ontology:duplicate-check', openER);
     window.addEventListener('ontology:health', openHealth);
+    window.addEventListener('ontology:merge-requests', openMR);
     return () => {
       window.removeEventListener('ontology:duplicate-check', openER);
       window.removeEventListener('ontology:health', openHealth);
+      window.removeEventListener('ontology:merge-requests', openMR);
     };
   }, []);
 
@@ -197,11 +205,17 @@ export default function Toolbar() {
 
       <Separator orientation="vertical" className="h-5 mx-1.5" />
 
+      {/* Ontology switcher (PRD-PF-A M5) — 최상위 스코프: 어떤 온톨로지를 편집 중인가 */}
+      <OntologySwitcher />
+
       {/* Partition switcher (PRD-B B-3) */}
       <PartitionSwitcher />
 
       {/* Branch switcher (PRD-J M2) — 구획=도메인 분리, 브랜치=작업 격리 */}
       <BranchSwitcher />
+
+      {/* 결정함수(키네틱) — PRD-PF-B: 속성→판정 실행요소(자연어+HITL 컨펌) */}
+      <FunctionsPanel />
 
       <div className="flex-1" />
 
@@ -217,6 +231,19 @@ export default function Toolbar() {
         >
           <Wand2 className="w-3.5 h-3.5" />
           가이드
+        </Button>
+        {/* PRD-BM-D01 (M1-6): 공유 패턴 카탈로그 진입점 */}
+        <Button
+          asChild
+          variant="ghost"
+          size="sm"
+          className="h-7 text-xs gap-1"
+          title="패턴 마켓플레이스 (공유 패턴 카탈로그)"
+        >
+          <Link href="/marketplace">
+            <Store className="w-3.5 h-3.5" />
+            마켓플레이스
+          </Link>
         </Button>
       </div>
 
