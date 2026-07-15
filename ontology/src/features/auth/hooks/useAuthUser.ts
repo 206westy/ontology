@@ -28,10 +28,23 @@ export function useAuthUser() {
         if (active) setIsLoading(false);
       });
 
+    // onAuthStateChange 의 session.user 를 직접 쓰면 supabase-js 가 "insecure" 경고를 낸다
+    // (일부 이벤트는 스토리지에서 온 미검증 세션). 로그아웃은 즉시 반영, 그 외엔 getUser()로 재검증.
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') {
+        if (active) setUser(null);
+        return;
+      }
+      supabase.auth
+        .getUser()
+        .then(({ data }) => {
+          if (active) setUser(data.user);
+        })
+        .catch(() => {
+          if (active) setUser(null);
+        });
     });
 
     return () => {

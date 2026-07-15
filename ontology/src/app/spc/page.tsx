@@ -1,10 +1,7 @@
-import SpcWorkbench from '@/features/spc/components/SpcWorkbench';
+import { redirect } from 'next/navigation';
 
-// PRD-PF-F: SPC/FDC 워크벤치(모듈 토글·판정 함수 저작·판정 실행). 관리도 시각화·근거 카드는 PRD-PF-G(보드)에서.
-export default function SpcPage() {
-  return (
-    <div className="h-screen w-screen overflow-auto bg-background">
-      <SpcWorkbench />
-    </div>
-  );
+// PRD-PF 시퀀스 전용화: SPC/FDC 는 개별 기능이 아니라 문제 시퀀스의 스테이지다.
+// 단독 진입은 진입점(/platform)으로 보낸다 → 문제해결 플랫폼에서 /problems/[id]/spc 로 동작.
+export default function SpcStandaloneRedirect() {
+  redirect('/platform');
 }

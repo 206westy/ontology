@@ -52,7 +52,8 @@ export function confirmStep(
     confirmedAt: nowIso,
   });
   if (step === 'studio') {
-    for (const later of ['functions', 'board'] as const) {
+    // §5.5: 엄격 게이트는 studio→downstream 뿐. 이후 운영 스테이지는 자유 왕복(모두 언락).
+    for (const later of ['functions', 'spc', 'board', 'operate'] as const) {
       if (get(next, later).state === 'locked') {
         next = set(next, later, { state: 'draft' });
       }

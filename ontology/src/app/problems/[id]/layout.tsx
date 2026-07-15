@@ -34,6 +34,21 @@ export default function ProblemWorkflowLayout({
   const setDetail = useProblemWorkflowStore((s) => s.setDetail);
   const clear = useProblemWorkflowStore((s) => s.clear);
   const [error, setError] = useState(false);
+  // SPC/FDC 모듈 토글 — OFF 면 시퀀스에서 spc 스테이지 숨김/스킵.
+  const [spcEnabled, setSpcEnabled] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    fetch('/api/workspace-settings')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((s) => {
+        if (alive && s) setSpcEnabled(!!(s.spcEnabled || s.fdcEnabled));
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -52,18 +67,26 @@ export default function ProblemWorkflowLayout({
   }, [id, setDetail, clear]);
 
   const stage = currentStage(pathname);
-  const isStudio = stage === 'studio';
+  // studio + 운영 스테이지(spc/board/operate)는 풀와이드(리치 UI). define/data/functions 만 코파일럿 아사이드.
+  const isFullWidth = stage
+    ? ['studio', 'spc', 'board', 'operate'].includes(stage)
+    : false;
   const loaded = detail?.id === id;
 
   // PRD-PF-C M3: 잠긴 단계 직접 URL 접근 차단 — 마지막으로 접근 가능한 단계로 안내·리다이렉트.
   useEffect(() => {
     if (!loaded || !detail || !stage) return;
+    // SPC/FDC 토글 OFF 인데 spc 스테이지 직접 진입 → 보드로(끊김 방지).
+    if (stage === 'spc' && !spcEnabled) {
+      router.replace(`/problems/${id}/board`);
+      return;
+    }
     const ws = detail.workflowState as WorkflowState;
     if (isStepAccessible(ws, stage)) return;
     const lastOpen = [...WORKFLOW_STEPS].reverse().find((s) => isStepAccessible(ws, s)) ?? 'define';
     toast.info('이전 단계를 먼저 확정하세요.');
     router.replace(`/problems/${id}/${lastOpen}`);
-  }, [loaded, detail, stage, id, router]);
+  }, [loaded, detail, stage, id, router, spcEnabled]);
 
   return (
     <div className="h-screen flex flex-col bg-background overflow-hidden">
@@ -80,7 +103,9 @@ export default function ProblemWorkflowLayout({
       </div>
 
       {/* 스텝퍼 */}
-      {loaded && <StepperNav problemId={id} workflowState={detail.workflowState} />}
+      {loaded && (
+        <StepperNav problemId={id} workflowState={detail.workflowState} spcEnabled={spcEnabled} />
+      )}
 
       {/* 본문 */}
       {error ? (
@@ -91,7 +116,7 @@ export default function ProblemWorkflowLayout({
         <div className="flex-1 flex items-center justify-center">
           <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
         </div>
-      ) : isStudio ? (
+      ) : isFullWidth ? (
         <div className="flex-1 min-h-0">{children}</div>
       ) : (
         <div className="flex-1 min-h-0 flex">

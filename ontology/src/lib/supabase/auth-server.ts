@@ -37,20 +37,58 @@ export async function createAuthServerClient() {
   );
 }
 
+export interface AuthUser {
+  id: string;
+  email: string | null;
+}
+
+/** base64/base64url → JSON(파싱 실패 시 null). */
+function decodeB64Json(b64: string): Record<string, unknown> | null {
+  try {
+    const norm = b64.replace(/-/g, '+').replace(/_/g, '/');
+    return JSON.parse(Buffer.from(norm, 'base64').toString('utf8'));
+  } catch {
+    return null;
+  }
+}
+
 /**
  * 현재 인증된 사용자(없으면 null).
  *
- * 성능(핵심): 미들웨어가 모든 /api·페이지 요청에서 getUser()로 세션을 먼저 "보안 검증"한
- * 뒤에야 이 코드가 실행된다(미인증은 미들웨어가 401/redirect 로 선차단). 그러므로 라우트
- * 핸들러에서 getUser()(원격 Auth HTTPS 왕복 ~0.5-0.7s, 시드니)를 재차 돌 필요가 없다 —
- * getSession()으로 이미 검증·갱신된 쿠키 세션을 로컬에서 읽는다(네트워크 0). 이는 미들웨어의
- * /api 60s 검증 캐시와 동일한 신뢰 모델이며, 라우트당 왕복 1회를 제거해 전 API 지연을 낮춘다.
- * (보안: 위조 토큰은 미들웨어 getUser 가 이미 401 로 차단 → 라우트엔 검증된 토큰만 도달.)
+ * 성능+정합(핵심): 미들웨어가 모든 /api·페이지 요청에서 getUser()로 세션을 먼저 "보안 검증"한
+ * 뒤에야 라우트 핸들러가 실행된다(미인증은 미들웨어가 401/redirect 로 선차단). 따라서 라우트에서
+ * getUser()(원격 Auth HTTPS 왕복 ~0.5-0.7s, 시드니)를 재차 돌 필요가 없다 — 검증·갱신된 쿠키
+ * 세션에서 사용자 식별자만 로컬로 읽는다(네트워크 0). 미들웨어의 /api 60s 검증 캐시와 동일 신뢰 모델.
+ *
+ * ★getSession() 미사용★: supabase.auth.getSession()은 서버에서 session.user 접근 시
+ * "Using the user object ... could be insecure" 경고를 매 요청 로깅한다. Supabase 메서드 대신
+ * @supabase/ssr auth 쿠키를 직접 파싱해 경고를 원천 제거한다(보안·성능 동일). 파싱 실패 시 null.
  */
-export async function getCurrentUser() {
-  const supabase = await createAuthServerClient();
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-  return session?.user ?? null;
+export async function getCurrentUser(): Promise<AuthUser | null> {
+  const store = await cookies();
+  // sb-<ref>-auth-token (+ 청크 .0/.1). 값 = 'base64-' + base64(JSON session). code-verifier 는 제외.
+  const raw = store
+    .getAll()
+    .filter((c) => /-auth-token(\.\d+)?$/.test(c.name))
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((c) => c.value)
+    .join('');
+  if (!raw) return null;
+
+  const payload = raw.startsWith('base64-') ? raw.slice(7) : raw;
+  const session = decodeB64Json(payload) as
+    | { access_token?: string; user?: { id?: string; email?: string | null } }
+    | null;
+  if (!session) return null;
+
+  if (session.user?.id) {
+    return { id: session.user.id, email: session.user.email ?? null };
+  }
+  // 폴백: access_token JWT payload 의 sub.
+  const jwtPayload = session.access_token?.split('.')[1];
+  if (jwtPayload) {
+    const claims = decodeB64Json(jwtPayload) as { sub?: string; email?: string } | null;
+    if (claims?.sub) return { id: claims.sub, email: claims.email ?? null };
+  }
+  return null;
 }

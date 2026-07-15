@@ -23,8 +23,8 @@ export const AUTH_PUBLIC_PREFIX = '/auth';
 /** 로그인/회원가입 전용 페이지 — 인증된 사용자는 앱으로 되돌린다 */
 export const REDIRECT_IF_AUTHED = ['/login', '/signup'] as const;
 
-/** 로그인 후 기본 도착지 */
-export const DEFAULT_AUTHED_REDIRECT = '/';
+/** 로그인 후 기본 도착지 — 두 버전 선택 진입점(①문제해결 플랫폼 / ②스튜디오 단독). */
+export const DEFAULT_AUTHED_REDIRECT = '/platform';
 
 /** 미인증 시 도착지 */
 export const SIGN_IN_PATH = '/login';

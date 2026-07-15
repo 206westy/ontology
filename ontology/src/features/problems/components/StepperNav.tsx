@@ -13,7 +13,9 @@ const STEP_LABEL: Record<WorkflowStep, string> = {
   data: '데이터 연결',
   studio: '온톨로지 구축',
   functions: '결정함수',
+  spc: 'SPC/FDC',
   board: '대시보드·액션',
+  operate: 'AIP·자동화',
 };
 
 const STATE_META: Record<
@@ -29,10 +31,13 @@ const STATE_META: Record<
 interface Props {
   problemId: string;
   workflowState: Record<string, { state: StepState }>;
+  spcEnabled?: boolean;
 }
 
-export default function StepperNav({ problemId, workflowState }: Props) {
+export default function StepperNav({ problemId, workflowState, spcEnabled = true }: Props) {
   const pathname = usePathname();
+  // SPC/FDC 모듈 토글 OFF 면 시퀀스에서 spc 스테이지 숨김(끊김 없이 functions→board).
+  const steps = WORKFLOW_STEPS.filter((s) => s !== 'spc' || spcEnabled);
 
   return (
     <nav
@@ -40,7 +45,7 @@ export default function StepperNav({ problemId, workflowState }: Props) {
       className="flex items-center gap-1 overflow-x-auto px-4 h-12 border-b border-border bg-card/60 backdrop-blur-sm"
       data-testid="stepper-nav"
     >
-      {WORKFLOW_STEPS.map((step, i) => {
+      {steps.map((step, i) => {
         const state = (workflowState[step]?.state ?? 'locked') as StepState;
         const meta = STATE_META[state];
         const href = `/problems/${problemId}/${step}`;

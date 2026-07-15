@@ -54,16 +54,15 @@ test.describe('PF A~I 라이브 검증', () => {
     await page.locator('input[name="email"]').fill(email);
     await page.locator('input[name="password"]').fill(password);
     await page.getByRole('button', { name: '로그인', exact: true }).click();
-    await expect(page).toHaveURL(/\/$/, { timeout: 60000 });
-    await expect(page.getByRole('button', { name: '가져오기' })).toBeVisible({ timeout: 90000 });
+    // 진입점 봉합: 로그인 랜딩 = /platform 선택화면.
+    await expect(page).toHaveURL(/\/platform$/, { timeout: 60000 });
+    await expect(page.getByText('무엇으로 시작할까요?')).toBeVisible({ timeout: 60000 });
 
     // ── UI 표면 로드(콘솔 에러/5xx 수집) ──
+    // 단독 라우트(/spc·/dashboards·/action-board)는 /platform 리다이렉트 → 시퀀스 스테이지로만 접근.
     const surfaces: { path: string; needle: RegExp }[] = [
       { path: '/platform', needle: /스튜디오|문제|플랫폼/ },
       { path: '/problems', needle: /문제/ },
-      { path: '/spc', needle: /SPC|FDC|공정|모듈/ },
-      { path: '/dashboards', needle: /대시보드/ },
-      { path: '/action-board', needle: /액션보드|처리/ },
     ];
     const surfaceTimings: Record<string, number> = {};
     for (const s of surfaces) {

@@ -17,7 +17,9 @@ const STAGE_TITLE: Record<WorkflowStep, string> = {
   data: '데이터 충분성 코파일럿',
   studio: '온톨로지 코파일럿',
   functions: '키네틱 코파일럿',
+  spc: 'SPC/FDC 코파일럿',
   board: '보드 코파일럿',
+  operate: '운영 코파일럿',
 };
 
 // PRD-PF-E M1: 전 단계 공통 AI 코파일럿 셸. stage 별 툴콜 스위칭. 모든 제안은 초안 —
