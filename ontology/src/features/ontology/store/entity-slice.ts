@@ -69,9 +69,15 @@ export const createEntitySlice: SliceCreator<EntitySlice> = (set, get) => ({
   partitions: [],
 
   addClass: (data) => {
-    const id = data.id ?? generateId();
     // 소속 구획: 명시값 > 현재 선택 구획 > 기본 구획
     const partitionId = data.partitionId ?? get().currentPartitionId ?? DEFAULT_PARTITION_ID;
+    // 멱등: 같은 id, 또는 같은 구획 내 동일 이름이 이미 있으면 새로 만들지 않고 그 id 반환.
+    // (랙으로 인한 "확정/추가" 다중 클릭 + stale useMemo 스냅샷 재확정으로 인한 중복 노드 방지.)
+    const dupClass = get().classes.find(
+      (c) => (data.id != null && c.id === data.id) || (c.partitionId === partitionId && c.name === data.name),
+    );
+    if (dupClass) return dupClass.id;
+    const id = data.id ?? generateId();
     const newClass: OntologyClass = {
       id,
       parentId: data.parentId ?? null,
@@ -128,6 +134,11 @@ export const createEntitySlice: SliceCreator<EntitySlice> = (set, get) => ({
     }),
 
   addInstance: (data) => {
+    // 멱등: 같은 id, 또는 같은 클래스 아래 동일 이름 인스턴스가 있으면 그 id 반환(랙 다중 클릭 중복 방지).
+    const dupInst = get().instances.find(
+      (i) => (data.id != null && i.id === data.id) || (i.classId === data.classId && i.name === data.name),
+    );
+    if (dupInst) return dupInst.id;
     const id = data.id ?? generateId();
     const newInstance: OntologyInstance = {
       id,
@@ -314,6 +325,11 @@ export const createEntitySlice: SliceCreator<EntitySlice> = (set, get) => ({
     }),
 
   addProperty: (data) => {
+    // 멱등: 같은 id, 또는 같은 클래스에 동일 이름 속성이 있으면 그 id 반환(다중 클릭 중복 방지).
+    const dupProp = get().properties.find(
+      (p) => (data.id != null && p.id === data.id) || (p.classId === data.classId && p.name === data.name),
+    );
+    if (dupProp) return dupProp.id;
     const id = data.id ?? generateId();
     const newProp: OntologyProperty = {
       id,
@@ -349,6 +365,11 @@ export const createEntitySlice: SliceCreator<EntitySlice> = (set, get) => ({
     }),
 
   addRelationType: (data) => {
+    // 멱등: 같은 id 가 이미 있으면 그 id 반환(stable-id 재확정 중복 방지).
+    if (data.id != null) {
+      const dupRt = get().relationTypes.find((r) => r.id === data.id);
+      if (dupRt) return dupRt.id;
+    }
     const id = data.id ?? generateId();
     const newType: RelationType = {
       id,
@@ -371,6 +392,13 @@ export const createEntitySlice: SliceCreator<EntitySlice> = (set, get) => ({
   },
 
   addEdge: (data) => {
+    // 멱등: 같은 id, 또는 동일 (source,target,relationType) 엣지가 있으면 그 id 반환(다중 클릭 중복 방지).
+    const dupEdge = get().edges.find(
+      (e) =>
+        (data.id != null && e.id === data.id) ||
+        (e.sourceId === data.sourceId && e.targetId === data.targetId && e.relationTypeId === data.relationTypeId),
+    );
+    if (dupEdge) return dupEdge.id;
     const id = data.id ?? generateId();
     // PRD-B B-1: source/target 구획이 다르면 bridge
     const st = get();
@@ -792,7 +820,10 @@ export const createEntitySlice: SliceCreator<EntitySlice> = (set, get) => ({
     // 삭제됐으면 기본 구획으로 폴백. persist 없이 매 로드마다 기본으로 리셋되던 문제 해소.
     const persisted = readWorkspaceSelection();
     const partitionIds = new Set((data.partitions ?? []).map((p) => p.id));
-    let currentPartitionId = DEFAULT_PARTITION_ID;
+    // 활성 온톨로지의 기본 구획(첫 구획)으로 시작한다. 전역 기본 구획(다른 온톨로지 소속)으로
+    // 폴백하면 새로 만드는 클래스가 class.ontology_id ≠ partition.ontology_id 트리거 위반을
+    // 일으켜 batch 500 이 난다. 구획이 없을 때만 전역 기본값으로 폴백.
+    let currentPartitionId = data.partitions?.[0]?.id ?? DEFAULT_PARTITION_ID;
     let showAllPartitions = false;
     if (persisted?.showAll) {
       showAllPartitions = true;

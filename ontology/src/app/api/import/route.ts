@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { and, eq } from 'drizzle-orm';
 import { getDb } from '@/lib/drizzle';
 import {
   classes,
@@ -8,9 +9,12 @@ import {
   edges,
   relationTypes,
   constraints,
+  partitions,
 } from '@/lib/drizzle/schema';
 import { importRequestSchema } from '@/features/ontology/lib/schemas';
+import { DEFAULT_PARTITION_ID } from '@/features/ontology/lib/types';
 import { handleApiError } from '@/lib/api-error';
+import { getOntologyScope } from '@/lib/authz/ontologyContext';
 import { recordRelationTerm, recordRelationUsage } from '@/lib/relation-glossary';
 
 // PRD-L M1: 과거 export 페이로드의 axioms/axiomClasses 키는 스키마 검증에서
@@ -70,6 +74,8 @@ function normalizeRdfPayload(
 async function insertOntology(
   ontology: OntologyPayload,
   strategy: 'replace' | 'merge',
+  // PRD-PF-A: 임포트 대상 온톨로지(스코프). 모든 행에 귀속되고, replace 삭제도 이 범위로 한정.
+  ontologyId: string,
   // PRD-N M1: 지정 시 임포트되는 클래스 전부를 이 구획에 귀속(템플릿 시딩 → 새 구획).
   partitionId?: string,
 ): Promise<ImportStats> {
@@ -86,15 +92,26 @@ async function insertOntology(
   };
 
   await db.transaction(async (tx) => {
-    // If strategy is 'replace', delete everything first (reverse dependency order)
+    // 대상 온톨로지 소속 구획 집합·기본 구획(클래스 partitionId 정합 강제 · 트리거 방어).
+    const partRows = await tx
+      .select({ id: partitions.id })
+      .from(partitions)
+      .where(eq(partitions.ontologyId, ontologyId))
+      .orderBy(partitions.createdAt);
+    const validPartitionIds = new Set(partRows.map((r) => r.id));
+    const defaultPartitionId = partRows[0]?.id ?? DEFAULT_PARTITION_ID;
+    const coercePartition = (wanted: string | undefined): string =>
+      wanted && validPartitionIds.has(wanted) ? wanted : defaultPartitionId;
+
+    // replace 는 반드시 대상 온톨로지 범위로만 삭제(과거엔 where 없이 전 테넌트 삭제 — 치명).
     if (strategy === 'replace') {
-      await tx.delete(constraints);
-      await tx.delete(edges);
-      await tx.delete(instanceValues);
-      await tx.delete(instances);
-      await tx.delete(properties);
-      await tx.delete(relationTypes);
-      await tx.delete(classes);
+      await tx.delete(constraints).where(eq(constraints.ontologyId, ontologyId));
+      await tx.delete(edges).where(eq(edges.ontologyId, ontologyId));
+      await tx.delete(instanceValues).where(eq(instanceValues.ontologyId, ontologyId));
+      await tx.delete(instances).where(eq(instances.ontologyId, ontologyId));
+      await tx.delete(properties).where(eq(properties.ontologyId, ontologyId));
+      await tx.delete(relationTypes).where(eq(relationTypes.ontologyId, ontologyId));
+      await tx.delete(classes).where(eq(classes.ontologyId, ontologyId));
     }
 
     // Insert in dependency order
@@ -108,14 +125,15 @@ async function insertOntology(
       for (const cls of sortedClasses) {
         await tx.insert(classes).values({
           id: cls.id as string,
+          ontologyId,
           name: cls.name as string,
           parentId: (cls.parentId as string) ?? null,
           description: (cls.description as string) ?? '',
           color: (cls.color as string) ?? '#7c3aed',
           positionX: (cls.positionX as number) ?? 0,
           positionY: (cls.positionY as number) ?? 0,
-          // 라우트 지정 구획이 있으면 우선, 없으면 페이로드의 값(있을 때), 없으면 DB 기본 구획.
-          partitionId: partitionId ?? (cls.partitionId as string | undefined),
+          // 라우트 지정 구획 우선, 없으면 페이로드 값. 어느 쪽이든 대상 온톨로지 소속으로 교정.
+          partitionId: coercePartition(partitionId ?? (cls.partitionId as string | undefined)),
         });
         stats.classes++;
       }
@@ -125,6 +143,7 @@ async function insertOntology(
       for (const rt of ontology.relationTypes) {
         await tx.insert(relationTypes).values({
           id: rt.id as string,
+          ontologyId,
           name: rt.name as string,
           description: (rt.description as string) ?? '',
           // PRD-BM-D01 리뷰: layer 를 보존(누락 시 DB 기본 'semantic'으로 kinetic 관계가 소실).
@@ -140,6 +159,7 @@ async function insertOntology(
       for (const prop of ontology.properties) {
         await tx.insert(properties).values({
           id: prop.id as string,
+          ontologyId,
           classId: prop.classId as string,
           name: prop.name as string,
           dataType: (prop.dataType as string) ?? 'string',
@@ -156,6 +176,7 @@ async function insertOntology(
       for (const inst of ontology.instances) {
         await tx.insert(instances).values({
           id: inst.id as string,
+          ontologyId,
           classId: inst.classId as string,
           name: inst.name as string,
         });
@@ -167,6 +188,7 @@ async function insertOntology(
       for (const iv of ontology.instanceValues) {
         await tx.insert(instanceValues).values({
           id: iv.id as string,
+          ontologyId,
           instanceId: iv.instanceId as string,
           propertyId: iv.propertyId as string,
           value: (iv.value as string) ?? null,
@@ -179,6 +201,7 @@ async function insertOntology(
       for (const edge of ontology.edges) {
         await tx.insert(edges).values({
           id: edge.id as string,
+          ontologyId,
           relationTypeId: edge.relationTypeId as string,
           sourceId: edge.sourceId as string,
           targetId: edge.targetId as string,
@@ -193,6 +216,7 @@ async function insertOntology(
       for (const c of ontology.constraints) {
         await tx.insert(constraints).values({
           id: c.id as string,
+          ontologyId,
           // PRD-L M1: kind 미지정 과거 페이로드는 enforced 로 간주(기존 의미 보존).
           kind: (c.kind as string) ?? 'enforced',
           constraintType: (c.constraintType as string) ?? null,
@@ -232,6 +256,10 @@ async function insertOntology(
 
 export async function POST(request: NextRequest) {
   try {
+    // PRD-PF-A: 임포트도 활성 온톨로지 스코프로 강제(과거엔 무스코프 → DB 기본 온톨로지에
+    // 기록되고 replace 가 전 테넌트를 삭제했다). editor 권한 필요.
+    const { ontologyId } = await getOntologyScope(request, 'editor');
+
     const contentType = request.headers.get('content-type');
     const format = detectFormat(contentType);
 
@@ -254,7 +282,7 @@ export async function POST(request: NextRequest) {
           { status: 400 },
         );
       }
-      const stats = await insertOntology(ontology, strategy);
+      const stats = await insertOntology(ontology, strategy, ontologyId);
 
       return NextResponse.json(
         { success: true, strategy, format: 'jsonld', stats },
@@ -281,7 +309,7 @@ export async function POST(request: NextRequest) {
           { status: 400 },
         );
       }
-      const stats = await insertOntology(ontology, strategy);
+      const stats = await insertOntology(ontology, strategy, ontologyId);
 
       return NextResponse.json(
         { success: true, strategy, format: 'turtle', stats },
@@ -311,7 +339,7 @@ export async function POST(request: NextRequest) {
       constraints: ontology.constraints,
     };
 
-    const stats = await insertOntology(fullOntology, strategy, partitionId);
+    const stats = await insertOntology(fullOntology, strategy, ontologyId, partitionId);
 
     return NextResponse.json(
       {

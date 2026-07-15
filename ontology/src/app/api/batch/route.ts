@@ -8,6 +8,7 @@ import {
   edges,
   relationTypes,
   attributions,
+  partitions,
 } from '@/lib/drizzle/schema';
 import { batchRequestSchema, type BatchOperation } from '@/features/ontology/lib/schemas';
 import { DEFAULT_PARTITION_ID, toRelationLayer } from '@/features/ontology/lib/types';
@@ -74,6 +75,23 @@ function attributionFor(
   };
 }
 
+// 대상 온톨로지에 속한 구획 집합·기본 구획을 조회. 클래스 insert 시 partitionId 가
+// 다른 온톨로지 소속(예: 클라가 보낸 전역 기본 구획)이면 트리거
+// trg_class_ontology_partition_match 가 막으므로, 여기서 온톨로지 소속 구획으로 교정한다.
+async function resolveOntologyPartitions(
+  tx: Tx,
+  ontologyId: string,
+): Promise<{ validIds: Set<string>; defaultId: string }> {
+  const rows = await tx
+    .select({ id: partitions.id })
+    .from(partitions)
+    .where(eq(partitions.ontologyId, ontologyId))
+    .orderBy(partitions.createdAt);
+  const validIds = new Set(rows.map((r) => r.id));
+  const defaultId = rows[0]?.id ?? DEFAULT_PARTITION_ID;
+  return { validIds, defaultId };
+}
+
 // 같은 테이블 create 를 multi-row 단일 insert 로 합쳐 시드니 왕복 수를 N→상수로 줄인다.
 async function applyCreates(
   tx: Tx,
@@ -101,17 +119,21 @@ async function applyCreates(
     if (!ops || ops.length === 0) continue;
 
     if (type === 'class') {
+      // 온톨로지 소속 구획으로 partitionId 를 교정(트리거 정합 강제 · batch 500 방지).
+      const { validIds, defaultId } = await resolveOntologyPartitions(tx, ontologyId);
       const rows = await tx
         .insert(classes)
         .values(
           ops.map((op) => {
             const d = op.data as Record<string, unknown>;
+            const wantedPartition = (d.partitionId as string | undefined) ?? DEFAULT_PARTITION_ID;
+            const partitionId = validIds.has(wantedPartition) ? wantedPartition : defaultId;
             return {
               ...(d.id ? { id: str(d.id) } : {}),
               ontologyId,
               name: str(d.name),
               parentId: optStr(d.parentId),
-              partitionId: (d.partitionId as string | undefined) ?? DEFAULT_PARTITION_ID,
+              partitionId,
               description: (d.description as string | undefined) ?? '',
               color: (d.color as string | undefined) ?? '#7c3aed',
               positionX: (d.positionX as number | undefined) ?? 0,
@@ -345,8 +367,11 @@ export async function POST(request: NextRequest) {
         for (const op of updates) await applyMutation(tx, op, results, ontologyId);
         for (const op of deletes) await applyMutation(tx, op, results, ontologyId);
       } catch (err) {
+        // 원본 에러(및 DB code)를 cause 로 보존 → handleApiError 가 23505/23503 등을
+        // 정확히 409/400 으로 분류. 과거엔 재래핑으로 code 가 소실돼 전부 generic 500 이었다.
         throw new Error(
           `Batch failed: ${err instanceof Error ? err.message : 'Unknown error'}`,
+          { cause: err },
         );
       }
     });

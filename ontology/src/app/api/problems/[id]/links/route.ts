@@ -91,6 +91,33 @@ export async function POST(
       return NextResponse.json({ error: '문제를 찾을 수 없습니다.' }, { status: 404 });
     }
 
+    // 멱등화(중복 온톨로지 증식 방지): 링크 페이지 재진입/가이드 재실행으로 mode='new' 가
+    // 반복 호출되면 매번 새 온톨로지를 만들어 증식했다. 이미 이 문제에 주(主) 링크가 있으면
+    // 'new' 는 새로 만들지 않고 기존 주 링크를 그대로 반환한다(다른 온톨로지가 필요하면
+    // reuse/extend/branch 로 명시적으로 선택). 다른 모드는 사용자의 명시적 대상 선택이므로 통과.
+    if (mode === 'new' && isPrimary) {
+      const [existingPrimary] = await db
+        .select({
+          id: problemOntologyLinks.id,
+          problemId: problemOntologyLinks.problemId,
+          ontologyId: problemOntologyLinks.ontologyId,
+          linkMode: problemOntologyLinks.linkMode,
+          branchId: problemOntologyLinks.branchId,
+          isPrimary: problemOntologyLinks.isPrimary,
+        })
+        .from(problemOntologyLinks)
+        .where(
+          and(
+            eq(problemOntologyLinks.problemId, id),
+            eq(problemOntologyLinks.isPrimary, true),
+          ),
+        )
+        .limit(1);
+      if (existingPrimary) {
+        return NextResponse.json(existingPrimary, { status: 200 });
+      }
+    }
+
     // 대상 온톨로지 결정(mode 별). reuse/extend/branch 는 워크스페이스 소속 검증.
     async function resolveTargetOntology(): Promise<{ ontologyId: string; branchId: string | null }> {
       if (mode === 'new') {
