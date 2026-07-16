@@ -24,8 +24,8 @@ export function MarketplaceShell() {
   // 빠른 타이핑 중 fetch 폭주를 완화(입력은 즉시 반영, 조회는 지연값 기준).
   const deferredQuery = useDeferredValue(query);
   const { data, isLoading, isError } = useMarketplace(deferredQuery);
-  // 시딩 성공 시 스튜디오('/')로 이동 — persist 된 구획 선택을 그대로 연다.
-  const seed = usePatternSeed({ redirectTo: '/' });
+  // 시딩 성공 시 스튜디오('/studio')로 이동 — persist 된 구획 선택을 그대로 연다.
+  const seed = usePatternSeed({ redirectTo: '/studio' });
 
   // 큐레이션: 임계 이하는 dim + 하단으로(정렬은 서버, dim 은 클라이언트).
   const { patterns, dimmedIds } = useMemo(() => {
@@ -49,7 +49,7 @@ export function MarketplaceShell() {
       <header className="sticky top-0 z-10 border-b border-border/80 bg-background/80 backdrop-blur-sm">
         <div className="mx-auto flex h-14 max-w-6xl items-center gap-3 px-6">
           <Button asChild variant="ghost" size="sm" className="h-8 gap-1 px-2 text-xs text-muted-foreground">
-            <Link href="/">
+            <Link href="/studio">
               <ArrowLeft className="h-3.5 w-3.5" />
               스튜디오
             </Link>

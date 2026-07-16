@@ -4,7 +4,8 @@ import Link from 'next/link';
 import { Workflow, Boxes, ArrowRight } from 'lucide-react';
 
 // PRD-PF: 두 버전 진입점 런처.
-// 라우트 분리(2026-07-14): `/` = 온톨로지 스튜디오 단독, `/problems` = 문제해결 워크플로우(PF-C~).
+// 라우트 분리(2026-07-16): `/` = 공개 랜딩, `/studio` = 온톨로지 스튜디오 단독,
+// `/problems` = 문제해결 워크플로우(PF-C~). 이 런처는 `/`의 `시작하기`에서 진입한다.
 const STAGES = ['문제정의', '데이터 연결·재사용', '온톨로지 구축', '결정함수', 'SPC/FDC', '대시보드·액션보드', 'AIP·자동화'];
 
 export default function PlatformLauncher() {
@@ -19,7 +20,7 @@ export default function PlatformLauncher() {
         <div className="grid md:grid-cols-2 gap-4">
           {/* 진입점 1: 스튜디오 단독 */}
           <Link
-            href="/"
+            href="/studio"
             className="group rounded-xl border border-border bg-card p-6 space-y-3 hover:border-primary/50 hover:shadow-sm transition-all"
           >
             <div className="flex items-center gap-2 text-primary">

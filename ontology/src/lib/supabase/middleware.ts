@@ -5,6 +5,7 @@ import {
   AUTH_PAGE_PREFIXES,
   AUTH_PUBLIC_PREFIX,
   DEFAULT_AUTHED_REDIRECT,
+  PUBLIC_PAGE_PATHS,
   REDIRECT_IF_AUTHED,
   SIGN_IN_PATH,
 } from '@/features/auth/constants';
@@ -106,6 +107,7 @@ export async function updateSession(request: NextRequest) {
   const isAuthPage = AUTH_PAGE_PREFIXES.some((p) => path.startsWith(p));
   const isAuthPublic =
     path === AUTH_PUBLIC_PREFIX || path.startsWith(`${AUTH_PUBLIC_PREFIX}/`);
+  const isPublicPage = PUBLIC_PAGE_PATHS.some((p) => path === p);
 
   // C1: /api/* 코드-게이트. 라우트는 service-role 로 RLS 를 우회하므로
   // 인증은 여기서 강제한다. fetch 가 깨지지 않도록 302 가 아닌 401 JSON 을 반환한다
@@ -118,8 +120,8 @@ export async function updateSession(request: NextRequest) {
     return supabaseResponse;
   }
 
-  // 미인증 + 보호 라우트 → 로그인으로
-  if (!user && !isAuthPage && !isAuthPublic) {
+  // 미인증 + 보호 라우트 → 로그인으로 (공개 랜딩/인증 페이지는 예외)
+  if (!user && !isAuthPage && !isAuthPublic && !isPublicPage) {
     return redirectKeepingCookies(request, SIGN_IN_PATH, supabaseResponse);
   }
 

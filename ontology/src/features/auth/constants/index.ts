@@ -20,6 +20,9 @@ export const AUTH_PAGE_PREFIXES = [
 /** 인증 처리용 라우트 핸들러/에러 페이지 (항상 public) */
 export const AUTH_PUBLIC_PREFIX = '/auth';
 
+/** 공개 마케팅 페이지 (로그인 없이 열람 가능) — 루트 랜딩. */
+export const PUBLIC_PAGE_PATHS = ['/'] as const;
+
 /** 로그인/회원가입 전용 페이지 — 인증된 사용자는 앱으로 되돌린다 */
 export const REDIRECT_IF_AUTHED = ['/login', '/signup'] as const;
 

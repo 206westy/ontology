@@ -1,13 +1,9 @@
 'use client';
 
-import OntologyStudioShell from '@/features/ontology/components/OntologyStudioShell';
+import LandingPage from '@/features/landing/components/LandingPage';
 
-// 두-버전 진입점(1): 온톨로지 스튜디오 단독판. 현행 경험을 그대로 보존한다.
-// 본문 로직은 OntologyStudioShell 로 무손실 추출되어 `/problems/[id]/studio` 와 공유된다.
+// 루트 `/` = 공개 랜딩(2026-07-16). `시작하기`→`/platform`(두-버전 런처).
+// 스튜디오 단독판은 `/studio` 로 이동했다.
 export default function Home() {
-  return (
-    <div className="h-screen w-screen overflow-hidden">
-      <OntologyStudioShell />
-    </div>
-  );
+  return <LandingPage />;
 }

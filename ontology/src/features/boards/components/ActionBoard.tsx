@@ -226,7 +226,7 @@ export default function ActionBoard() {
 
       <p className="text-xs text-muted-foreground">
         캔버스에서 근거를 보려면{' '}
-        <Link href="/" className="text-primary hover:underline">
+        <Link href="/studio" className="text-primary hover:underline">
           스튜디오
         </Link>
         로 이동하세요. 확정/기각은 행위자·사유가 기록됩니다(완전자동 금지).
