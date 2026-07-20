@@ -7,6 +7,9 @@ import path from 'node:path';
  *   E2E_TEST_EMAIL=admin@ontology.local E2E_TEST_PASSWORD=... \
  *     npx playwright test e2e/screenshots.spec.ts
  * 이미지는 저장소 루트 docs/assets/ 에 저장된다(README 에서 참조).
+ *
+ * 라우팅(2026-07 기준): / = 공개 랜딩, /platform = 런처, /studio = 스튜디오,
+ * /problems = 문제해결 플랫폼, /marketplace = 패턴 마켓플레이스.
  */
 const email = process.env.E2E_TEST_EMAIL;
 const password = process.env.E2E_TEST_PASSWORD;
@@ -15,7 +18,7 @@ const OUT = path.resolve(process.cwd(), '..', 'docs', 'assets');
 
 test.describe('docs screenshots', () => {
   test.skip(!email || !password, 'E2E_TEST_EMAIL/PASSWORD 미설정 — 건너뜀');
-  test.setTimeout(180000);
+  test.setTimeout(300000);
 
   test('capture', async ({ page }) => {
     mkdirSync(OUT, { recursive: true });
@@ -28,6 +31,13 @@ test.describe('docs screenshots', () => {
       } catch {
         /* noop */
       }
+    });
+    // Next.js dev 인디케이터 숨김(깔끔한 캡처).
+    await page.addInitScript(() => {
+      const style = document.createElement('style');
+      style.textContent =
+        'nextjs-portal,[data-nextjs-toast],#__next-build-watcher{display:none !important}';
+      document.documentElement.appendChild(style);
     });
 
     // 로그인 (첫 turbopack 컴파일이 느려 domcontentloaded + 넉넉한 타임아웃)
@@ -42,22 +52,35 @@ test.describe('docs screenshots', () => {
     await expect(emailInput).toHaveValue(email!);
     await expect(pwInput).toHaveValue(password!);
     await page.getByRole('button', { name: '로그인', exact: true }).click();
-    await expect(page).toHaveURL(/\/$/, { timeout: 60000 });
+    // 로그인 후 랜딩(/) 또는 런처(/platform)로 이동한다.
+    await page.waitForTimeout(4000);
 
-    // 앱 로드 대기(툴바 + 캔버스 레이아웃 안정화; 첫 컴파일 고려해 넉넉히)
+    // 1) 공개 랜딩 (/) — 로그인 상태로도 접근 가능
+    await page.goto('/', { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 30000 });
+    await page.waitForTimeout(1200);
+    await page.screenshot({ path: path.join(OUT, 'landing.png') });
+
+    // 2) 런처 (/platform) — 스튜디오 vs 문제해결 플랫폼
+    await page.goto('/platform', { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await page.getByText('무엇으로 시작할까요?').waitFor({ timeout: 30000 }).catch(() => {});
+    await page.waitForTimeout(1200);
+    await page.screenshot({ path: path.join(OUT, 'platform-chooser.png') });
+
+    // 3) 스튜디오 (/studio) — 채워진 그래프(hero) + 툴바/패널
+    await page.goto('/studio', { waitUntil: 'domcontentloaded', timeout: 120000 });
     await expect(page.getByRole('button', { name: '가져오기' })).toBeVisible({ timeout: 90000 });
-    // 스플래시/오버레이(z-9999)가 사라질 때까지 대기.
     await page
       .locator('.fixed.inset-0.z-\\[9999\\]')
       .first()
       .waitFor({ state: 'detached', timeout: 15000 })
       .catch(() => {});
     await page.waitForTimeout(4000);
-
-    // 1) 히어로 — 전체 앱(채워진 그래프)
+    await page.getByRole('button', { name: '전체 보기' }).click().catch(() => {});
+    await page.waitForTimeout(1500);
     await page.screenshot({ path: path.join(OUT, 'hero.png') });
 
-    // 2) 우측 속성 패널 — 탐색기 첫 항목 선택
+    // 4) 우측 속성 패널 — 클래스 트리 첫 항목 선택
     try {
       await page.locator('[data-testid="explorer-panel"] .cursor-pointer').first().click();
       await page.waitForTimeout(1200);
@@ -66,41 +89,71 @@ test.describe('docs screenshots', () => {
       console.log('panel shot skipped:', (e as Error).message);
     }
 
-    // 3) 지식 입력 팝오버 — 텍스트 탭
-    await page.getByRole('button', { name: '가져오기' }).click();
-    const popover = page.locator('[data-testid="new-node-popover"]');
-    await expect(popover).toBeVisible();
-    await popover.getByRole('tab', { name: '텍스트 입력' }).click();
-    await popover.locator('textarea').first().fill(
-      '식각 공정에는 식각기 설비가 쓰인다. 식각기 1호(EQ-001)는 삼성전자가 공급했고 정격출력은 5.5kW다. ' +
-        'particle 수치가 spec을 초과하면 chuck을 점검한다.',
-    );
-    await page.waitForTimeout(600);
-    await page.screenshot({ path: path.join(OUT, 'knowledge-input.png') });
-
-    // 4) CSV 탭 — 컨트롤드 textarea 라 fill 만으론 onChange 가 안 잡혀(버튼 disabled),
-    //    실제 키 입력(pressSequentially)으로 React 상태를 채운다.
-    await popover.getByRole('tab', { name: 'CSV' }).click();
-    const csvTa = popover.locator('textarea').first();
-    const csv =
-      '설비ID,설비명,공급사,부서,상태,정격출력(kW),도입일\n' +
-      'EQ-001,식각기 1호,삼성전자,식각팀,가동,5.5,2021-03-01\n' +
-      'EQ-002,증착기 2호,램리서치,증착팀,정지,12.0,2020-07-15\n' +
-      'EQ-003,식각기 3호,삼성전자,식각팀,가동,5.5,2022-01-20\n' +
-      'EQ-004,세정기 1호,세메스,세정팀,점검,3.2,2021-11-05';
-    await csvTa.click();
-    await csvTa.pressSequentially(csv, { delay: 1 });
-    await page.waitForTimeout(600);
-    await page.screenshot({ path: path.join(OUT, 'csv-input.png') });
-
-    // 5) (best-effort) CSV 분석 → 구조화 결과 프리뷰
+    // 5) 지식 입력 팝오버 — 텍스트 탭
     try {
-      await popover.getByRole('button', { name: /분석/ }).click();
-      await expect(page.getByText('구조화 결과')).toBeVisible({ timeout: 120000 });
-      await page.waitForTimeout(1500);
-      await page.screenshot({ path: path.join(OUT, 'ai-preview.png') });
+      await page.getByRole('button', { name: '가져오기' }).click();
+      const popover = page.locator('[data-testid="new-node-popover"]');
+      await expect(popover).toBeVisible();
+      await popover.getByRole('tab', { name: '텍스트 입력' }).click();
+      await popover
+        .locator('textarea')
+        .first()
+        .pressSequentially(
+          '반도체 팹의 설비보전을 관리한다. 설비(Equipment)에는 식각기, 증착기, 세정기 같은 종류가 있다. ' +
+            '설비에서는 고장(Failure)이 발생할 수 있고, 엔지니어가 조치(Action)를 수행한다.',
+          { delay: 1 },
+        );
+      await page.waitForTimeout(600);
+      await page.screenshot({ path: path.join(OUT, 'knowledge-input.png') });
+
+      // 6) CSV 탭 — 컨트롤드 textarea 라 pressSequentially 로 onChange 를 발생시킨다.
+      await popover.getByRole('tab', { name: 'CSV' }).click();
+      const csvTa = popover.locator('textarea').first();
+      const csv =
+        '설비ID,설비명,공급사,부서,상태,정격출력(kW),도입일\n' +
+        'EQ-001,식각기 1호,램리서치,식각팀,가동,5.5,2021-03-01\n' +
+        'EQ-002,증착기 2호,어플라이드,증착팀,정지,12.0,2020-07-15\n' +
+        'EQ-003,식각기 3호,램리서치,식각팀,가동,5.5,2022-01-20\n' +
+        'EQ-004,세정기 1호,세메스,세정팀,점검,3.2,2021-11-05';
+      await csvTa.click();
+      await csvTa.pressSequentially(csv, { delay: 1 });
+      await page.waitForTimeout(600);
+      await page.screenshot({ path: path.join(OUT, 'csv-input.png') });
+      await page.keyboard.press('Escape').catch(() => {});
     } catch (e) {
-      console.log('preview shot skipped:', (e as Error).message);
+      console.log('import popover shots skipped:', (e as Error).message);
+    }
+
+    // 7) 패턴 마켓플레이스
+    try {
+      await page.goto('/marketplace', { waitUntil: 'domcontentloaded', timeout: 60000 });
+      await page.getByText('PATTERN MARKETPLACE').waitFor({ timeout: 20000 }).catch(() => {});
+      await page.waitForTimeout(1500);
+      await page.screenshot({ path: path.join(OUT, 'marketplace.png') });
+    } catch (e) {
+      console.log('marketplace shot skipped:', (e as Error).message);
+    }
+
+    // 8) 문제 목록 + 새 문제 정의 폼
+    try {
+      await page.goto('/problems', { waitUntil: 'domcontentloaded', timeout: 60000 });
+      await expect(page.getByRole('heading', { name: '문제', exact: true })).toBeVisible({
+        timeout: 20000,
+      });
+      await page.waitForTimeout(1000);
+      await page.screenshot({ path: path.join(OUT, 'problems-list.png') });
+
+      await page.goto('/problems/new', { waitUntil: 'domcontentloaded', timeout: 60000 });
+      await expect(page.getByRole('heading', { name: '새 문제 정의' })).toBeVisible({
+        timeout: 20000,
+      });
+      await page.getByRole('textbox', { name: '문제 (한 줄)' }).fill(
+        '식각 설비 고장을 조기에 감지해 다운타임을 줄이고 싶다',
+      );
+      await page.waitForTimeout(600);
+      await page.screenshot({ path: path.join(OUT, 'problem-define.png') });
+    } catch (e) {
+      console.log('problems shots skipped:', (e as Error).message);
     }
 
     console.log('screenshots saved to', OUT);
