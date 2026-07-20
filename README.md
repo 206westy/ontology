@@ -217,7 +217,7 @@ flowchart TD
 | 영역 | 기술 |
 |------|------|
 | Framework | Next.js 15.1 (App Router, Turbopack) · React 19 · TypeScript 5 |
-| UI | Tailwind CSS 3.4 · shadcn/ui · Lucide · motion |
+| UI | Tailwind CSS 4 · shadcn/ui · Lucide · motion |
 | 그래프 엔진 | **Cytoscape.js** (fcose/dagre 레이아웃, 줌 LOD) |
 | 데이터 시각화 | **ECharts** (대시보드 위젯) |
 | 통계 엔진 | **인프로세스 JS** (SPC/FDC — I-MR·X-bar/R·Western Electric 규칙) |
@@ -225,7 +225,7 @@ flowchart TD
 | 스테이징 DB | Supabase PostgreSQL · Drizzle ORM · pgvector(임베딩) |
 | 프로덕션 DB | Neo4j (neo4j-driver, 벡터 인덱스) |
 | 인증 | Supabase Auth (SSR 세션 + RLS) |
-| LLM | OpenAI (구조화 파싱·검수·임베딩·RAG) |
+| LLM | Vercel AI SDK · OpenAI (구조화 파싱·검수·임베딩·RAG) |
 | 테스트 | Vitest · Playwright |
 
 <br/>
